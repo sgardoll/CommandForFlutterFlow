@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Dreamflow Command | Thinking Tools Pipeline</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/dart.min.js"></script>
     <style>
       @import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap");
       @import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap");
@@ -124,6 +127,103 @@
         margin: 0;
         white-space: pre-wrap;
         word-wrap: break-word;
+      }
+      
+      /* Syntax Highlighting Overrides for Dark Theme */
+      .hljs {
+        background: transparent !important;
+        color: #e5e7eb !important;
+      }
+      
+      .hljs-keyword {
+        color: #c084fc !important; /* Purple for keywords */
+        font-weight: 600;
+      }
+      
+      .hljs-string {
+        color: #86efac !important; /* Green for strings */
+      }
+      
+      .hljs-number {
+        color: #fbbf24 !important; /* Yellow for numbers */
+      }
+      
+      .hljs-comment {
+        color: #6b7280 !important; /* Gray for comments */
+        font-style: italic;
+      }
+      
+      .hljs-function {
+        color: #60a5fa !important; /* Blue for functions */
+      }
+      
+      .hljs-variable {
+        color: #f87171 !important; /* Red for variables */
+      }
+      
+      .hljs-type {
+        color: #a78bfa !important; /* Light purple for types */
+      }
+      
+      .hljs-class {
+        color: #34d399 !important; /* Emerald for classes */
+        font-weight: 600;
+      }
+      
+      .hljs-attr {
+        color: #fde047 !important; /* Yellow for attributes */
+      }
+
+      /* Audit Report Styles */
+      .audit-report {
+        animation: fadeInUp 0.5s ease-out;
+      }
+
+      @keyframes fadeInUp {
+        from {
+          opacity: 0;
+          transform: translateY(20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .audit-header h2 {
+        text-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
+      }
+
+      .audit-subsection h3 {
+        text-shadow: 0 0 10px rgba(99, 102, 241, 0.2);
+      }
+
+      .audit-list-item {
+        transition: all 0.2s ease;
+      }
+
+      .audit-list-item:hover {
+        transform: translateX(4px);
+      }
+
+      .score-badge {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: white;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-weight: bold;
+        font-size: 14px;
+        box-shadow: 0 4px 6px rgba(16, 185, 129, 0.3);
+      }
+
+      .score-badge.warning {
+        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        box-shadow: 0 4px 6px rgba(245, 158, 11, 0.3);
+      }
+
+      .score-badge.critical {
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        box-shadow: 0 4px 6px rgba(239, 68, 68, 0.3);
       }
     </style>
   </head>

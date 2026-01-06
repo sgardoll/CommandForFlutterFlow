@@ -94,6 +94,12 @@ async function callClaude(prompt, systemInstruction) {
     if (!response.ok) {
       const errorText = await response.text();
       console.error("Claude API Error:", response.status, errorText);
+      
+      // Handle specific error types
+      if (errorText.includes("image") || errorText.includes("media")) {
+        throw new Error("Claude API error: This model doesn't support image input. Please use Gemini 3.0 Pro for image-based requests.");
+      }
+      
       throw new Error(`Claude API failed: ${response.status}`);
     }
 
@@ -134,6 +140,12 @@ async function callOpenAI(prompt, systemInstruction) {
     if (!response.ok) {
       const errorText = await response.text();
       console.error("OpenAI API Error:", response.status, errorText);
+      
+      // Handle specific error types
+      if (errorText.includes("image") || errorText.includes("vision") || errorText.includes("media")) {
+        throw new Error("OpenAI API error: This model doesn't support image input. Please use Gemini 3.0 Pro for image-based requests.");
+      }
+      
       throw new Error(`OpenAI API failed: ${response.status}`);
     }
 
@@ -211,12 +223,22 @@ async function runCodeDissector(code) {
 4. Constructor argument mismatches (WARN)
 5. FlutterFlow integration issues (WARN)
 
-Return a structured audit with:
-- Critical issues that will cause compilation failure
-- Warnings for potential runtime problems
-- Recommendations for fixes
+Return a structured audit in markdown format with these sections:
+# 📋 Integration Audit Report
 
-Be concise and actionable.`;
+## ❌ Critical Issues
+List any compilation failures here
+
+## ⚠️ Warnings  
+List potential runtime problems here
+
+## ✅ Recommendations
+Provide actionable fixes here
+
+## 📊 Overall Score
+Give a score from 0-100 with brief explanation
+
+Use emojis, bold text, and code blocks for formatting. Be thorough but concise.`;
 
   const prompt = `Audit this Dart code for FlutterFlow integration:\n\n${code}`;
   
@@ -229,6 +251,182 @@ Be concise and actionable.`;
   }
 }
 
+// --- MARKDOWN RENDERING ---
+
+function renderMarkdownAudit(markdown) {
+  // Parse markdown and convert to rich HTML
+  let html = `<div class="audit-report space-y-4">`;
+  
+  // Split by lines and process
+  const lines = markdown.split('\n');
+  let currentSection = '';
+  let inCodeBlock = false;
+  let codeBlockContent = '';
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    
+    // Handle code blocks
+    if (line.startsWith('```')) {
+      if (inCodeBlock) {
+        const language = detectLanguage(codeBlockContent);
+        const highlightedCode = highlightCode(codeBlockContent.trim(), language);
+        html += `<div class="bg-black/50 rounded-lg p-3 border border-white/10">
+          <pre class="text-xs font-mono overflow-x-auto"><code class="language-${language}">${highlightedCode}</code></pre>
+        </div>`;
+        codeBlockContent = '';
+        inCodeBlock = false;
+      } else {
+        inCodeBlock = true;
+      }
+      continue;
+    }
+    
+    if (inCodeBlock) {
+      codeBlockContent += line + '\n';
+      continue;
+    }
+    
+    // Handle headers
+    if (line.startsWith('# ')) {
+      const title = line.substring(2).trim();
+      const icon = getSectionIcon(title);
+      html += `<div class="audit-header mb-4">
+        <h2 class="text-xl font-bold text-white flex items-center gap-2">
+          <span>${icon}</span>
+          <span>${title}</span>
+        </h2>
+      </div>`;
+      continue;
+    }
+    
+    if (line.startsWith('## ')) {
+      const title = line.substring(3).trim();
+      const icon = getSubsectionIcon(title);
+      html += `<div class="audit-subsection mb-3">
+        <h3 class="text-lg font-semibold text-white flex items-center gap-2">
+          <span>${icon}</span>
+          <span>${title}</span>
+        </h3>
+      </div>`;
+      continue;
+    }
+    
+    // Handle lists
+    if (line.match(/^[-*+]\s+/)) {
+      const item = line.replace(/^[-*+]\s+/, '').trim();
+      html += `<div class="audit-list-item flex items-start gap-2 mb-2">
+        <span class="text-indigo-400 mt-1">•</span>
+        <span class="text-gray-300 text-sm">${processInlineFormatting(item)}</span>
+      </div>`;
+      continue;
+    }
+    
+    // Handle numbered lists
+    if (line.match(/^\d+\.\s+/)) {
+      const item = line.replace(/^\d+\.\s+/, '').trim();
+      html += `<div class="audit-list-item flex items-start gap-2 mb-2">
+        <span class="text-indigo-400 mt-1">•</span>
+        <span class="text-gray-300 text-sm">${processInlineFormatting(item)}</span>
+      </div>`;
+      continue;
+    }
+    
+    // Handle empty lines
+    if (line.trim() === '') {
+      continue;
+    }
+    
+    // Handle regular paragraphs
+    html += `<p class="text-gray-300 text-sm mb-2">${processInlineFormatting(line)}</p>`;
+  }
+  
+  html += `</div>`;
+  
+  // Wrap in styled container
+  return `
+    <div class="bg-gradient-to-br from-slate-900/50 to-indigo-900/20 border border-white/10 rounded-xl p-6 backdrop-blur-sm">
+      <div class="flex items-center gap-2 mb-4">
+        <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+        <span class="text-xs font-bold text-green-400 uppercase tracking-wider">Live Audit Report</span>
+      </div>
+      ${html}
+    </div>
+  `;
+}
+
+function getSectionIcon(title) {
+  const icons = {
+    'Integration Audit Report': '📋',
+    'Critical Issues': '❌',
+    'Warnings': '⚠️',
+    'Recommendations': '✅',
+    'Overall Score': '📊'
+  };
+  
+  for (const [key, icon] of Object.entries(icons)) {
+    if (title.toLowerCase().includes(key.toLowerCase())) {
+      return icon;
+    }
+  }
+  return '📄';
+}
+
+function getSubsectionIcon(title) {
+  const icons = {
+    'critical': '❌',
+    'warning': '⚠️',
+    'recommendation': '✅',
+    'score': '📊',
+    'issue': '🔍',
+    'fix': '🔧'
+  };
+  
+  for (const [key, icon] of Object.entries(icons)) {
+    if (title.toLowerCase().includes(key.toLowerCase())) {
+      return icon;
+    }
+  }
+  return '📝';
+}
+
+function detectLanguage(code) {
+  // Simple language detection based on code content
+  if (code.includes('class ') && code.includes('extends ') || 
+      code.includes('StatelessWidget') || code.includes('StatefulWidget') ||
+      code.includes('import \'package:flutter/')) {
+    return 'dart';
+  }
+  if (code.includes('def ') || code.includes('import ') || code.includes('print(')) {
+    return 'python';
+  }
+  if (code.includes('function ') || code.includes('const ') || code.includes('console.')) {
+    return 'javascript';
+  }
+  return 'dart'; // Default to dart for this use case
+}
+
+function processInlineFormatting(text) {
+  // Bold text **text**
+  text = text.replace(/\*\*(.*?)\*\*/g, '<strong class="text-white font-semibold">$1</strong>');
+  
+  // Italic text *text*
+  text = text.replace(/\*(.*?)\*/g, '<em class="text-indigo-300">$1</em>');
+  
+  // Inline code `code`
+  text = text.replace(/`(.*?)`/g, (match, code) => {
+    const highlightedCode = highlightCode(code, 'dart');
+    return `<code class="bg-black/30 text-indigo-300 px-1 py-0.5 rounded text-xs font-mono">${highlightedCode}</code>`;
+  });
+  
+  // Highlight important terms
+  text = text.replace(/\b(FAIL|ERROR|CRITICAL)\b/g, '<span class="text-red-400 font-bold">$1</span>');
+  text = text.replace(/\b(WARN|WARNING)\b/g, '<span class="text-yellow-400 font-bold">$1</span>');
+  text = text.replace(/\b(PASS|SUCCESS|OK)\b/g, '<span class="text-green-400 font-bold">$1</span>');
+  
+  return text;
+}
+
 // --- UI FUNCTIONS ---
 
 function updateStepIndicator(step, status) {
@@ -237,10 +435,16 @@ function updateStepIndicator(step, status) {
   
   if (status === "active") {
     indicator.classList.add("active");
+    indicator.innerHTML = step;
   } else if (status === "completed") {
     indicator.classList.add("completed");
+    indicator.innerHTML = "✓";
+  } else if (status === "error") {
+    indicator.classList.add("bg-red-600");
+    indicator.innerHTML = "✕";
   } else {
     indicator.classList.add("bg-gray-700");
+    indicator.innerHTML = step;
   }
 }
 
@@ -286,15 +490,31 @@ function updateModelInfo(selectedModel) {
 // --- MAIN PIPELINE ---
 
 async function runThinkingPipeline() {
+  console.log('runThinkingPipeline called');
+  alert('Button clicked! Pipeline starting...');
   if (pipelineState.isRunning) return;
   
   const userInput = document.getElementById("pipeline-input").value;
+  const selectedModel = document.getElementById("code-generator-model").value;
+  
   if (!userInput.trim()) {
     alert("Please describe your FlutterFlow widget first.");
     return;
   }
+  
+  // Check for image references in non-Gemini models
+  if (selectedModel !== "gemini-3.0-pro" && 
+      (userInput.toLowerCase().includes("screenshot") || 
+       userInput.toLowerCase().includes("image") || 
+       userInput.toLowerCase().includes("picture"))) {
+    const proceed = confirm("⚠️ Your request mentions images.\n\n" +
+      `${selectedModel} doesn't support image input.\n\n` +
+      "Use Gemini 3.0 Pro for image-based requests,\n" +
+      "or remove image references and continue.\n\n" +
+      "Continue anyway?");
+    if (!proceed) return;
+  }
 
-  const selectedModel = document.getElementById("code-generator-model").value;
   const btn = document.getElementById("btn-run-pipeline");
   const btnText = document.getElementById("pipeline-btn-text");
   
@@ -317,7 +537,7 @@ async function runThinkingPipeline() {
     
     pipelineState.step1Result = await runPromptArchitect(userInput);
     
-    document.getElementById("step1-output").textContent = pipelineState.step1Result;
+    document.getElementById("step1-output").innerHTML = `<pre><code class="language-dart">${highlightCode(pipelineState.step1Result)}</code></pre>`;
     showStepLoading(1, false);
     
     // Step 2: Code Generator
@@ -326,7 +546,7 @@ async function runThinkingPipeline() {
     
     pipelineState.step2Result = await runCodeGenerator(pipelineState.step1Result, selectedModel);
     
-    document.getElementById("step2-output").textContent = pipelineState.step2Result;
+    document.getElementById("step2-output").innerHTML = `<pre><code class="language-dart">${highlightCode(pipelineState.step2Result)}</code></pre>`;
     showStepLoading(2, false);
     
     // Step 3: Code Dissector
@@ -335,14 +555,9 @@ async function runThinkingPipeline() {
     
     pipelineState.step3Result = await runCodeDissector(pipelineState.step2Result);
     
-    // Format audit results
+    // Format audit results with rich markdown rendering
     const auditOutput = document.getElementById("step3-output");
-    auditOutput.innerHTML = `
-      <div class="bg-red-500/10 border border-red-500/20 rounded-lg p-4">
-        <h4 class="text-red-400 font-bold text-xs uppercase mb-2">Audit Results</h4>
-        <p class="text-sm text-gray-300 font-mono whitespace-pre-wrap">${pipelineState.step3Result}</p>
-      </div>
-    `;
+    auditOutput.innerHTML = renderMarkdownAudit(pipelineState.step3Result);
     
     showStepLoading(3, false);
     
@@ -355,21 +570,40 @@ async function runThinkingPipeline() {
   } catch (error) {
     console.error("Pipeline failed:", error);
     
-    // Show error on the current step
-    const errorStep = pipelineState.currentStep || 1;
-    const resultDiv = document.getElementById(`step${errorStep}-result`);
-    const loadingDiv = document.getElementById(`step${errorStep}-loading`);
-    
-    loadingDiv.classList.add("hidden");
-    resultDiv.classList.remove("hidden");
-    
-    const output = document.getElementById(`step${errorStep}-output`);
-    if (output) {
-      output.innerHTML = `<span class="text-red-400">Error: ${error.message}</span>`;
+    // Determine which step failed based on the error context
+    let errorStep = 1; // Default to step 1
+    if (error.message.includes("Claude") || error.message.includes("OpenAI") || 
+        error.message.includes("Code Generator")) {
+      errorStep = 2;
+    } else if (error.message.includes("Code Dissector")) {
+      errorStep = 3;
     }
     
+    const resultDiv = document.getElementById(`step${errorStep}-result`);
+    const loadingDiv = document.getElementById(`step${errorStep}-loading`);
+    const output = document.getElementById(`step${errorStep}-output`);
+    
+    // Hide loading and show error
+    if (loadingDiv) loadingDiv.classList.add("hidden");
+    if (resultDiv) resultDiv.classList.remove("hidden");
+    
+    if (output) {
+      // Format error message based on type
+      let errorMessage = error.message;
+      if (error.message.includes("image input")) {
+        errorMessage = "This model doesn't support image input. Please use Gemini 3.0 Pro for image-based requests or remove image references from your prompt.";
+      }
+      
+      output.innerHTML = `<div class="bg-red-500/10 border border-red-500/20 rounded-lg p-4">
+        <h4 class="text-red-400 font-bold text-xs uppercase mb-2">Error</h4>
+        <p class="text-sm text-red-300">${errorMessage}</p>
+      </div>`;
+    }
+    
+    // Show retry option for code generation failures
     if (errorStep === 2) {
       document.getElementById("step2-retry").classList.remove("hidden");
+      updateStepIndicator(errorStep, "error");
     }
     
   } finally {
@@ -396,10 +630,34 @@ function retryWithDifferentModel() {
   }
 }
 
+// --- SYNTAX HIGHLIGHTING ---
+
+function highlightCode(code, language = 'dart') {
+  try {
+    return hljs.highlight(code, { language: language }).value;
+  } catch (error) {
+    console.warn('Syntax highlighting failed:', error);
+    return code;
+  }
+}
+
 // --- INITIALIZATION ---
 
 document.addEventListener("DOMContentLoaded", () => {
+  console.log('DOM loaded, initializing...');
+  
+  // Test button connection
+  const testBtn = document.getElementById("btn-run-pipeline");
+  console.log('Button found:', testBtn);
+  
+  // Initialize highlight.js
+  hljs.configure({
+    tabReplace: '  ',
+    classPrefix: 'hljs-'
+  });
+  
   checkConnection();
+  console.log('Initialization complete');
   
   // Auto-expand first step when results are ready
   const observer = new MutationObserver((mutations) => {
