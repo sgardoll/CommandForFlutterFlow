@@ -681,8 +681,8 @@ function renderMarkdownAudit(markdown) {
           codeBlockContent.trim(),
           language
         );
-        html += `<div class="bg-black/50 rounded-lg p-3 border border-white/10">
-          <pre class="text-xs font-mono overflow-x-auto"><code class="language-${language}">${highlightedCode}</code></pre>
+        html += `<div class="bg-gray-900 rounded-lg p-3 border border-gray-200">
+          <pre class="text-xs font-mono overflow-x-auto text-gray-100"><code class="language-${language}">${highlightedCode}</code></pre>
         </div>`;
         codeBlockContent = "";
         inCodeBlock = false;
@@ -702,7 +702,7 @@ function renderMarkdownAudit(markdown) {
       const title = line.substring(2).trim();
       const icon = getSectionIcon(title);
       html += `<div class="audit-header mb-4">
-        <h2 class="text-xl font-bold text-white flex items-center gap-2">
+        <h2 class="text-xl font-bold text-gray-900 flex items-center gap-2">
           <span>${icon}</span>
           <span>${title}</span>
         </h2>
@@ -713,8 +713,8 @@ function renderMarkdownAudit(markdown) {
     if (line.startsWith("## ")) {
       const title = line.substring(3).trim();
       const icon = getSubsectionIcon(title);
-      html += `<div class="audit-subsection mb-3">
-        <h3 class="text-lg font-semibold text-white flex items-center gap-2">
+      html += `<div class="audit-subsection mb-3 mt-4">
+        <h3 class="text-lg font-semibold text-gray-800 flex items-center gap-2">
           <span>${icon}</span>
           <span>${title}</span>
         </h3>
@@ -726,8 +726,8 @@ function renderMarkdownAudit(markdown) {
     if (line.match(/^[-*+]\s+/)) {
       const item = line.replace(/^[-*+]\s+/, "").trim();
       html += `<div class="audit-list-item flex items-start gap-2 mb-2">
-        <span class="text-indigo-400 mt-1">•</span>
-        <span class="text-gray-300 text-sm">${processInlineFormatting(item)}</span>
+        <span class="text-blue-600 mt-1">•</span>
+        <span class="text-gray-700 text-sm">${processInlineFormatting(item)}</span>
       </div>`;
       continue;
     }
@@ -736,8 +736,8 @@ function renderMarkdownAudit(markdown) {
     if (line.match(/^\d+\.\s+/)) {
       const item = line.replace(/^\d+\.\s+/, "").trim();
       html += `<div class="audit-list-item flex items-start gap-2 mb-2">
-        <span class="text-indigo-400 mt-1">•</span>
-        <span class="text-gray-300 text-sm">${processInlineFormatting(item)}</span>
+        <span class="text-blue-600 mt-1">•</span>
+        <span class="text-gray-700 text-sm">${processInlineFormatting(item)}</span>
       </div>`;
       continue;
     }
@@ -748,17 +748,17 @@ function renderMarkdownAudit(markdown) {
     }
 
     // Handle regular paragraphs
-    html += `<p class="text-gray-300 text-sm mb-2">${processInlineFormatting(line)}</p>`;
+    html += `<p class="text-gray-700 text-sm mb-2">${processInlineFormatting(line)}</p>`;
   }
 
   html += `</div>`;
 
   // Wrap in styled container
   return `
-    <div class="bg-gradient-to-br from-slate-900/50 to-indigo-900/20 border border-white/10 rounded-xl p-6 backdrop-blur-sm">
-      <div class="flex items-center gap-2 mb-4">
+    <div class="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+      <div class="flex items-center gap-2 mb-4 pb-4 border-b border-gray-100">
         <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-        <span class="text-xs font-bold text-green-400 uppercase tracking-wider">Live Audit Report</span>
+        <span class="text-xs font-bold text-green-600 uppercase tracking-wider">Live Audit Report</span>
       </div>
       ${html}
     </div>
@@ -831,30 +831,29 @@ function processInlineFormatting(text) {
   // Bold text **text**
   text = text.replace(
     /\*\*(.*?)\*\*/g,
-    '<strong class="text-white font-semibold">$1</strong>'
+    '<strong class="text-gray-900 font-semibold">$1</strong>'
   );
 
   // Italic text *text*
-  text = text.replace(/\*(.*?)\*/g, '<em class="text-indigo-300">$1</em>');
+  text = text.replace(/\*(.*?)\*/g, '<em class="text-blue-600">$1</em>');
 
   // Inline code `code`
   text = text.replace(/`(.*?)`/g, (match, code) => {
-    const highlightedCode = highlightCode(code, "dart");
-    return `<code class="bg-black/30 text-indigo-300 px-1 py-0.5 rounded text-xs font-mono">${highlightedCode}</code>`;
+    return `<code class="bg-gray-100 text-gray-800 px-1.5 py-0.5 rounded text-xs font-mono border border-gray-200">${code}</code>`;
   });
 
   // Highlight important terms
   text = text.replace(
     /\b(FAIL|ERROR|CRITICAL)\b/g,
-    '<span class="text-red-400 font-bold">$1</span>'
+    '<span class="text-red-600 font-bold">$1</span>'
   );
   text = text.replace(
     /\b(WARN|WARNING)\b/g,
-    '<span class="text-yellow-400 font-bold">$1</span>'
+    '<span class="text-amber-600 font-bold">$1</span>'
   );
   text = text.replace(
     /\b(PASS|SUCCESS|OK)\b/g,
-    '<span class="text-green-400 font-bold">$1</span>'
+    '<span class="text-green-600 font-bold">$1</span>'
   );
 
   return text;
@@ -863,22 +862,40 @@ function processInlineFormatting(text) {
 // --- UI FUNCTIONS ---
 
 function updateStepIndicator(step, status) {
-  const indicator = document.getElementById(`step${step}-indicator`);
-  if (!indicator) return;
+  const item = document.getElementById(`step${step}-item`);
+  const statusIcon = document.getElementById(`step${step}-status`);
+  if (!item || !statusIcon) return;
 
-  indicator.className = "step-badge";
+  // Reset classes
+  item.classList.remove("active", "completed", "error");
+  statusIcon.classList.remove("running", "completed", "error");
 
   if (status === "active") {
-    indicator.classList.add("active");
-    indicator.innerHTML = step;
+    item.classList.add("active");
+    statusIcon.classList.add("running");
+    // Spinner icon for running state
+    statusIcon.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+    </svg>`;
   } else if (status === "completed") {
-    indicator.classList.add("done");
-    indicator.innerHTML = "&#10003;";
+    item.classList.add("completed");
+    statusIcon.classList.add("completed");
+    // Checkmark icon for completed state
+    statusIcon.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+    </svg>`;
   } else if (status === "error") {
-    indicator.classList.add("error");
-    indicator.innerHTML = "&#10005;";
+    item.classList.add("error");
+    statusIcon.classList.add("error");
+    // X icon for error state
+    statusIcon.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+    </svg>`;
   } else {
-    indicator.innerHTML = step;
+    // Reset to clock icon (pending state)
+    statusIcon.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+    </svg>`;
   }
 }
 
@@ -897,9 +914,9 @@ function showStepLoading(step, show) {
   }
 }
 
-function toggleStep(step) {
-  const content = document.getElementById(`${step}-content`);
-  const chevron = document.getElementById(`${step}-chevron`);
+function toggleSection(sectionId) {
+  const content = document.getElementById(`${sectionId}-content`);
+  const chevron = document.getElementById(`${sectionId}-chevron`);
 
   if (content.classList.contains("open")) {
     content.classList.remove("open");
@@ -908,6 +925,36 @@ function toggleStep(step) {
     content.classList.add("open");
     if (chevron) chevron.style.transform = "rotate(180deg)";
   }
+}
+
+function toggleStep(step) {
+  // For backward compatibility - now we show the step in main stage
+  selectWorkflowStep(parseInt(step.replace("step", "")));
+}
+
+function selectWorkflowStep(step) {
+  // Hide ready state
+  const readyState = document.getElementById("ready-state");
+  if (readyState) readyState.classList.add("hidden");
+
+  // Hide all step contents
+  for (let i = 1; i <= 3; i++) {
+    const content = document.getElementById(`step${i}-content`);
+    if (content) content.classList.add("hidden");
+  }
+
+  // Show selected step content
+  const selectedContent = document.getElementById(`step${step}-content`);
+  if (selectedContent) selectedContent.classList.remove("hidden");
+
+  // Update stage title
+  const stageTitle = document.getElementById("stage-title");
+  const titles = {
+    1: "Prompt Architect",
+    2: "Code Generator",
+    3: "Code Dissector"
+  };
+  if (stageTitle) stageTitle.textContent = titles[step] || "Active Workflow Stage";
 }
 
 function copyCode(elementId) {
@@ -937,14 +984,13 @@ function copyCode(elementId) {
 }
 
 function updateModelInfo(selectedModel) {
-  const modelInfo = document.getElementById("step2-model-info");
+  // Model info display removed in new UI - function kept for compatibility
   const modelNames = {
     "gemini-3.0-pro": "Gemini 3.0 Pro",
     "claude-4.5-opus": "Claude 4.5 Opus",
     "gpt-5.2-codex": "GPT-5.2-Codex",
   };
-
-  modelInfo.textContent = `Using ${modelNames[selectedModel]}`;
+  console.log(`Using model: ${modelNames[selectedModel] || selectedModel}`);
 }
 
 // --- MAIN PIPELINE ---
@@ -987,15 +1033,22 @@ async function runThinkingPipeline() {
   pipelineState.step3Result = null;
 
   btn.disabled = true;
-  btn.textContent = "Running...";
+  btn.innerHTML = `<svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+  </svg>
+  Running...`;
 
   // Update model info
   updateModelInfo(selectedModel);
 
   try {
+    // Hide ready state, show step 1
+    const readyState = document.getElementById("ready-state");
+    if (readyState) readyState.classList.add("hidden");
+
     // Step 1: Prompt Architect
+    selectWorkflowStep(1);
     showStepLoading(1, true);
-    toggleStep("step1");
 
     pipelineState.step1Result = await runPromptArchitect(userInput);
 
@@ -1006,8 +1059,8 @@ async function runThinkingPipeline() {
     showStepLoading(1, false);
 
     // Step 2: Code Generator
+    selectWorkflowStep(2);
     showStepLoading(2, true);
-    toggleStep("step2");
 
     pipelineState.step2Result = await runCodeGenerator(
       pipelineState.step1Result,
@@ -1021,8 +1074,8 @@ async function runThinkingPipeline() {
     showStepLoading(2, false);
 
     // Step 3: Code Audit
+    selectWorkflowStep(3);
     showStepLoading(3, true);
-    toggleStep("step3");
 
     pipelineState.step3Result = await runCodeDissector(
       pipelineState.step2Result
@@ -1047,17 +1100,14 @@ async function runThinkingPipeline() {
       errorStep = 3;
     }
 
+    selectWorkflowStep(errorStep);
     const resultDiv = document.getElementById(`step${errorStep}-result`);
     const loadingDiv = document.getElementById(`step${errorStep}-loading`);
     const output = document.getElementById(`step${errorStep}-output`);
-    const contentDiv = document.getElementById(`step${errorStep}-content`);
 
-    // Hide loading and show error, but keep content open
+    // Hide loading and show error
     if (loadingDiv) loadingDiv.classList.add("hidden");
     if (resultDiv) resultDiv.classList.remove("hidden");
-    if (contentDiv && !contentDiv.classList.contains("open")) {
-      contentDiv.classList.add("open");
-    }
 
     if (output) {
       // Format error message based on type
@@ -1073,13 +1123,13 @@ async function runThinkingPipeline() {
           "API connection failed. This might be due to CORS restrictions or network issues. Please check your API key and try again.";
       }
 
-      output.innerHTML = `<div class="bg-red-500/10 border border-red-500/20 rounded-lg p-4">
-        <h4 class="text-red-400 font-bold text-xs uppercase mb-2">Connection Error</h4>
-        <p class="text-sm text-red-300">${errorMessage}</p>
-        <div class="mt-3 text-xs text-gray-400">
-          <p>• Check if API key is valid</p>
-          <p>• Try using a different model</p>
-          <p>• Ensure network allows API calls</p>
+      output.innerHTML = `<div class="bg-red-50 border border-red-200 rounded-lg p-4">
+        <h4 class="text-red-600 font-bold text-xs uppercase mb-2">Connection Error</h4>
+        <p class="text-sm text-red-700">${errorMessage}</p>
+        <div class="mt-3 text-xs text-gray-500">
+          <p>Check if API key is valid</p>
+          <p>Try using a different model</p>
+          <p>Ensure network allows API calls</p>
         </div>
       </div>`;
     }
@@ -1088,7 +1138,10 @@ async function runThinkingPipeline() {
   } finally {
     pipelineState.isRunning = false;
     btn.disabled = false;
-    btn.textContent = "Generate";
+    btn.innerHTML = `<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+      <path d="M8 5v14l11-7z"/>
+    </svg>
+    Run Pipeline`;
   }
 }
 
@@ -1158,5 +1211,7 @@ document.addEventListener("DOMContentLoaded", () => {
 // Global exports
 window.runThinkingPipeline = runThinkingPipeline;
 window.toggleStep = toggleStep;
+window.toggleSection = toggleSection;
+window.selectWorkflowStep = selectWorkflowStep;
 window.copyCode = copyCode;
 window.retryWithDifferentModel = retryWithDifferentModel;

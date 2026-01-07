@@ -16,36 +16,269 @@
       
       body {
         font-family: "Inter", sans-serif;
-        background: #0a0a0b;
-        color: #fafafa;
+        background: #f8f9fa;
+        color: #1a1a1a;
       }
 
       .code-font { font-family: "JetBrains Mono", monospace; }
 
+      /* Sidebar */
+      .sidebar {
+        width: 380px;
+        min-width: 380px;
+        background: #fff;
+        border-right: 1px solid #e5e7eb;
+        height: 100vh;
+        overflow-y: auto;
+      }
+
+      /* Main content area */
+      .main-content {
+        flex: 1;
+        background: #f3f4f6;
+        min-height: 100vh;
+        padding: 24px;
+      }
+
+      .main-stage {
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        min-height: calc(100vh - 48px);
+      }
+
+      /* Collapsible sections */
+      .section-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px 20px;
+        cursor: pointer;
+        user-select: none;
+        transition: background 0.15s;
+      }
+
+      .section-header:hover {
+        background: #f9fafb;
+      }
+
+      .section-content {
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.3s ease;
+      }
+
+      .section-content.open {
+        max-height: 2000px;
+      }
+
+      /* Workflow status items */
+      .workflow-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 20px;
+        border-left: 4px solid transparent;
+        transition: all 0.2s ease;
+        cursor: pointer;
+      }
+
+      .workflow-item:hover {
+        background: #f9fafb;
+      }
+
+      .workflow-item.active {
+        border-left-color: #3b82f6 !important;
+        background: #dbeafe !important;
+      }
+
+      .workflow-item.active .workflow-label {
+        color: #1d4ed8 !important;
+        font-weight: 600 !important;
+      }
+
+      .workflow-item.active .workflow-icon svg {
+        color: #3b82f6 !important;
+        stroke: #3b82f6 !important;
+      }
+
+      .workflow-item.completed {
+        border-left-color: #22c55e !important;
+        background: #dcfce7 !important;
+      }
+
+      .workflow-item.completed .workflow-label {
+        color: #166534 !important;
+        font-weight: 500 !important;
+      }
+
+      .workflow-item.completed .workflow-icon svg {
+        color: #22c55e !important;
+        stroke: #22c55e !important;
+      }
+
+      .workflow-item.error {
+        border-left-color: #ef4444 !important;
+        background: #fee2e2 !important;
+      }
+
+      .workflow-item.error .workflow-label {
+        color: #dc2626 !important;
+        font-weight: 500 !important;
+      }
+
+      .workflow-item.error .workflow-icon svg {
+        color: #ef4444 !important;
+        stroke: #ef4444 !important;
+      }
+
+      /* Status icons */
+      .status-icon {
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #9ca3af;
+      }
+
+      .status-icon.running {
+        animation: spin 1s linear infinite;
+      }
+
+      .status-icon.running svg {
+        color: #3b82f6 !important;
+        stroke: #3b82f6 !important;
+      }
+
+      .status-icon.completed svg {
+        color: #22c55e !important;
+        stroke: #22c55e !important;
+      }
+
+      .status-icon.error svg {
+        color: #ef4444 !important;
+        stroke: #ef4444 !important;
+      }
+
+      /* Default workflow item styles */
+      .workflow-item .workflow-icon svg {
+        color: #9ca3af;
+        stroke: #9ca3af;
+      }
+
+      .workflow-item .workflow-label {
+        color: #374151;
+      }
+
+      .workflow-item .status-icon svg {
+        color: #9ca3af;
+        stroke: #9ca3af;
+      }
+
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+
+      /* Textarea */
+      textarea {
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        resize: none;
+        transition: border-color 0.15s, box-shadow 0.15s;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+      
+      textarea:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+      }
+
+      textarea::placeholder {
+        color: #9ca3af;
+      }
+
+      /* Select */
+      select {
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        color: #1a1a1a;
+        padding: 10px 12px;
+        border-radius: 8px;
+        font-size: 14px;
+        cursor: pointer;
+        width: 100%;
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236b7280'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 12px center;
+        background-size: 16px;
+        padding-right: 40px;
+      }
+      
+      select:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+      }
+
+      /* Primary button */
+      .btn-primary {
+        background: #3b82f6;
+        color: white;
+        font-weight: 600;
+        padding: 12px 24px;
+        border-radius: 8px;
+        border: none;
+        cursor: pointer;
+        transition: background 0.15s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        width: 100%;
+        font-size: 15px;
+      }
+      
+      .btn-primary:hover { background: #2563eb; }
+      .btn-primary:disabled { 
+        opacity: 0.6; 
+        cursor: not-allowed;
+        background: #3b82f6;
+      }
+
       /* Code block with copy button */
       .code-container {
         position: relative;
-        background: #111113;
-        border: 1px solid #27272a;
+        background: #1e1e1e;
+        border: 1px solid #333;
         border-radius: 8px;
         margin-top: 12px;
+        overflow: hidden;
       }
       
       .code-container pre {
         margin: 0;
         padding: 16px;
+        padding-top: 48px;
         overflow: auto;
-        max-height: 400px;
+        max-height: 600px;
         font-size: 13px;
         line-height: 1.6;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        word-break: break-word;
       }
 
       .copy-btn {
         position: absolute;
         top: 8px;
         right: 8px;
-        background: #27272a;
-        border: 1px solid #3f3f46;
+        background: #333;
+        border: 1px solid #444;
         color: #a1a1aa;
         padding: 6px 12px;
         border-radius: 6px;
@@ -59,7 +292,7 @@
       }
       
       .copy-btn:hover {
-        background: #3f3f46;
+        background: #444;
         color: #fff;
       }
       
@@ -69,109 +302,23 @@
         color: #fff;
       }
 
-      /* Step cards */
-      .step-card {
-        background: #18181b;
-        border: 1px solid #27272a;
-        border-radius: 12px;
-        overflow: hidden;
-      }
-
-      .step-header {
-        padding: 16px 20px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        cursor: pointer;
-        transition: background 0.15s;
-      }
-      
-      .step-header:hover { background: #1f1f23; }
-
-      .step-badge {
-        width: 28px;
-        height: 28px;
+      /* Ready state icon */
+      .ready-icon {
+        width: 80px;
+        height: 80px;
+        border: 2px solid #e5e7eb;
         border-radius: 50%;
-        background: #27272a;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 12px;
-        font-weight: 600;
-        transition: all 0.2s;
-      }
-      
-      .step-badge.active { background: #6366f1; }
-      .step-badge.done { background: #22c55e; }
-      .step-badge.error { background: #ef4444; }
-
-      .step-content {
-        max-height: 0;
-        overflow: hidden;
-        transition: max-height 0.3s ease;
-      }
-      
-      .step-content.open {
-        max-height: 2000px;
+        margin: 0 auto 24px;
       }
 
-      .step-body {
-        padding: 0 20px 20px;
+      .ready-icon svg {
+        width: 32px;
+        height: 32px;
+        color: #d1d5db;
       }
-
-      /* Spinner */
-      .spinner {
-        width: 24px;
-        height: 24px;
-        border: 2px solid #27272a;
-        border-top-color: #6366f1;
-        border-radius: 50%;
-        animation: spin 0.8s linear infinite;
-      }
-      
-      @keyframes spin { to { transform: rotate(360deg); } }
-
-      /* Input area */
-      textarea {
-        background: #111113;
-        border: 1px solid #27272a;
-        border-radius: 8px;
-        resize: none;
-        transition: border-color 0.15s;
-      }
-      
-      textarea:focus {
-        outline: none;
-        border-color: #6366f1;
-      }
-
-      /* Button */
-      .btn-primary {
-        background: #6366f1;
-        color: white;
-        font-weight: 600;
-        padding: 12px 24px;
-        border-radius: 8px;
-        border: none;
-        cursor: pointer;
-        transition: background 0.15s;
-      }
-      
-      .btn-primary:hover { background: #5558e3; }
-      .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
-
-      /* Select */
-      select {
-        background: #18181b;
-        border: 1px solid #27272a;
-        color: #fff;
-        padding: 8px 12px;
-        border-radius: 6px;
-        font-size: 14px;
-        cursor: pointer;
-      }
-      
-      select:focus { outline: none; border-color: #6366f1; }
 
       /* Syntax highlighting */
       .hljs { background: transparent !important; }
@@ -185,70 +332,187 @@
       /* Audit result styling */
       .audit-section { margin-bottom: 16px; }
       .audit-section h3 { font-size: 14px; font-weight: 600; margin-bottom: 8px; }
-      .audit-item { padding: 8px 12px; background: #111113; border-radius: 6px; margin-bottom: 6px; font-size: 13px; }
+      .audit-item { padding: 8px 12px; background: #f3f4f6; border-radius: 6px; margin-bottom: 6px; font-size: 13px; }
+
+      /* Spinner for loading */
+      .spinner {
+        width: 24px;
+        height: 24px;
+        border: 2px solid #e5e7eb;
+        border-top-color: #3b82f6;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+
+      /* Active stage content */
+      .stage-content {
+        padding: 24px;
+      }
+
+      .stage-loading {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 48px;
+        text-align: center;
+      }
     </style>
   </head>
-  <body class="min-h-screen">
-    <!-- Header -->
-    <header class="border-b border-zinc-800 px-6 py-5">
-      <div class="max-w-3xl mx-auto flex items-center justify-center gap-3">
-        <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
-          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
-          </svg>
-        </div>
-        <div class="flex items-center gap-2">
-          <span class="text-xs font-bold tracking-wider text-indigo-400">FLUTTERFLOW</span>
-          <span class="font-semibold text-lg">Custom Code Command</span>
-        </div>
-      </div>
-    </header>
-
-    <!-- Main -->
-    <main class="max-w-3xl mx-auto px-6 py-8">
-      <!-- Input Section -->
-      <div class="mb-8">
-        <textarea
-          id="pipeline-input"
-          class="w-full h-28 p-4 code-font text-sm text-zinc-300 placeholder-zinc-600"
-          placeholder="Describe your FlutterFlow widget..."
-        ></textarea>
-        
-        <div class="flex items-center justify-between mt-4 gap-4">
-          <div class="flex items-center gap-3">
-            <label class="text-sm text-zinc-500">Model:</label>
-            <select id="code-generator-model">
-              <option value="gemini-3.0-pro">Gemini 3.0 Pro</option>
-              <option value="claude-4.5-opus">Claude 4.5 Opus</option>
-              <option value="gpt-5.2-codex">GPT-5.2-Codex</option>
-            </select>
+  <body>
+    <div class="flex">
+      <!-- Sidebar -->
+      <aside class="sidebar">
+        <!-- Header -->
+        <div class="px-5 py-4 border-b border-gray-200 flex items-center gap-3">
+          <div class="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+            <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M13 10V3L4 14h7v7l9-11h-7z"/>
+            </svg>
           </div>
-          <button id="btn-run-pipeline" class="btn-primary" onclick="runThinkingPipeline()">
-            Generate
-          </button>
+          <span class="font-semibold text-lg text-gray-900">Custom Code Command</span>
         </div>
-      </div>
 
-      <!-- Pipeline Steps -->
-      <div class="space-y-4">
-        <!-- Step 1: Prompt Architect -->
-        <div class="step-card">
-          <div class="step-header" onclick="toggleStep('step1')">
-            <div class="flex items-center gap-3">
-              <div id="step1-indicator" class="step-badge">1</div>
-              <div>
-                <div class="font-medium">Prompt Architect</div>
-                <div class="text-xs text-zinc-500">Optimizes your request for code generation</div>
-              </div>
+        <!-- Design Prompt Canvas -->
+        <div class="p-5 border-b border-gray-200">
+          <div class="flex items-center gap-2 mb-3">
+            <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"/>
+            </svg>
+            <span class="font-medium text-gray-900">Design Prompt Canvas</span>
+          </div>
+          <textarea
+            id="pipeline-input"
+            class="w-full h-32 p-3 text-gray-700"
+            placeholder="Describe your UI component here... (e.g., A responsive card with an image, title, and description, on a subtle gradient background)"
+          ></textarea>
+        </div>
+
+        <!-- Code Generation Options -->
+        <div class="border-b border-gray-200">
+          <div class="section-header" onclick="toggleSection('code-options')">
+            <div class="flex items-center gap-2">
+              <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/>
+              </svg>
+              <span class="font-medium text-gray-900">Code Generation Options</span>
             </div>
-            <svg id="step1-chevron" class="w-5 h-5 text-zinc-500 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg id="code-options-chevron" class="w-5 h-5 text-gray-400 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
             </svg>
           </div>
-          <div id="step1-content" class="step-content">
-            <div class="step-body">
-              <div id="step1-loading" class="hidden py-8 flex justify-center">
-                <div class="spinner"></div>
+          <div id="code-options-content" class="section-content open">
+            <div class="px-5 pb-5">
+              <label class="block text-sm text-gray-600 mb-2">Model Selector</label>
+              <select id="code-generator-model">
+                <option value="gemini-3.0-pro" selected>Gemini 3.0 Pro</option>
+                <option value="claude-4.5-opus">Claude 4.5 Opus</option>
+                <option value="gpt-5.2-codex">GPT-5.2-Codex</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Run Pipeline Button -->
+        <div class="p-5 border-b border-gray-200">
+          <button id="btn-run-pipeline" class="btn-primary" onclick="runThinkingPipeline()">
+            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M8 5v14l11-7z"/>
+            </svg>
+            Run Pipeline
+          </button>
+        </div>
+
+        <!-- Workflow Status -->
+        <div>
+          <div class="section-header" onclick="toggleSection('workflow-status')">
+            <div class="flex items-center gap-2">
+              <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+              </svg>
+              <span class="font-medium text-gray-900">Workflow Status</span>
+            </div>
+            <svg id="workflow-status-chevron" class="w-5 h-5 text-gray-400 transition-transform rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+            </svg>
+          </div>
+          <div id="workflow-status-content" class="section-content open">
+            <!-- Prompt Architect -->
+            <div id="step1-item" class="workflow-item" onclick="selectWorkflowStep(1)">
+              <div class="flex items-center gap-3 workflow-icon">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+                <span class="text-sm workflow-label">Prompt Architect</span>
+              </div>
+              <div id="step1-status" class="status-icon">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+              </div>
+            </div>
+
+            <!-- Code Generator -->
+            <div id="step2-item" class="workflow-item" onclick="selectWorkflowStep(2)">
+              <div class="flex items-center gap-3 workflow-icon">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
+                </svg>
+                <span class="text-sm workflow-label">Code Generator</span>
+              </div>
+              <div id="step2-status" class="status-icon">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+              </div>
+            </div>
+
+            <!-- Code Dissector -->
+            <div id="step3-item" class="workflow-item" onclick="selectWorkflowStep(3)">
+              <div class="flex items-center gap-3 workflow-icon">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                </svg>
+                <span class="text-sm workflow-label">Code Dissector</span>
+              </div>
+              <div id="step3-status" class="status-icon">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Main Content -->
+      <main class="main-content">
+        <div class="main-stage">
+          <!-- Stage Header -->
+          <div class="px-6 py-4 border-b border-gray-200">
+            <h2 id="stage-title" class="font-semibold text-gray-900">Active Workflow Stage</h2>
+          </div>
+
+          <!-- Stage Content -->
+          <div id="main-stage" class="p-6">
+            <!-- Ready State (default) -->
+            <div id="ready-state" class="flex flex-col items-center justify-center py-32">
+              <div class="ready-icon">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                </svg>
+              </div>
+              <h3 class="text-lg font-semibold text-gray-900 mb-2">Ready to Generate</h3>
+              <p class="text-gray-500 text-center max-w-md">
+                Enter a prompt in the sidebar and click "Run Pipeline" to start the generation process. Details and progress will appear here.
+              </p>
+            </div>
+
+            <!-- Step 1 Content (hidden by default) -->
+            <div id="step1-content" class="hidden">
+              <div id="step1-loading" class="stage-loading hidden">
+                <div class="spinner mb-4"></div>
+                <p class="text-gray-600">Analyzing your request...</p>
               </div>
               <div id="step1-result" class="hidden">
                 <div class="code-container">
@@ -258,31 +522,16 @@
                     </svg>
                     Copy
                   </button>
-                  <pre id="step1-output" class="code-font text-zinc-300"></pre>
+                  <pre id="step1-output" class="code-font text-gray-300"></pre>
                 </div>
               </div>
             </div>
-          </div>
-        </div>
 
-        <!-- Step 2: Code Generator -->
-        <div class="step-card">
-          <div class="step-header" onclick="toggleStep('step2')">
-            <div class="flex items-center gap-3">
-              <div id="step2-indicator" class="step-badge">2</div>
-              <div>
-                <div class="font-medium">Code Generator</div>
-                <div id="step2-model-info" class="text-xs text-zinc-500">Generates FlutterFlow-compatible Dart code</div>
-              </div>
-            </div>
-            <svg id="step2-chevron" class="w-5 h-5 text-zinc-500 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-            </svg>
-          </div>
-          <div id="step2-content" class="step-content">
-            <div class="step-body">
-              <div id="step2-loading" class="hidden py-8 flex justify-center">
-                <div class="spinner"></div>
+            <!-- Step 2 Content (hidden by default) -->
+            <div id="step2-content" class="hidden">
+              <div id="step2-loading" class="stage-loading hidden">
+                <div class="spinner mb-4"></div>
+                <p class="text-gray-600">Generating code...</p>
               </div>
               <div id="step2-result" class="hidden">
                 <div class="code-container">
@@ -292,40 +541,25 @@
                     </svg>
                     Copy
                   </button>
-                  <pre id="step2-output" class="code-font text-zinc-300"></pre>
+                  <pre id="step2-output" class="code-font text-gray-300"></pre>
                 </div>
               </div>
             </div>
-          </div>
-        </div>
 
-        <!-- Step 3: Code Audit -->
-        <div class="step-card">
-          <div class="step-header" onclick="toggleStep('step3')">
-            <div class="flex items-center gap-3">
-              <div id="step3-indicator" class="step-badge">3</div>
-              <div>
-                <div class="font-medium">Code Audit</div>
-                <div class="text-xs text-zinc-500">Validates FlutterFlow compatibility</div>
-              </div>
-            </div>
-            <svg id="step3-chevron" class="w-5 h-5 text-zinc-500 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-            </svg>
-          </div>
-          <div id="step3-content" class="step-content">
-            <div class="step-body">
-              <div id="step3-loading" class="hidden py-8 flex justify-center">
-                <div class="spinner"></div>
+            <!-- Step 3 Content (hidden by default) -->
+            <div id="step3-content" class="hidden">
+              <div id="step3-loading" class="stage-loading hidden">
+                <div class="spinner mb-4"></div>
+                <p class="text-gray-600">Auditing code...</p>
               </div>
               <div id="step3-result" class="hidden">
-                <div id="step3-output" class="text-sm text-zinc-300"></div>
+                <div id="step3-output" class="text-sm text-gray-700"></div>
               </div>
             </div>
           </div>
         </div>
-      </div>
-    </main>
+      </main>
+    </div>
 
     <script type="module" src="/app.js"></script>
   </body>
