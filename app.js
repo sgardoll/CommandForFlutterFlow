@@ -736,7 +736,7 @@ async function callOpenAI(prompt, systemInstruction) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${openaiApiKey}`,
+        "x-openai-api-key": openaiApiKey,
       },
       body: JSON.stringify(payload),
     });

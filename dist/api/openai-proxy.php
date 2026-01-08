@@ -13,27 +13,39 @@ if ($path === '') {
 
 $incomingHeaders = ccc_get_request_headers();
 
-$authHeader = '';
+// Check for API key in custom header (to avoid Cloudflare WAF blocking Authorization header)
+$apiKey = '';
 foreach ($incomingHeaders as $name => $value) {
-  if (strtolower($name) === 'authorization') {
-    $authHeader = $value;
+  if (strtolower($name) === 'x-openai-api-key') {
+    $apiKey = $value;
     break;
   }
 }
 
-if ($authHeader === '') {
-  $apiKey = getenv('OPENAI_API_KEY') ?: '';
-  if ($apiKey !== '') {
-    $authHeader = 'Bearer ' . $apiKey;
+// Fallback to Authorization header if custom header not present
+if ($apiKey === '') {
+  foreach ($incomingHeaders as $name => $value) {
+    if (strtolower($name) === 'authorization') {
+      // Extract key from "Bearer <key>"
+      if (str_starts_with($value, 'Bearer ')) {
+        $apiKey = substr($value, 7);
+      }
+      break;
+    }
   }
 }
 
-if ($authHeader === '') {
+// Fallback to environment variable
+if ($apiKey === '') {
+  $apiKey = getenv('OPENAI_API_KEY') ?: '';
+}
+
+if ($apiKey === '') {
   ccc_json_error(401, 'OpenAI API key is not configured');
 }
 
 $overrides = [
-  'Authorization' => $authHeader,
+  'Authorization' => 'Bearer ' . $apiKey,
 ];
 
 $targetUrl = 'https://api.openai.com/' . $path;
