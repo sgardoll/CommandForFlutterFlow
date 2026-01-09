@@ -189,8 +189,8 @@ npm install --save-dev prettier
 
 **Create .prettierrc:**
 ```json
-{
-  "semi": true,
+  "semi": false,
+  "singleQuote": true,
   "singleQuote": true,
   "tabWidth": 2,
   "trailingComma": "es5",
