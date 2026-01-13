@@ -69,7 +69,9 @@ Automatically determines whether your request needs a **Custom Function**, **Cus
 Every line of generated code is checked against FlutterFlow's rigid architecture:
 
 - No `main()`, `runApp()`, `MaterialApp`, or `Scaffold`
-- No import statements (FlutterFlow manages these)
+- No import statements for **Custom Functions** (only dart SDK allowed)
+- Import statements for external packages in **Custom Actions/Widgets** (as needed)
+- No importing `flutter/material.dart`, `flutter/widgets.dart`, `flutter_flow/*` (FlutterFlow provides these)
 - Proper null safety with `??` and `?.` operators
 - FlutterFlow Structs instead of custom Dart classes
 - `FlutterFlowTheme.of(context)` instead of hardcoded colors

@@ -99,11 +99,13 @@ async function example() {
 ### Forbidden Patterns (Code Generator must NOT output)
 - `void main()` or `main()` function
 - `runApp()`, `MaterialApp`, `Scaffold`
-- Any `import` statements (FlutterFlow manages imports)
+- Import statements in **Custom Functions** (only dart SDK allowed)
+- Importing `flutter/material.dart`, `flutter/widgets.dart`, `flutter_flow/*` in Actions/Widgets (FlutterFlow provides these)
 - Custom Dart classes for data models (use FF Structs)
 
 ### Required Patterns (Code Generator MUST include)
 - `width` and `height` parameters for Custom Widgets
+- Import statements for external packages in **Custom Actions/Widgets**
 - Null safety with `??` and `?.` operators
 - `FlutterFlowTheme.of(context)` for colors
 - `Future<dynamic> Function()?` for action callbacks
