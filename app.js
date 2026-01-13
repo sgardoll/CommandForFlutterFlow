@@ -354,11 +354,24 @@ async function runCodeGenerator(masterPrompt, selectedModel) {
 - All packages must be FlutterFlow-compatible and available on pub.dev
 - Allowed Dart SDK imports: dart:math, dart:convert, dart:async, dart:collection, dart:ui
 
-### C) FlutterFlow Boilerplate Mandate
-- Do NOT output any import statements - FlutterFlow manages all imports automatically
+### C) Import Statement Rules (CRITICAL - Varies by Artifact Type)
+
+**For Custom Functions ONLY:**
+- Do NOT output any import statements except dart SDK (dart:math, dart:convert, dart:collection)
+- Custom Functions run in a restricted sandbox with no external package access
+- FlutterFlow manages common imports automatically
+
+**For Custom Actions and Custom Widgets:**
+- DO output import statements for external packages used in the code
+- Only include imports for packages explicitly listed in the specification's dependencies section
+- Do NOT import flutter/material.dart, flutter/widgets.dart, or flutter_flow/* (FlutterFlow provides these)
+- DO import external packages like: import 'package:google_fonts/google_fonts.dart';
+- Format: One import per line, at the top of the code, before the class/function definition
+
+**General Rules:**
 - Do NOT include comments like "// Automatic FlutterFlow imports" or "// Do not edit above"
-- Code will be pasted BELOW FlutterFlow's auto-generated import section
 - Class/function name MUST match the "artifactName" from the specification EXACTLY (case-sensitive)
+- When in doubt about whether to include an import, check the artifact type in the specification
 
 ### D) No App Harness Code - CRITICAL
 These will cause immediate build failures in FlutterFlow:
@@ -571,9 +584,11 @@ Check for and flag:
 3. \`MaterialApp\` widget - TOXIC, this is harness code
 4. \`CupertinoApp\` or \`WidgetsApp\` - TOXIC
 5. \`Scaffold\` widget (unless spec explicitly requires it) - Usually TOXIC
-6. ANY \`import\` statements - FlutterFlow manages these
-7. Custom Dart classes for data (e.g., \`class User {}\`) - Should use FF Structs
-8. Missing \`width\`/\`height\` parameters for Custom Widgets
+6. Import statements in **Custom Functions** (except dart SDK imports like dart:math) - TOXIC
+7. Missing imports for external packages in **Custom Actions/Widgets** - Code won't compile
+8. Importing FlutterFlow-provided packages (flutter/material.dart, flutter/widgets.dart, flutter_flow/*) - Unnecessary but not critical
+9. Custom Dart classes for data (e.g., \`class User {}\`) - Should use FF Structs
+10. Missing \`width\`/\`height\` parameters for Custom Widgets
 
 ### SEVERE WARNINGS (Score: -20 each)
 9. External package usage without noting user must add to FF Dependencies
@@ -616,11 +631,66 @@ Return your audit in this exact markdown format:
 [List each warning with severity]
 [Include specific code snippets that need changing]
 
-## Required User Actions in FlutterFlow
-[List what the user MUST do in the FlutterFlow UI before this code will work:]
-- Dependencies to add (with exact versions if packages are used)
-- Data Types/Structs to create (with field names and types)
-- Parameters to define in the Custom Code UI
+## FlutterFlow Setup Instructions
+
+### Step 1: Add Dependencies (MUST DO FIRST)
+[If external packages are used, provide detailed instructions]
+Navigate to: **FlutterFlow → Settings → Dependencies → Add Dependency**
+
+Required packages:
+[List each package with:]
+- Package name: `package_name`
+- Version: `^x.x.x`
+- Purpose: [Why this package is needed]
+
+After adding dependencies:
+✅ FlutterFlow runs 'flutter pub get'
+✅ Packages become available for import
+✅ Wait 30-60 seconds for completion
+
+[If no external packages needed, state: "No external dependencies required."]
+
+### Step 2: Understanding Imports
+
+**FlutterFlow Auto-Provides (Already Available):**
+These are automatically included at the top of every custom code file:
+✅ `import 'package:flutter/material.dart';`
+✅ `import 'package:flutter/widgets.dart';`
+✅ `import '/flutter_flow/flutter_flow_theme.dart';`
+✅ `import '/flutter_flow/flutter_flow_util.dart';`
+
+**Imports in Generated Code:**
+[Based on artifact type, explain what imports are included]
+
+For **Custom Functions:**
+- No external package imports (only dart SDK like dart:math)
+- Custom Functions cannot use external packages
+
+For **Custom Actions and Custom Widgets:**
+- Generated code INCLUDES import statements for external packages
+- Example: `import 'package:google_fonts/google_fonts.dart';`
+- These work alongside FlutterFlow's auto-provided imports
+
+### Step 3: Create Data Types (If Applicable)
+[If custom structs are needed]
+Navigate to: **FlutterFlow → Data Types → Create New**
+
+[List each struct with full field specifications:]
+**Struct Name:** `StructNameHere`
+Fields:
+- `fieldName`: Type (e.g., String, int, double, Color, List<String>)
+- `anotherField`: Type
+
+[If no data types needed, state: "No custom data types required."]
+
+### Step 4: Paste Code
+Copy the generated code (including any import statements) and paste it into:
+**FlutterFlow → Custom Code → [Custom Widget / Custom Action / Custom Function]**
+
+⚠️ **Import Notes:**
+- For **Custom Functions:** Code has no external imports (correct!)
+- For **Custom Actions/Widgets:** Code includes imports (paste them too!)
+- Don't worry about duplicating FlutterFlow's auto-imports - they coexist fine
 
 ## Code Transformation Needed
 [Show before/after for any code that needs changing]
@@ -628,7 +698,7 @@ Example:
 \`\`\`
 // BEFORE (Dreamflow output)
 final ValueChanged<double> onChanged;
-// AFTER (FlutterFlow compatible)  
+// AFTER (FlutterFlow compatible)
 final Future<dynamic> Function()? onValueChanged;
 \`\`\`
 

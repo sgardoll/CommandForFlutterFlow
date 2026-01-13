@@ -209,6 +209,121 @@ npm run preview      # Preview production build
 
 ---
 
+## Understanding Imports in FlutterFlow
+
+### Import Handling by Artifact Type
+
+**FlutterFlow handles imports differently based on the artifact type:**
+
+#### Custom Functions (Logic Silo)
+- ❌ **NO external package imports allowed**
+- ✅ Only dart SDK imports: `dart:math`, `dart:convert`, `dart:collection`
+- Generated code will NOT include import statements
+- Reason: Custom Functions run in a restricted sandbox
+
+#### Custom Actions & Custom Widgets (Full Flutter Access)
+- ✅ **Import statements ARE allowed and generated**
+- ✅ Can use external packages from pub.dev
+- Generated code WILL include necessary import statements
+- Workflow: Add dependency to FlutterFlow → Import in code
+
+**Example Custom Widget with imports:**
+
+```dart
+// ⬇️ FlutterFlow auto-provides these ⬇️
+// DO NOT EDIT ABOVE THIS LINE
+import 'package:flutter/material.dart';
+import '/flutter_flow/flutter_flow_theme.dart';
+// ⬆️ FlutterFlow auto-section ⬆️
+
+// ⬇️ Your generated code with imports ⬇️
+import 'package:google_fonts/google_fonts.dart';  // ✅ You add this!
+import 'package:fl_chart/fl_chart.dart';          // ✅ And this!
+
+class MyCustomWidget extends StatelessWidget {
+  final double? width;
+  final double? height;
+  // ... your code ...
+}
+```
+
+### The Correct Workflow
+
+#### For Custom Actions & Custom Widgets
+
+1. **Add Dependencies First** (if using external packages)
+   - Navigate to: **FlutterFlow → Settings → Dependencies**
+   - Click **Add Dependency**
+   - Enter package name and version (e.g., `google_fonts: ^6.1.0`)
+   - Wait for pub get to complete (30-60 seconds)
+
+2. **Generate Code with Imports**
+   - Use this tool to generate code
+   - Generated code WILL include import statements
+   - Example: `import 'package:google_fonts/google_fonts.dart';`
+
+3. **Paste the Complete Generated Code**
+   - Copy code from Step 2 (including import statements)
+   - Paste into: **FlutterFlow → Custom Code → Custom Widget/Action**
+   - The imports you add will work alongside FlutterFlow's auto-provided imports
+
+#### For Custom Functions
+
+1. **No External Dependencies Allowed**
+   - Custom Functions cannot use external packages
+   - Only dart SDK imports allowed (dart:math, dart:convert, dart:collection)
+
+2. **Generate Code without Imports**
+   - Generated code will NOT include import statements
+   - Pure Dart logic only
+
+3. **Paste the Code**
+   - Copy and paste into: **FlutterFlow → Custom Code → Custom Function**
+
+### What About Duplicate Imports?
+
+**Don't worry about duplicating FlutterFlow's auto-imports!**
+
+```dart
+// ✅ This is fine - FlutterFlow handles duplicates gracefully
+import 'package:flutter/material.dart';  // You add this
+// FlutterFlow also provides this above, but no error occurs
+```
+
+FlutterFlow's auto-import section and your custom imports coexist without conflicts.
+
+### Auto-Available Imports
+
+These are **always** available in FlutterFlow custom code (no action needed):
+
+- ✅ `flutter/material.dart` - Material widgets
+- ✅ `flutter/widgets.dart` - Core widgets
+- ✅ `flutter_flow/flutter_flow_theme.dart` - Theme system
+- ✅ `flutter_flow/flutter_flow_util.dart` - Utility functions
+- ✅ `dart:math` - Math operations
+- ✅ `dart:async` - Future/Stream
+- ✅ `dart:convert` - JSON encoding/decoding
+
+### Need External Packages?
+
+The **Code Dissector** (Step 3) will tell you exactly what to add:
+
+```
+## FlutterFlow Setup Instructions
+
+### Step 1: Add Dependencies (MUST DO FIRST)
+Navigate to: FlutterFlow → Settings → Dependencies → Add Dependency
+
+Required packages:
+- Package name: google_fonts
+- Version: ^6.1.0
+- Purpose: Custom font rendering
+```
+
+Follow these instructions **before** pasting the code!
+
+---
+
 ## Tech Stack
 
 - **Frontend:** Vanilla JavaScript + Tailwind CSS (via CDN)
