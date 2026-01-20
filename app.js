@@ -1802,13 +1802,11 @@ function initializeWelcomeVideo() {
 }
 
 function handleWelcomeVideoEnd() {
-  // Keep video on final frame until user interaction
-  // Video stays paused on last frame
-  const video = document.getElementById("welcome-video-player");
-  if (video) {
-    video.pause();
+  // For YouTube iframe, add click/keyboard listeners to dismiss video
+  const iframe = document.getElementById("welcome-video-player");
+  if (iframe) {
     // Add click listener to dismiss video
-    video.addEventListener("click", dismissWelcomeVideo);
+    iframe.addEventListener("click", dismissWelcomeVideo);
     document.addEventListener("keydown", dismissWelcomeVideo);
   }
 }

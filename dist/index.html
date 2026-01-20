@@ -402,7 +402,7 @@
         text-align: center;
       }
     </style>
-    <script type="module" crossorigin src="/assets/index-DyJJzI02.js"></script>
+    <script type="module" crossorigin src="/assets/index-CasI5Vmo.js"></script>
   </head>
   <body>
     <div class="flex">
@@ -548,18 +548,14 @@
       <main class="main-content relative">
         <!-- Welcome Video (shown on first load) -->
         <div id="welcome-video" class="absolute inset-0 bg-black flex items-center justify-center z-10">
-          <video 
+          <iframe
             id="welcome-video-player"
-            class="w-full h-full object-cover"
-            autoplay
-            muted
-            playsinline
-            onended="handleWelcomeVideoEnd()"
-            onloadstart="this.play().catch(e => console.log('Autoplay prevented, user interaction required'))"
-          >
-            <source src="/assets/CCC-Home-DVFl6vVo.mp4" type="video/mp4">
-            Your browser does not support the video tag.
-          </video>
+            class="w-full h-full"
+            src="https://www.youtube.com/embed/zRjexvW58IQ?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1"
+            frameborder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowfullscreen
+          ></iframe>
         </div>
 
         <div class="main-stage relative">
