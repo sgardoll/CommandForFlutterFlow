@@ -11,7 +11,13 @@
   AI-powered custom code generation that actually works in FlutterFlow.
 </p>
 
-[![Watch the video](https://img.youtube.com/vi/zRjexvW58IQ/hqdefault.jpg)](https://www.youtube.com/watch?v=zRjexvW58IQ)
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=zRjexvW58IQ">
+    <img src="https://img.youtube.com/vi/zRjexvW58IQ/hqdefault.jpg" alt="Watch the video" width="560">
+  </a>
+</p>
+
+[![YouTube](https://img.shields.io/badge/YouTube-Demo-red)](https://www.youtube.com/watch?v=zRjexvW58IQ)
 
 <p align="center">
   <a href="#the-problem">The Problem</a> •
