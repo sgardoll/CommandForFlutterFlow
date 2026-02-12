@@ -11,7 +11,11 @@
   AI-powered custom code generation that actually works in FlutterFlow.
 </p>
 
-<iframe width="560" height="315" src="https://www.youtube.com/embed/zRjexvW58IQ?si=2coRUXJ9w9ns_jFn" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=zRjexvW58IQ">
+    <img src="https://img.youtube.com/vi/zRjexvW58IQ/hqdefault.jpg" alt="Watch the video" width="560">
+  </a>
+</p>
 
 <p align="center">
   <a href="#the-problem">The Problem</a> •
