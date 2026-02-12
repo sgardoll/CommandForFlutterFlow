@@ -9,6 +9,7 @@
 <p align="center">
   <strong>Break through FlutterFlow's complexity ceiling.</strong><br/>
   AI-powered custom code generation that actually works in FlutterFlow.
+  Watch the full tutorial video by clicking below.
 </p>
 
 <p align="center">
