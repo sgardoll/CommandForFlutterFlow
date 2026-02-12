@@ -17,7 +17,11 @@
   </a>
 </p>
 
-[![YouTube](https://img.shields.io/badge/YouTube-Demo-red)](https://www.youtube.com/watch?v=zRjexvW58IQ)
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=zRjexvW58IQ">
+    <img src="https://img.shields.io/badge/YouTube-Demo-red" alt="YouTube Demo">
+  </a>
+</p>
 
 <p align="center">
   <a href="#the-problem">The Problem</a> •
