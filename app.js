@@ -972,6 +972,20 @@ async function callOpenAI(prompt, systemInstruction) {
 // --- FLUTTERFLOW API CLIENT ---
 
 /**
+ * @typedef {Object} FileWarning
+ * @property {string} fileType - Type of file (action, widget, function, pubspec)
+ * @property {string} errorMessage - Error description
+ * @property {boolean} isCritical - If true, prevents syncing
+ */
+
+/**
+ * @typedef {Object} PushCodeResult
+ * @property {number} responseCode - HTTP response code
+ * @property {string} [errorMessage] - Error message if failed
+ * @property {Map<string, FileWarning[]>} [errorMap] - Map of file paths to warnings
+ */
+
+/**
  * Client for interacting with the FlutterFlow API.
  * Adapted from the VS Code extension for browser use.
  * Handles authentication and provides methods for code synchronization.
@@ -1006,6 +1020,47 @@ class FlutterFlowApiClient {
   get branchName() {
     // "main" and "" both represent the default branch in FlutterFlow. The APIs expect "".
     return this._branchName === 'main' ? '' : this._branchName;
+  }
+
+  /**
+   * Pulls code from FlutterFlow and returns it as a structured object.
+   * @returns {Promise<Object>} Object containing file contents mapped by path
+   */
+  async pullCode() {
+    console.log(`Pulling code from FlutterFlow project: ${this.projectId}, branch: ${this.branchName || 'main'}`);
+
+    try {
+      const response = await fetch(`${this.baseUrl}/exportCode`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify({
+          project_id: this.projectId,
+          branch_name: this.branchName,
+          include_assets: false,
+          export_as_module: false,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Export failed: ${response.status} - ${errorText}`);
+      }
+
+      const data = await response.json();
+
+      return {
+        success: true,
+        downloadUrl: data.download_url,
+        projectId: this.projectId,
+        branchName: this.branchName,
+      };
+    } catch (error) {
+      console.error('Error pulling code from FlutterFlow:', error);
+      throw error;
+    }
   }
 }
 
