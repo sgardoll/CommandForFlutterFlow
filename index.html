@@ -490,6 +490,7 @@
               <div class="key-status-dot missing" title="Gemini"></div>
               <div class="key-status-dot missing" title="Claude"></div>
               <div class="key-status-dot missing" title="OpenAI"></div>
+              <div class="key-status-dot missing" title="FlutterFlow"></div>
             </div>
           </button>
         </div>
@@ -808,6 +809,62 @@
               </button>
             </div>
             <div id="openai-key-status" class="key-status">
+              <div class="key-status-dot missing"></div>
+              <span class="text-gray-500">Not configured</span>
+            </div>
+          </div>
+
+          <!-- FlutterFlow API Key -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">
+              <span class="flex items-center gap-2">
+                <svg class="w-4 h-4 text-orange-500" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                </svg>
+                FlutterFlow API Key
+              </span>
+            </label>
+            <div class="relative">
+              <input 
+                type="password" 
+                id="flutterflow-api-key-input" 
+                class="api-key-input pr-10" 
+                placeholder="Enter your FlutterFlow API key"
+              />
+              <button 
+                onclick="toggleKeyVisibility('flutterflow-api-key-input')" 
+                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <svg class="w-4 h-4 eye-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                </svg>
+              </button>
+            </div>
+            <div id="flutterflow-key-status" class="key-status">
+              <div class="key-status-dot missing"></div>
+              <span class="text-gray-500">Not configured</span>
+            </div>
+          </div>
+
+          <!-- FlutterFlow Project ID -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">
+              <span class="flex items-center gap-2">
+                <svg class="w-4 h-4 text-orange-500" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
+                </svg>
+                FlutterFlow Project ID
+              </span>
+            </label>
+            <input 
+              type="text" 
+              id="flutterflow-project-id-input" 
+              class="api-key-input" 
+              placeholder="Enter your FlutterFlow Project ID"
+            />
+            <p class="text-xs text-gray-500 mt-1">Found in your FlutterFlow project URL: flutterflow.io/project/[PROJECT-ID]</p>
+            <div id="flutterflow-project-status" class="key-status">
               <div class="key-status-dot missing"></div>
               <span class="text-gray-500">Not configured</span>
             </div>

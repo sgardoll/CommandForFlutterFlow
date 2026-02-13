@@ -409,7 +409,9 @@ function hasStoredKey(provider) {
   const keys = {
     gemini: geminiApiKey,
     anthropic: anthropicApiKey,
-    openai: openaiApiKey
+    openai: openaiApiKey,
+    flutterflow: flutterflowApiKey,
+    flutterflow_project_id: flutterflowProjectId
   };
   return keys[provider] && keys[provider].length > 0;
 }
@@ -423,11 +425,15 @@ function hasEnvKey(provider) {
 let geminiApiKey = "";
 let anthropicApiKey = "";
 let openaiApiKey = "";
+let flutterflowApiKey = "";
+let flutterflowProjectId = "";
 
 async function initializeApiKeys() {
   geminiApiKey = await getApiKey("gemini");
   anthropicApiKey = await getApiKey("anthropic");
   openaiApiKey = await getApiKey("openai");
+  flutterflowApiKey = await getApiKey("flutterflow");
+  flutterflowProjectId = await getApiKey("flutterflow_project_id");
   updateApiKeyStatusIndicators();
 }
 
@@ -528,6 +534,8 @@ async function loadApiKeyInputs() {
   const geminiInput = document.getElementById("gemini-api-key-input");
   const anthropicInput = document.getElementById("anthropic-api-key-input");
   const openaiInput = document.getElementById("openai-api-key-input");
+  const flutterflowInput = document.getElementById("flutterflow-api-key-input");
+  const projectIdInput = document.getElementById("flutterflow-project-id-input");
 
   // Show masked value if key is actually usable (decrypted successfully)
   if (geminiApiKey) {
@@ -551,6 +559,20 @@ async function loadApiKeyInputs() {
     openaiInput.placeholder = "Enter your OpenAI API key";
   }
 
+  if (flutterflowApiKey) {
+    flutterflowInput.value = "";
+    flutterflowInput.placeholder = "Key saved (enter new to replace)";
+  } else {
+    flutterflowInput.placeholder = "Enter your FlutterFlow API key";
+  }
+
+  if (flutterflowProjectId) {
+    projectIdInput.value = "";
+    projectIdInput.placeholder = "Project ID saved (enter new to replace)";
+  } else {
+    projectIdInput.placeholder = "Enter your FlutterFlow Project ID";
+  }
+
   updateModalKeyStatuses();
 }
 
@@ -558,6 +580,8 @@ function updateModalKeyStatuses() {
   updateKeyStatus("gemini", "gemini-key-status");
   updateKeyStatus("anthropic", "anthropic-key-status");
   updateKeyStatus("openai", "openai-key-status");
+  updateKeyStatus("flutterflow", "flutterflow-key-status");
+  updateKeyStatus("flutterflow_project_id", "flutterflow-project-status");
 }
 
 function updateKeyStatus(provider, statusElementId) {
@@ -583,11 +607,23 @@ function updateApiKeyStatusIndicators() {
   if (!container) return;
 
   const dots = container.querySelectorAll(".key-status-dot");
-  const providers = ["gemini", "anthropic", "openai"];
+  const providers = ["gemini", "anthropic", "openai", "flutterflow"];
 
   dots.forEach((dot, index) => {
     const provider = providers[index];
-    if (hasStoredKey(provider)) {
+    if (provider === "flutterflow") {
+      // For FlutterFlow, check both API key and Project ID
+      if (hasStoredKey("flutterflow") && hasStoredKey("flutterflow_project_id")) {
+        dot.className = "key-status-dot configured";
+        dot.title = "FlutterFlow (Fully configured)";
+      } else if (hasStoredKey("flutterflow") || hasStoredKey("flutterflow_project_id")) {
+        dot.className = "key-status-dot env";
+        dot.title = "FlutterFlow (Partially configured)";
+      } else {
+        dot.className = "key-status-dot missing";
+        dot.title = "FlutterFlow (Not configured)";
+      }
+    } else if (hasStoredKey(provider)) {
       dot.className = "key-status-dot configured";
       dot.title =
         provider.charAt(0).toUpperCase() + provider.slice(1) + " (User key)";
@@ -605,6 +641,8 @@ async function saveApiKeys() {
   const geminiInput = document.getElementById("gemini-api-key-input");
   const anthropicInput = document.getElementById("anthropic-api-key-input");
   const openaiInput = document.getElementById("openai-api-key-input");
+  const flutterflowInput = document.getElementById("flutterflow-api-key-input");
+  const projectIdInput = document.getElementById("flutterflow-project-id-input");
 
   // Only save if user entered a new value
   if (geminiInput.value.trim()) {
@@ -615,6 +653,12 @@ async function saveApiKeys() {
   }
   if (openaiInput.value.trim()) {
     await saveApiKey("openai", openaiInput.value);
+  }
+  if (flutterflowInput.value.trim()) {
+    await saveApiKey("flutterflow", flutterflowInput.value);
+  }
+  if (projectIdInput.value.trim()) {
+    await saveApiKey("flutterflow_project_id", projectIdInput.value);
   }
 
   // Reinitialize keys
@@ -643,6 +687,8 @@ async function clearAllApiKeys() {
   localStorage.removeItem(STORAGE_KEY_PREFIX + "gemini");
   localStorage.removeItem(STORAGE_KEY_PREFIX + "anthropic");
   localStorage.removeItem(STORAGE_KEY_PREFIX + "openai");
+  localStorage.removeItem(STORAGE_KEY_PREFIX + "flutterflow");
+  localStorage.removeItem(STORAGE_KEY_PREFIX + "flutterflow_project_id");
 
   // Reinitialize keys (will fall back to env keys)
   await initializeApiKeys();
