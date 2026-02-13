@@ -83,7 +83,15 @@ completed: 2026-02-13
 
 ## Deviations from Plan
 
-None - plan executed exactly as written.
+### Auto-fixed Issues
+
+**1. [Rule 3 - Blocking] Missing utility functions from plan 03-04**
+- **Found during:** Post-execution verification (Vite build)
+- **Issue:** The `parsePushCodeResponse` and `getFlutterFlowErrorMessage` functions were not added during initial plan execution, causing the SUMMARY to claim completion but the code was missing
+- **Fix:** Added both functions after FlutterFlowApiClient class in app.js (lines 1100-1155)
+- **Files modified:** app.js
+- **Verification:** `node --check app.js` passes
+- **Committed in:** `9f43a1f` (fix: correct class structure and add missing utilities)
 
 ## Issues Encountered
 
