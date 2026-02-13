@@ -1653,6 +1653,127 @@ const commitState = {
   },
 };
 
+/**
+ * Commits generated code to FlutterFlow with full state tracking.
+ * @param {string} dartCode - The generated Dart code to commit
+ * @param {string} fileName - Name of the file (e.g., "MyWidget.dart")
+ * @param {Object} options - Commit options
+ * @param {string} options.codeType - Type of code (ACTION, WIDGET, FUNCTION)
+ * @param {Object} options.pubspecDeps - Additional pubspec dependencies
+ * @returns {Promise<Object>} Commit result
+ */
+async function commitToFlutterFlow(dartCode, fileName, options = {}) {
+  const { codeType = 'W', pubspecDeps = {} } = options;
+  
+  // Reset and start
+  commitState.reset();
+  commitState.setState(CommitState.PREPARING);
+  
+  try {
+    // Get credentials
+    const apiKey = await getApiKey('flutterflow');
+    const projectId = await getApiKey('flutterflow_project_id');
+    
+    if (!apiKey || !projectId) {
+      throw new Error('FlutterFlow credentials not configured. Please set your API key and Project ID in the API Keys settings.');
+    }
+    
+    // Create API client
+    const apiClient = new FlutterFlowApiClient(apiKey, projectId);
+    
+    // Prepare file map
+    commitState.setState(CommitState.VALIDATING);
+    const fileMap = new Map();
+    
+    // Add the main code file
+    const detectedType = codeType || detectCodeType(fileName, dartCode);
+    const filePath = getFilePathForCodeType(fileName, detectedType);
+    
+    fileMap.set(fileName, {
+      content: dartCode,
+      type: detectedType,
+      path: filePath,
+    });
+    
+    commitState.setProgress(0, fileMap.size);
+    
+    // Validate files
+    const validation = validateFileMap(fileMap);
+    if (!validation.valid) {
+      throw new Error(`Validation failed:\n${validation.errors.join('\n')}`);
+    }
+    
+    // Prepare pubspec
+    let serializedYaml = createDefaultPubspec();
+    
+    // Check if we need to merge dependencies
+    if (Object.keys(pubspecDeps).length > 0) {
+      let basePubspec = createDefaultPubspec();
+      basePubspec = mergeDependencies(basePubspec, pubspecDeps);
+      serializedYaml = serializePubspecToYaml(basePubspec);
+    } else {
+      serializedYaml = serializePubspecToYaml(createDefaultPubspec());
+    }
+    
+    // Build file map contents for API
+    const fileMapContents = JSON.stringify(
+      Object.fromEntries(
+        Array.from(fileMap.entries()).map(([name, info]) => [
+          name,
+          { content: info.content, type: info.type }
+        ])
+      )
+    );
+    
+    // Prepare push request
+    const pushRequest = {
+      project_id: projectId,
+      zipped_custom_code: '', // We'll skip zipping for web version - send raw
+      uid: `web_${Date.now()}`,
+      branch_name: apiClient.branchName,
+      serialized_yaml: serializedYaml,
+      file_map: fileMapContents,
+      functions_map: '{}', // No function changes for single-file commits
+    };
+    
+    // Push to FlutterFlow
+    commitState.setState(CommitState.PUSHING);
+    commitState.setProgress(1, fileMap.size);
+    
+    const response = await apiClient.pushCode(pushRequest);
+    const result = await parsePushCodeResponse(response);
+    
+    if (result.success) {
+      commitState.setSuccess({
+        fileCount: fileMap.size,
+        projectId,
+        warnings: result.errorMap && result.errorMap.size > 0 
+          ? Array.from(result.errorMap.entries()) 
+          : [],
+      });
+    } else {
+      const errorMsg = result.errorMessage || getFlutterFlowErrorMessage(result.responseCode);
+      throw new Error(errorMsg);
+    }
+    
+    return {
+      success: true,
+      message: `Successfully committed ${fileName} to FlutterFlow project ${projectId}`,
+      warnings: result.errorMap ? Array.from(result.errorMap.entries()) : [],
+    };
+    
+  } catch (error) {
+    console.error('Commit failed:', error);
+    commitState.setError(error);
+    
+    return {
+      success: false,
+      error: error.message,
+      state: commitState.currentState,
+    };
+  }
+}
+
 // --- PIPELINE FUNCTIONS ---
 
 async function runPromptArchitect(userInput) {
@@ -2751,6 +2872,7 @@ window.openApiKeysModal = openApiKeysModal;
 window.closeApiKeysModal = closeApiKeysModal;
 window.closeWalkthroughModal = closeWalkthroughModal;
 window.advanceWalkthrough = advanceWalkthrough;
+window.commitToFlutterFlow = commitToFlutterFlow;
 
 function focusPromptInput() {
   const input = document.getElementById("pipeline-input");
