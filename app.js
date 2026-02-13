@@ -444,7 +444,84 @@ function openApiKeysModal() {
 function closeApiKeysModal(event) {
   if (event && event.target !== event.currentTarget) return;
   const modal = document.getElementById("api-keys-modal");
-  modal.classList.remove("open");
+  if (modal) {
+    modal.classList.remove("open");
+  }
+  // Show walkthrough again after closing API keys
+  const walkthroughModal = document.getElementById("walkthrough-modal");
+  if (walkthroughModal) {
+    advanceWalkthrough();
+    walkthroughModal.classList.add("open");
+  }
+}
+
+let walkthroughStep = 1;
+
+function updateWalkthroughUI() {
+  for (let i = 1; i <= 4; i++) {
+    const stepEl = document.getElementById(`walkthrough-step${i}`);
+    if (stepEl) {
+      if (i === walkthroughStep) {
+        stepEl.classList.remove("opacity-60", "bg-gray-50", "border-gray-200");
+        stepEl.classList.add("bg-blue-50", "border-blue-200");
+        const numEl = stepEl.querySelector("div:first-child");
+        if (numEl) {
+          numEl.classList.remove("bg-gray-400");
+          numEl.classList.add("bg-blue-500");
+        }
+      } else if (i < walkthroughStep) {
+        stepEl.classList.remove("opacity-60", "bg-blue-50", "border-blue-200");
+        stepEl.classList.add("bg-green-50", "border-green-200");
+        const numEl = stepEl.querySelector("div:first-child");
+        if (numEl) {
+          numEl.classList.remove("bg-blue-500", "bg-gray-400");
+          numEl.classList.add("bg-green-500");
+          numEl.innerHTML = "✓";
+        }
+      } else {
+        stepEl.classList.add("opacity-60", "bg-gray-50", "border-gray-200");
+        stepEl.classList.remove("bg-blue-50", "border-blue-200", "bg-green-50", "border-green-200");
+        const numEl = stepEl.querySelector("div:first-child");
+        if (numEl) {
+          numEl.classList.remove("bg-blue-500", "bg-green-500");
+          numEl.classList.add("bg-gray-400");
+          numEl.innerHTML = i;
+        }
+      }
+    }
+  }
+}
+
+function advanceWalkthrough() {
+  if (walkthroughStep < 4) {
+    walkthroughStep++;
+    updateWalkthroughUI();
+  }
+}
+
+function closeWalkthroughModal(event) {
+  if (event && event.target !== event.currentTarget) return;
+  const modal = document.getElementById("walkthrough-modal");
+  if (modal) {
+    modal.classList.remove("open");
+  }
+
+  const dontShow = document.getElementById("walkthrough-dont-show");
+  if (dontShow && dontShow.checked) {
+    localStorage.setItem("hasSeenWalkthrough", "true");
+  }
+}
+
+function showWalkthroughIfNeeded() {
+  const hasSeen = localStorage.getItem("hasSeenWalkthrough");
+  if (!hasSeen) {
+    const modal = document.getElementById("walkthrough-modal");
+    if (modal) {
+      walkthroughStep = 1;
+      updateWalkthroughUI();
+      modal.classList.add("open");
+    }
+  }
 }
 
 async function loadApiKeyInputs() {
@@ -1555,7 +1632,10 @@ function updateModelInfo(selectedModel) {
 
 async function runThinkingPipeline() {
   console.log("runThinkingPipeline called");
+
   if (pipelineState.isRunning) return;
+
+  localStorage.setItem("hasSeenWalkthrough", "true");
 
   const userInput = document.getElementById("pipeline-input").value;
   const selectedModel = document.getElementById("code-generator-model").value;
@@ -1775,29 +1855,58 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Initialize API keys and check connection
   await checkConnection();
+
+  showWalkthroughIfNeeded();
+
+  // Walkthrough step tracking
+  const pipelineInput = document.getElementById("pipeline-input");
+  if (pipelineInput) {
+    pipelineInput.addEventListener("input", () => {
+      if (walkthroughStep === 2 && pipelineInput.value.trim().length > 0) {
+        advanceWalkthrough();
+        updateWalkthroughUI();
+      }
+    });
+
+    pipelineInput.addEventListener("blur", () => {
+      const walkthroughModal = document.getElementById("walkthrough-modal");
+      if (walkthroughStep === 2 && walkthroughModal) {
+        walkthroughModal.classList.add("open");
+      }
+    });
+
+    pipelineInput.addEventListener("keydown", (e) => {
+      if (e.key === "Tab") {
+        const walkthroughModal = document.getElementById("walkthrough-modal");
+        if (walkthroughStep === 2 && walkthroughModal) {
+          setTimeout(() => {
+            walkthroughModal.classList.add("open");
+          }, 100);
+        }
+      }
+    });
+  }
+
+  const modelSelect = document.getElementById("code-generator-model");
+  if (modelSelect) {
+    modelSelect.addEventListener("change", () => {
+      if (walkthroughStep === 3) {
+        advanceWalkthrough();
+        updateWalkthroughUI();
+      }
+    });
+  }
 });
 
 // --- WELCOME VIDEO FUNCTIONS ---
 function initializeWelcomeVideo() {
   // Always show the welcome video - remove sessionStorage check
 
-  // Ensure video plays when page loads
-  const video = document.getElementById("welcome-video-player");
-  if (video) {
-    // Try to play video, handling autoplay policies
-    video.play().catch((e) => {
-      console.log(
-        "Autoplay prevented, video will play on first user interaction"
-      );
-      // Add click listener to start video if autoplay blocked
-      video.addEventListener(
-        "click",
-        () => {
-          video.play();
-        },
-        { once: true }
-      );
-    });
+  // YouTube iframe doesn't support play() method - it autoplays via URL params
+  // Just ensure the video container is visible
+  const welcomeVideo = document.getElementById("welcome-video");
+  if (welcomeVideo) {
+    welcomeVideo.classList.remove("hidden");
   }
 }
 
@@ -1824,6 +1933,9 @@ function dismissWelcomeVideo() {
     video.removeEventListener("click", dismissWelcomeVideo);
   }
   document.removeEventListener("keydown", dismissWelcomeVideo);
+
+  // Show walkthrough after video is dismissed
+  showWalkthroughIfNeeded();
 }
 
 // Global exports
@@ -1835,6 +1947,26 @@ window.copyCode = copyCode;
 window.retryWithDifferentModel = retryWithDifferentModel;
 window.openApiKeysModal = openApiKeysModal;
 window.closeApiKeysModal = closeApiKeysModal;
+window.closeWalkthroughModal = closeWalkthroughModal;
+window.advanceWalkthrough = advanceWalkthrough;
+
+function focusPromptInput() {
+  const input = document.getElementById("pipeline-input");
+  if (input) {
+    input.focus();
+  }
+}
+
+function openModelSelector() {
+  const select = document.getElementById("code-generator-model");
+  if (select) {
+    select.focus();
+    select.click();
+  }
+}
+
+window.focusPromptInput = focusPromptInput;
+window.openModelSelector = openModelSelector;
 window.saveApiKeys = saveApiKeys;
 window.clearAllApiKeys = clearAllApiKeys;
 window.toggleKeyVisibility = toggleKeyVisibility;
