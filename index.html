@@ -845,6 +845,13 @@
               <div class="key-status-dot missing"></div>
               <span class="text-gray-500">Not configured</span>
             </div>
+            <div id="flutterflow-api-key-error" class="text-xs text-red-600 mt-1 hidden">
+              API key should be at least 20 characters with only letters, numbers, underscores, and dashes
+            </div>
+            <p class="text-xs text-gray-500 mt-1">
+              Get your API key from FlutterFlow → 
+              <a href="https://app.flutterflow.io/settings/api" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-700 hover:underline">Settings → API Access</a>
+            </p>
           </div>
 
           <!-- FlutterFlow Project ID -->
@@ -863,11 +870,23 @@
               class="api-key-input" 
               placeholder="Enter your FlutterFlow Project ID"
             />
-            <p class="text-xs text-gray-500 mt-1">Found in your FlutterFlow project URL: flutterflow.io/project/[PROJECT-ID]</p>
+            <p class="text-xs text-gray-500 mt-1">
+              Found in your project URL: flutterflow.io/project/[PROJECT-ID]<br>
+              <span class="text-gray-400">e.g., my-app-1234-abcd</span>
+            </p>
             <div id="flutterflow-project-status" class="key-status">
               <div class="key-status-dot missing"></div>
               <span class="text-gray-500">Not configured</span>
             </div>
+            <div id="flutterflow-project-id-error" class="text-xs text-red-600 mt-1 hidden">
+              Project ID should be at least 5 characters with only letters, numbers, and dashes
+            </div>
+          </div>
+
+          <div class="bg-orange-50 border border-orange-200 rounded-lg p-3">
+            <p class="text-xs text-orange-700">
+              <strong>FlutterFlow Direct Commit:</strong> When configured, you can commit generated code directly to your FlutterFlow project from Step 3 (Code Dissector).
+            </p>
           </div>
 
           <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">

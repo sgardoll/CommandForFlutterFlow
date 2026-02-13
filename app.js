@@ -654,10 +654,21 @@ async function saveApiKeys() {
   if (openaiInput.value.trim()) {
     await saveApiKey("openai", openaiInput.value);
   }
+  // Validate FlutterFlow credentials if entered
   if (flutterflowInput.value.trim()) {
+    if (!validateFlutterFlowApiKey(flutterflowInput.value)) {
+      alert("Invalid FlutterFlow API Key format. API keys should be at least 20 characters and contain only letters, numbers, underscores, and dashes.");
+      flutterflowInput.focus();
+      return;
+    }
     await saveApiKey("flutterflow", flutterflowInput.value);
   }
   if (projectIdInput.value.trim()) {
+    if (!validateFlutterFlowProjectId(projectIdInput.value)) {
+      alert("Invalid FlutterFlow Project ID format. Project IDs should be at least 5 characters and contain only letters, numbers, and dashes.");
+      projectIdInput.focus();
+      return;
+    }
     await saveApiKey("flutterflow_project_id", projectIdInput.value);
   }
 
@@ -695,6 +706,64 @@ async function clearAllApiKeys() {
 
   // Update UI
   loadApiKeyInputs();
+}
+
+// --- FLUTTERFLOW CREDENTIAL VALIDATION ---
+
+function validateFlutterFlowApiKey(key) {
+  // FF API keys are typically long alphanumeric strings
+  // Basic validation: non-empty, reasonable length (min 20 chars), no spaces
+  if (!key || key.trim().length < 20) return false;
+  if (key.includes(' ')) return false;
+  return /^[a-zA-Z0-9_-]+$/.test(key);
+}
+
+function validateFlutterFlowProjectId(projectId) {
+  // FF Project IDs are alphanumeric with dashes, typically format: name-1234-abcd
+  if (!projectId || projectId.trim().length < 5) return false;
+  if (projectId.includes(' ')) return false;
+  return /^[a-zA-Z0-9-]+$/.test(projectId);
+}
+
+function updateInputValidationState(inputId, isValid) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  
+  if (!input.value) {
+    input.style.borderColor = ''; // Reset to default
+  } else if (isValid) {
+    input.style.borderColor = '#22c55e'; // Green
+  } else {
+    input.style.borderColor = '#ef4444'; // Red
+  }
+}
+
+function showValidationError(errorId, show) {
+  const errorEl = document.getElementById(errorId);
+  if (errorEl) {
+    errorEl.style.display = show ? 'block' : 'none';
+  }
+}
+
+function setupFlutterFlowValidation() {
+  const apiKeyInput = document.getElementById('flutterflow-api-key-input');
+  const projectIdInput = document.getElementById('flutterflow-project-id-input');
+  
+  if (apiKeyInput) {
+    apiKeyInput.addEventListener('input', (e) => {
+      const isValid = validateFlutterFlowApiKey(e.target.value);
+      updateInputValidationState('flutterflow-api-key-input', isValid);
+      showValidationError('flutterflow-api-key-error', e.target.value && !isValid);
+    });
+  }
+  
+  if (projectIdInput) {
+    projectIdInput.addEventListener('input', (e) => {
+      const isValid = validateFlutterFlowProjectId(e.target.value);
+      updateInputValidationState('flutterflow-project-id-input', isValid);
+      showValidationError('flutterflow-project-id-error', e.target.value && !isValid);
+    });
+  }
 }
 
 function toggleKeyVisibility(inputId) {
@@ -1901,6 +1970,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Initialize API keys and check connection
   await checkConnection();
+  
+  // Setup FlutterFlow credential validation
+  setupFlutterFlowValidation();
 
   showWalkthroughIfNeeded();
 
