@@ -1246,6 +1246,172 @@ function getFileNameFromPath(filePath) {
   return filePath.split('/').pop();
 }
 
+// --- PUBSPEC.YAML UTILITIES ---
+
+/**
+ * Creates a default pubspec.yaml structure for FlutterFlow.
+ * @returns {Object} Default pubspec.yaml structure
+ */
+function createDefaultPubspec() {
+  const pubspec = {
+    name: 'flutter_flow_custom_code',
+    description: 'Custom code for FlutterFlow project',
+    version: '1.0.0',
+    environment: {
+      sdk: '>=3.0.0 <4.0.0',
+    },
+    dependencies: {
+      flutter: {
+        sdk: 'flutter',
+      },
+    },
+    dev_dependencies: {
+      flutter_test: {
+        sdk: 'flutter',
+      },
+    },
+    flutter: {
+      uses_material_design: true,
+    },
+  };
+
+  return pubspec;
+}
+
+/**
+ * Parses pubspec.yaml to extract dependencies.
+ * Note: This is a simplified parser for the web context.
+ * Full YAML parsing would require a library like js-yaml.
+ * @param {string} yamlContent - Raw pubspec.yaml content
+ * @returns {Object} Parsed dependencies object
+ */
+function parsePubspecDependencies(yamlContent) {
+  const dependencies = {};
+  let inDependencies = false;
+  let currentIndent = 0;
+
+  const lines = yamlContent.split('\n');
+
+  for (const line of lines) {
+    // Check if we're entering dependencies section
+    if (line.trim() === 'dependencies:') {
+      inDependencies = true;
+      currentIndent = line.search(/\S/);
+      continue;
+    }
+
+    // Check if we're leaving dependencies section (new section at same or lower indent)
+    if (inDependencies) {
+      const indent = line.search(/\S/);
+      if (line.trim() && indent <= currentIndent && line.trim().endsWith(':')) {
+        inDependencies = false;
+        continue;
+      }
+
+      // Parse dependency line
+      if (line.trim() && !line.trim().startsWith('#')) {
+        const match = line.match(/^(\s*)(\w+):\s*(.+)?$/);
+        if (match) {
+          const [, indentStr, name, version] = match;
+          if (indentStr.length > currentIndent) {
+            dependencies[name] = version ? version.trim() : null;
+          }
+        }
+      }
+    }
+  }
+
+  return dependencies;
+}
+
+/**
+ * Merges custom dependencies into pubspec structure.
+ * @param {Object} basePubspec - Base pubspec object
+ * @param {Object} customDeps - Custom dependencies to add
+ * @returns {Object} Merged pubspec structure
+ */
+function mergeDependencies(basePubspec, customDeps) {
+  const merged = { ...basePubspec };
+
+  if (!merged.dependencies) {
+    merged.dependencies = {};
+  }
+
+  // Add custom dependencies
+  for (const [name, version] of Object.entries(customDeps)) {
+    // Skip Flutter SDK dependency
+    if (name === 'flutter') continue;
+    merged.dependencies[name] = version;
+  }
+
+  return merged;
+}
+
+/**
+ * Serializes a pubspec object to YAML string format.
+ * Note: This is a simplified serializer for FlutterFlow pubspec structure.
+ * @param {Object} pubspec - Pubspec object to serialize
+ * @returns {string} YAML formatted string
+ */
+function serializePubspecToYaml(pubspec) {
+  const lines = [];
+
+  // Add basic fields
+  lines.push(`name: ${pubspec.name}`);
+  lines.push(`description: ${pubspec.description}`);
+  lines.push(`version: ${pubspec.version}`);
+  lines.push('');
+
+  // Add environment
+  lines.push('environment:');
+  for (const [key, value] of Object.entries(pubspec.environment)) {
+    lines.push(`  ${key}: ${value}`);
+  }
+  lines.push('');
+
+  // Add dependencies
+  lines.push('dependencies:');
+  for (const [name, value] of Object.entries(pubspec.dependencies)) {
+    if (typeof value === 'object' && value !== null) {
+      lines.push(`  ${name}:`);
+      for (const [k, v] of Object.entries(value)) {
+        lines.push(`    ${k}: ${v}`);
+      }
+    } else {
+      lines.push(`  ${name}: ${value || ''}`);
+    }
+  }
+  lines.push('');
+
+  // Add dev_dependencies if present
+  if (pubspec.dev_dependencies) {
+    lines.push('dev_dependencies:');
+    for (const [name, value] of Object.entries(pubspec.dev_dependencies)) {
+      if (typeof value === 'object' && value !== null) {
+        lines.push(`  ${name}:`);
+        for (const [k, v] of Object.entries(value)) {
+          lines.push(`    ${k}: ${v}`);
+        }
+      } else {
+        lines.push(`  ${name}: ${value || ''}`);
+      }
+    }
+    lines.push('');
+  }
+
+  // Add flutter section
+  if (pubspec.flutter) {
+    lines.push('flutter:');
+    for (const [key, value] of Object.entries(pubspec.flutter)) {
+      if (typeof value === 'boolean') {
+        lines.push(`  ${key}: ${value}`);
+      }
+    }
+  }
+
+  return lines.join('\n');
+}
+
 // --- PIPELINE FUNCTIONS ---
 
 async function runPromptArchitect(userInput) {
