@@ -402,7 +402,7 @@
         text-align: center;
       }
     </style>
-    <script type="module" crossorigin src="/assets/index-CasI5Vmo.js"></script>
+    <script type="module" crossorigin src="/assets/index-C0BWIOHn.js"></script>
   </head>
   <body>
     <div class="flex">
@@ -415,6 +415,21 @@
             alt="FlutterFlow - Custom Code Command"
             class="w-full h-auto block"
           />
+        </div>
+
+        <!-- API Keys Settings -->
+        <div class="p-5 border-b border-gray-200">
+          <button class="settings-btn" onclick="openApiKeysModal()">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+            </svg>
+            <span>API Keys</span>
+            <div id="api-keys-status" class="ml-auto flex gap-1">
+              <div class="key-status-dot missing" title="Gemini"></div>
+              <div class="key-status-dot missing" title="Claude"></div>
+              <div class="key-status-dot missing" title="OpenAI"></div>
+            </div>
+          </button>
         </div>
 
         <!-- Design Prompt Canvas -->
@@ -464,21 +479,6 @@
               <path d="M8 5v14l11-7z"/>
             </svg>
             Run Pipeline
-          </button>
-        </div>
-
-        <!-- API Keys Settings -->
-        <div class="p-5 border-b border-gray-200">
-          <button class="settings-btn" onclick="openApiKeysModal()">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
-            </svg>
-            <span>API Keys</span>
-            <div id="api-keys-status" class="ml-auto flex gap-1">
-              <div class="key-status-dot missing" title="Gemini"></div>
-              <div class="key-status-dot missing" title="Claude"></div>
-              <div class="key-status-dot missing" title="OpenAI"></div>
-            </div>
           </button>
         </div>
 
@@ -770,6 +770,84 @@
             class="px-4 py-2 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors"
           >
             Save Keys
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div id="walkthrough-modal" class="modal-overlay" onclick="closeWalkthroughModal(event)">
+      <div class="modal-content" onclick="event.stopPropagation()">
+        <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+          <h2 class="font-semibold text-lg text-gray-900">Welcome to Custom Code Command</h2>
+          <button onclick="closeWalkthroughModal()" class="p-1 hover:bg-gray-100 rounded-lg transition-colors">
+            <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="p-6">
+          <p class="text-sm text-gray-600 mb-6">
+            Get started in 4 simple steps:
+          </p>
+
+          <div class="space-y-4">
+            <div id="walkthrough-step1" class="flex items-start gap-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <div class="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center flex-shrink-0 font-semibold">1</div>
+              <div class="flex-1">
+                <h3 class="font-medium text-gray-900 mb-1">Add Your API Key</h3>
+                <p class="text-sm text-gray-600 mb-2">You'll need a Gemini API key minimum (it's free). Click the button below to add your key.</p>
+                <button onclick="closeWalkthroughModal(); openApiKeysModal();" class="text-sm text-blue-600 hover:text-blue-700 font-medium">
+                  Open API Keys Settings →
+                </button>
+              </div>
+            </div>
+
+            <div id="walkthrough-step2" class="flex items-start gap-4 p-4 bg-gray-50 rounded-lg border border-gray-200 opacity-60">
+              <div class="w-8 h-8 bg-gray-400 text-white rounded-full flex items-center justify-center flex-shrink-0 font-semibold">2</div>
+              <div class="flex-1">
+                <h3 class="font-medium text-gray-900 mb-1">Describe What You Want</h3>
+                <p class="text-sm text-gray-600 mb-2">Type your prompt in the Design Prompt Canvas. Be specific about your custom widget or action.</p>
+                <button onclick="closeWalkthroughModal(); focusPromptInput();" class="text-sm text-blue-600 hover:text-blue-700 font-medium">
+                  Add My Prompt →
+                </button>
+              </div>
+            </div>
+
+            <div id="walkthrough-step3" class="flex items-start gap-4 p-4 bg-gray-50 rounded-lg border border-gray-200 opacity-60">
+              <div class="w-8 h-8 bg-gray-400 text-white rounded-full flex items-center justify-center flex-shrink-0 font-semibold">3</div>
+              <div class="flex-1">
+                <h3 class="font-medium text-gray-900 mb-1">Choose a Model</h3>
+                <p class="text-sm text-gray-600 mb-2">Select your preferred AI model from the dropdown. Gemini is fastest and works great!</p>
+                <button onclick="closeWalkthroughModal(); openModelSelector();" class="text-sm text-blue-600 hover:text-blue-700 font-medium">
+                  Select Model →
+                </button>
+              </div>
+            </div>
+
+            <div id="walkthrough-step4" class="flex items-start gap-4 p-4 bg-gray-50 rounded-lg border border-gray-200 opacity-60">
+              <div class="w-8 h-8 bg-gray-400 text-white rounded-full flex items-center justify-center flex-shrink-0 font-semibold">4</div>
+              <div class="flex-1">
+                <h3 class="font-medium text-gray-900 mb-1">Hit Run!</h3>
+                <p class="text-sm text-gray-600 mb-2">Click the Run Pipeline button and watch the AI generate FlutterFlow-ready code.</p>
+                <button onclick="closeWalkthroughModal(); runThinkingPipeline();" class="text-sm text-blue-600 hover:text-blue-700 font-medium">
+                  Run Pipeline →
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-6 pt-4 border-t border-gray-200">
+            <label class="flex items-center gap-2">
+              <input type="checkbox" id="walkthrough-dont-show" class="w-4 h-4 text-blue-500 rounded border-gray-300 focus:ring-blue-500">
+              <span class="text-sm text-gray-600">Don't show this again</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="px-6 py-4 border-t border-gray-200 flex justify-end">
+          <button onclick="closeWalkthroughModal()" class="px-4 py-2 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors">
+            Got It!
           </button>
         </div>
       </div>
