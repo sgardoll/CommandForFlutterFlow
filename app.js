@@ -1064,8 +1064,6 @@ class FlutterFlowApiClient {
       throw error;
     }
   }
-}
-
 
   /**
    * Pushes custom code to FlutterFlow.
@@ -1096,6 +1094,62 @@ class FlutterFlowApiClient {
       throw new Error(`API Error syncing code: ${error.message}`);
     }
   }
+}
+
+/**
+ * Parses the response from pushCode API call.
+ * @param {Response} response - Fetch response object
+ * @returns {Promise<Object>} Parsed result with file warnings
+ */
+async function parsePushCodeResponse(response) {
+  const originalResponse = response.clone();
+  let jsonResult;
+  
+  try {
+    jsonResult = await response.json();
+  } catch (error) {
+    const text = await originalResponse.text();
+    throw new Error(`Invalid JSON response: ${text}`);
+  }
+  
+  if (!response.ok) {
+    // API returned error status
+    return {
+      success: false,
+      responseCode: response.status,
+      errorMessage: jsonResult.message || `HTTP ${response.status}`,
+      errorMap: jsonResult.errors ? new Map(Object.entries(jsonResult.errors)) : new Map(),
+    };
+  }
+  
+  // Success response
+  const valueObject = jsonResult.value ? JSON.parse(jsonResult.value) : {};
+  return {
+    success: true,
+    responseCode: response.status,
+    errorMap: new Map(Object.entries(valueObject)),
+  };
+}
+
+/**
+ * Gets user-friendly error message for FlutterFlow API errors.
+ * @param {number} statusCode - HTTP status code
+ * @param {string} [message] - Optional error message from API
+ * @returns {string} User-friendly error message
+ */
+function getFlutterFlowErrorMessage(statusCode, message) {
+  const errorMessages = {
+    401: 'Authentication failed. Please check your FlutterFlow API key.',
+    403: 'Access denied. You may not have permission to modify this project.',
+    404: 'Project not found. Please check your Project ID.',
+    409: 'Conflict detected. The project may have been modified elsewhere.',
+    422: `Validation failed: ${message || 'Invalid request format'}`,
+    429: 'Rate limit exceeded. Please try again in a few minutes.',
+    500: 'FlutterFlow server error. Please try again later.',
+    503: 'FlutterFlow service temporarily unavailable.',
+  };
+  
+  return errorMessages[statusCode] || `FlutterFlow API error: ${message || `HTTP ${statusCode}`}`;
 }
 
 // --- PIPELINE FUNCTIONS ---
