@@ -1152,6 +1152,100 @@ function getFlutterFlowErrorMessage(statusCode, message) {
   return errorMessages[statusCode] || `FlutterFlow API error: ${message || `HTTP ${statusCode}`}`;
 }
 
+// --- FILE TYPE DETECTION UTILITIES ---
+
+/**
+ * Code type enumeration for FlutterFlow custom code
+ * @typedef {Object} CodeType
+ * @property {string} ACTION - Custom Action ('A')
+ * @property {string} WIDGET - Custom Widget ('W')
+ * @property {string} FUNCTION - Custom Function ('F')
+ * @property {string} DEPENDENCIES - pubspec.yaml dependencies ('D')
+ * @property {string} OTHER - Other file types ('O')
+ */
+const CodeType = {
+  ACTION: 'A',
+  WIDGET: 'W',
+  FUNCTION: 'F',
+  DEPENDENCIES: 'D',
+  OTHER: 'O',
+};
+
+/**
+ * Detects the type of custom code based on file name and content.
+ * @param {string} fileName - Name of the file
+ * @param {string} [content] - Optional file content for additional detection
+ * @returns {string} Code type (A, W, F, D, or O)
+ */
+function detectCodeType(fileName, content = '') {
+  if (fileName === 'pubspec.yaml') {
+    return CodeType.DEPENDENCIES;
+  }
+  
+  if (!fileName.endsWith('.dart') || fileName.endsWith('index.dart')) {
+    return CodeType.OTHER;
+  }
+  
+  if (fileName === 'custom_functions.dart') {
+    return CodeType.FUNCTION;
+  }
+  
+  if (content) {
+    if (content.includes('extends State') || content.includes('StatefulWidget')) {
+      if (content.includes('Future') && content.includes('BuildContext')) {
+        return CodeType.ACTION;
+      }
+      return CodeType.WIDGET;
+    }
+    
+    if (content.match(/^\s*(String|int|double|bool|List|Map|dynamic|void)\s+\w+\s*\(/m)) {
+      return CodeType.FUNCTION;
+    }
+  }
+  
+  return CodeType.OTHER;
+}
+
+/**
+ * Gets the relative file path based on code type.
+ * @param {string} fileName - Original file name
+ * @param {string} codeType - Code type (A, W, F, D, O)
+ * @returns {string} Relative path in FlutterFlow structure
+ */
+function getFilePathForCodeType(fileName, codeType) {
+  switch (codeType) {
+    case CodeType.ACTION:
+      return `lib/custom_code/actions/${fileName}`;
+    case CodeType.WIDGET:
+      return `lib/custom_code/widgets/${fileName}`;
+    case CodeType.FUNCTION:
+      return 'lib/flutter_flow/custom_functions.dart';
+    case CodeType.DEPENDENCIES:
+      return 'pubspec.yaml';
+    default:
+      return fileName;
+  }
+}
+
+/**
+ * Checks if a file is new (has no original checksum).
+ * @param {Object} fileInfo - File information object
+ * @param {string} [fileInfo.original_checksum] - Original checksum of the file
+ * @returns {boolean} True if the file is new
+ */
+function isNewFile(fileInfo) {
+  return fileInfo.original_checksum === undefined;
+}
+
+/**
+ * Extracts the file name from a full path.
+ * @param {string} filePath - Full file path
+ * @returns {string} File name without path
+ */
+function getFileNameFromPath(filePath) {
+  return filePath.split('/').pop();
+}
+
 // --- PIPELINE FUNCTIONS ---
 
 async function runPromptArchitect(userInput) {
