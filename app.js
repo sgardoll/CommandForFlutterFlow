@@ -1535,6 +1535,124 @@ function validateFileMap(fileMap) {
     warnings,
   };
 }
+// --- COMMIT STATE MANAGEMENT ---
+
+/**
+ * Commit operation states
+ */
+const CommitState = {
+  IDLE: 'IDLE',
+  PREPARING: 'PREPARING',
+  VALIDATING: 'VALIDATING',
+  PUSHING: 'PUSHING',
+  SUCCESS: 'SUCCESS',
+  ERROR: 'ERROR',
+};
+
+/**
+ * Global commit state tracking object
+ */
+const commitState = {
+  currentState: CommitState.IDLE,
+  startTime: null,
+  endTime: null,
+  error: null,
+  result: null,
+  filesProcessed: 0,
+  totalFiles: 0,
+  
+  /**
+   * Reset state to idle
+   */
+  reset() {
+    this.currentState = CommitState.IDLE;
+    this.startTime = null;
+    this.endTime = null;
+    this.error = null;
+    this.result = null;
+    this.filesProcessed = 0;
+    this.totalFiles = 0;
+  },
+  
+  /**
+   * Set current state
+   * @param {string} state - New state from CommitState
+   */
+  setState(state) {
+    if (!Object.values(CommitState).includes(state)) {
+      console.error(`Invalid commit state: ${state}`);
+      return;
+    }
+    
+    this.currentState = state;
+    
+    if (state === CommitState.PREPARING) {
+      this.startTime = Date.now();
+    }
+    
+    if (state === CommitState.SUCCESS || state === CommitState.ERROR) {
+      this.endTime = Date.now();
+    }
+    
+    // Trigger state change event
+    if (typeof window !== 'undefined' && window.dispatchEvent) {
+      window.dispatchEvent(new CustomEvent('commitStateChange', { 
+        detail: { state, commitState: this } 
+      }));
+    }
+    
+    console.log(`Commit state changed to: ${state}`);
+  },
+  
+  /**
+   * Set error information
+   * @param {Error} error - Error object
+   */
+  setError(error) {
+    this.error = error;
+    this.setState(CommitState.ERROR);
+  },
+  
+  /**
+   * Set success result
+   * @param {Object} result - Success result data
+   */
+  setSuccess(result) {
+    this.result = result;
+    this.setState(CommitState.SUCCESS);
+  },
+  
+  /**
+   * Update file progress
+   * @param {number} processed - Number of files processed
+   * @param {number} total - Total number of files
+   */
+  setProgress(processed, total) {
+    this.filesProcessed = processed;
+    this.totalFiles = total;
+  },
+  
+  /**
+   * Get elapsed time in milliseconds
+   * @returns {number|null} Elapsed time or null if not started
+   */
+  getElapsedTime() {
+    if (!this.startTime) return null;
+    const end = this.endTime || Date.now();
+    return end - this.startTime;
+  },
+  
+  /**
+   * Check if commit is in progress
+   * @returns {boolean} True if committing
+   */
+  isInProgress() {
+    return this.currentState === CommitState.PREPARING ||
+           this.currentState === CommitState.VALIDATING ||
+           this.currentState === CommitState.PUSHING;
+  },
+};
+
 // --- PIPELINE FUNCTIONS ---
 
 async function runPromptArchitect(userInput) {
