@@ -1051,6 +1051,8 @@ class FlutterFlowApiClient {
 
       const data = await response.json();
 
+      // The response should contain a download_url or direct content
+      // For now, return the parsed response
       return {
         success: true,
         downloadUrl: data.download_url,
@@ -1064,62 +1066,36 @@ class FlutterFlowApiClient {
   }
 }
 
-// --- FLUTTERFLOW API RESPONSE UTILITIES ---
 
-/**
- * Parses the response from pushCode API call.
- * @param {Response} response - Fetch response object
- * @returns {Promise<Object>} Parsed result with file warnings
- */
-async function parsePushCodeResponse(response) {
-  const originalResponse = response.clone();
-  let jsonResult;
-
-  try {
-    jsonResult = await response.json();
-  } catch (error) {
-    const text = await originalResponse.text();
-    throw new Error(`Invalid JSON response: ${text}`);
+  /**
+   * Pushes custom code to FlutterFlow.
+   * @param {Object} pushCodeRequest - Request object containing code data
+   * @param {string} pushCodeRequest.project_id - FlutterFlow project ID
+   * @param {string} pushCodeRequest.zipped_custom_code - Base64 encoded zip of custom code
+   * @param {string} pushCodeRequest.uid - User identifier
+   * @param {string} pushCodeRequest.branch_name - Target branch name
+   * @param {string} pushCodeRequest.serialized_yaml - Serialized pubspec.yaml content
+   * @param {string} pushCodeRequest.file_map - JSON string of file path to content mapping
+   * @param {string} pushCodeRequest.functions_map - JSON string of function definitions
+   * @returns {Promise<Response>} Fetch response object
+   */
+  async pushCode(pushCodeRequest) {
+    try {
+      const response = await fetch(`${this.baseUrl}/syncCustomCodeChanges`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify(pushCodeRequest),
+      });
+      
+      return response;
+    } catch (error) {
+      console.error('API Error syncing code:', error);
+      throw new Error(`API Error syncing code: ${error.message}`);
+    }
   }
-
-  if (!response.ok) {
-    // API returned error status
-    return {
-      success: false,
-      responseCode: response.status,
-      errorMessage: jsonResult.message || `HTTP ${response.status}`,
-      errorMap: jsonResult.errors ? new Map(Object.entries(jsonResult.errors)) : new Map(),
-    };
-  }
-
-  // Success response
-  const valueObject = jsonResult.value ? JSON.parse(jsonResult.value) : {};
-  return {
-    success: true,
-    responseCode: response.status,
-    errorMap: new Map(Object.entries(valueObject)),
-  };
-}
-
-/**
- * Gets user-friendly error message for FlutterFlow API errors.
- * @param {number} statusCode - HTTP status code
- * @param {string} [message] - Optional error message from API
- * @returns {string} User-friendly error message
- */
-function getFlutterFlowErrorMessage(statusCode, message) {
-  const errorMessages = {
-    401: 'Authentication failed. Please check your FlutterFlow API key.',
-    403: 'Access denied. You may not have permission to modify this project.',
-    404: 'Project not found. Please check your Project ID.',
-    409: 'Conflict detected. The project may have been modified elsewhere.',
-    422: `Validation failed: ${message || 'Invalid request format'}`,
-    429: 'Rate limit exceeded. Please try again in a few minutes.',
-    500: 'FlutterFlow server error. Please try again later.',
-    503: 'FlutterFlow service temporarily unavailable.',
-  };
-
-  return errorMessages[statusCode] || `FlutterFlow API error: ${message || `HTTP ${statusCode}`}`;
 }
 
 // --- PIPELINE FUNCTIONS ---
