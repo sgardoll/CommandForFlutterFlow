@@ -969,6 +969,46 @@ async function callOpenAI(prompt, systemInstruction) {
   }
 }
 
+// --- FLUTTERFLOW API CLIENT ---
+
+/**
+ * Client for interacting with the FlutterFlow API.
+ * Adapted from the VS Code extension for browser use.
+ * Handles authentication and provides methods for code synchronization.
+ */
+class FlutterFlowApiClient {
+  /**
+   * Creates a new FlutterFlow API client instance.
+   * @param {string} apiKey - Authentication token for API access
+   * @param {string} projectId - ID of the FlutterFlow project
+   * @param {string} [branchName='main'] - Name of the branch to work with
+   */
+  constructor(apiKey, projectId, branchName = 'main') {
+    this.apiKey = apiKey;
+    this.baseUrl = 'https://api.flutterflow.io/v1';
+    this._projectId = projectId;
+    this._branchName = branchName;
+  }
+
+  /**
+   * Gets the project ID.
+   * @returns {string} The FlutterFlow project ID
+   */
+  get projectId() {
+    return this._projectId;
+  }
+
+  /**
+   * Gets the branch name.
+   * In FlutterFlow, "main" and "" both represent the default branch.
+   * @returns {string} The branch name (empty string for main branch)
+   */
+  get branchName() {
+    // "main" and "" both represent the default branch in FlutterFlow. The APIs expect "".
+    return this._branchName === 'main' ? '' : this._branchName;
+  }
+}
+
 // --- PIPELINE FUNCTIONS ---
 
 async function runPromptArchitect(userInput) {
