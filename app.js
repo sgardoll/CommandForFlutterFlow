@@ -1412,6 +1412,129 @@ function serializePubspecToYaml(pubspec) {
   return lines.join('\n');
 }
 
+
+// --- FILE VALIDATION FUNCTIONS ---
+
+/**
+ * Validates a Dart file for FlutterFlow compatibility.
+ * @param {string} fileName - Name of the file
+ * @param {string} content - File content
+ * @returns {Object} Validation result { valid: boolean, errors: string[] }
+ */
+function validateDartFile(fileName, content) {
+  const errors = [];
+  
+  // Check for forbidden patterns in FlutterFlow
+  const forbiddenPatterns = [
+    { pattern: /void\s+main\s*\(/, message: 'Contains main() function - not allowed in FlutterFlow' },
+    { pattern: /runApp\s*\(/, message: 'Contains runApp() - not allowed in FlutterFlow' },
+    { pattern: /MaterialApp\s*\(/, message: 'Contains MaterialApp - not allowed in FlutterFlow' },
+    { pattern: /Scaffold\s*\(/, message: 'Contains Scaffold - usually not needed in FlutterFlow widgets' },
+    { pattern: /^\s*import\s+/m, message: 'Contains import statements - FlutterFlow manages imports' },
+  ];
+  
+  for (const { pattern, message } of forbiddenPatterns) {
+    if (pattern.test(content)) {
+      errors.push(message);
+    }
+  }
+  
+  // Check for required patterns in widgets
+  if (fileName.endsWith('.dart') && !fileName.includes('functions')) {
+    // Check for null safety
+    if (content.includes('!') && !content.includes('??')) {
+      // Has bang operator but no null coalescing - potential null safety issue
+      // This is just a warning, not an error
+    }
+  }
+  
+  // Check for class definition
+  if (!content.match(/class\s+\w+/)) {
+    errors.push('No class definition found');
+  }
+  
+  return {
+    valid: errors.length === 0,
+    errors,
+  };
+}
+
+/**
+ * Validates pubspec.yaml content.
+ * @param {string} content - pubspec.yaml content
+ * @returns {Object} Validation result { valid: boolean, errors: string[] }
+ */
+function validatePubspec(content) {
+  const errors = [];
+  
+  // Check for required fields
+  if (!content.includes('name:')) {
+    errors.push('pubspec.yaml missing name field');
+  }
+  
+  if (!content.includes('dependencies:')) {
+    errors.push('pubspec.yaml missing dependencies section');
+  }
+  
+  // Check for Flutter SDK
+  if (!content.includes('flutter:') && !content.includes('sdk: flutter')) {
+    errors.push('pubspec.yaml missing Flutter SDK dependency');
+  }
+  
+  return {
+    valid: errors.length === 0,
+    errors,
+  };
+}
+
+/**
+ * Validates a file map before commit.
+ * @param {Map<string, Object>} fileMap - Map of file paths to file info
+ * @returns {Object} Validation result { valid: boolean, errors: string[], warnings: string[] }
+ */
+function validateFileMap(fileMap) {
+  const errors = [];
+  const warnings = [];
+  
+  if (!fileMap || fileMap.size === 0) {
+    errors.push('No files to commit');
+    return { valid: false, errors, warnings };
+  }
+  
+  for (const [path, fileInfo] of fileMap.entries()) {
+    // Check for empty files
+    if (!fileInfo.content || fileInfo.content.trim().length === 0) {
+      errors.push(`File ${path} is empty`);
+    }
+    
+    // Check file size (FlutterFlow may have limits)
+    if (fileInfo.content && fileInfo.content.length > 100000) {
+      warnings.push(`File ${path} is very large (>100KB)`);
+    }
+    
+    // Validate Dart files
+    if (path.endsWith('.dart')) {
+      const result = validateDartFile(path, fileInfo.content);
+      if (!result.valid) {
+        errors.push(...result.errors.map(e => `${path}: ${e}`));
+      }
+    }
+    
+    // Validate pubspec
+    if (path === 'pubspec.yaml') {
+      const result = validatePubspec(fileInfo.content);
+      if (!result.valid) {
+        errors.push(...result.errors);
+      }
+    }
+  }
+  
+  return {
+    valid: errors.length === 0,
+    errors,
+    warnings,
+  };
+}
 // --- PIPELINE FUNCTIONS ---
 
 async function runPromptArchitect(userInput) {
