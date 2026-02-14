@@ -1110,7 +1110,7 @@ async function callOpenRouter(prompt, systemInstruction, modelId) {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${openRouterApiKey}`,
         "HTTP-Referer": window.location.href, // Site URL for rankings
-        "X-Title": "FlutterFlow Custom Code Command", // Site title for rankings
+        "X-Title": "FlutterFlow Custom Code Connect", // Site title for rankings
       },
       body: JSON.stringify(payload),
     });
@@ -1739,6 +1739,9 @@ function serializePubspecToYaml(pubspec) {
       }
     }
   }
+
+  // FlutterFlow requires dependency_overrides section (can be empty)
+  lines.push('dependency_overrides:');
 
   return lines.join('\n');
 }
@@ -2928,7 +2931,7 @@ Remember: Output ONLY the raw Dart code. No markdown, no explanations.`;
 }
 
 async function runCodeDissector(code) {
-  // Code Dissector specific instructions that extend the shared template
+  // Code Review specific instructions that extend the shared template
   const dissectorSpecificInstructions = `## YOUR ROLE
 
 You are an expert FlutterFlow Code Auditor. Your job is to ruthlessly analyze Dart code for compatibility with FlutterFlow's constrained custom code environment.
@@ -3047,7 +3050,7 @@ Check against ALL FlutterFlow constraints. Be thorough and specific.`;
     );
     return result;
   } catch (error) {
-    console.error("Code Dissector failed:", error);
+    console.error("Code Review failed:", error);
     throw error;
   }
 }
@@ -3359,7 +3362,7 @@ function selectWorkflowStep(step) {
   const titles = {
     1: "Prompt Architect",
     2: "Code Generator",
-    3: "Code Dissector",
+    3: "Code Review",
   };
   if (stageTitle)
     stageTitle.textContent = titles[step] || "Active Workflow Stage";
@@ -3607,7 +3610,7 @@ async function runThinkingPipeline() {
       error.message.includes("Code Generator")
     ) {
       errorStep = 2;
-    } else if (error.message.includes("Code Dissector")) {
+    } else if (error.message.includes("Code Review")) {
       errorStep = 3;
     }
 
