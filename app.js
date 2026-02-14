@@ -1280,7 +1280,8 @@ class FlutterFlowApiClient {
             return response;
           }
           
-          const responseText = await response.text();
+          const clonedForLog = response.clone();
+          const responseText = await clonedForLog.text();
           console.log(`Push to ${endpoint} returned ${response.status}: ${responseText}`);
           
           if (response.status === 500) {
@@ -1289,7 +1290,6 @@ class FlutterFlowApiClient {
             continue;
           }
           
-          // For other errors, return the response to be handled by caller
           return response;
         } catch (error) {
           console.warn(`Push to ${endpoint} failed: ${error.message}, trying next...`);
@@ -1694,10 +1694,9 @@ function serializePubspecToYaml(pubspec) {
   lines.push(`version: ${pubspec.version}`);
   lines.push('');
 
-  // Add environment
   lines.push('environment:');
   for (const [key, value] of Object.entries(pubspec.environment)) {
-    lines.push(`  ${key}: ${value}`);
+    lines.push(`  ${key}: '${value}'`);
   }
   lines.push('');
 
