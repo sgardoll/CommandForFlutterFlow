@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Custom Code Command</title>
+    <title>FlutterFlow Custom Code Connect</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
@@ -475,7 +475,7 @@
         <div class="border-b border-gray-200">
           <img
             src="/sidebar-header-20260108.png"
-            alt="FlutterFlow - Custom Code Command"
+            alt="FlutterFlow Custom Code Connect"
             class="w-full h-auto block"
           />
         </div>
@@ -565,11 +565,14 @@
           <div id="workflow-status-content" class="section-content open">
             <!-- Prompt Architect -->
             <div id="step1-item" class="workflow-item" onclick="selectWorkflowStep(1)">
-              <div class="flex items-center gap-3 workflow-icon">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                </svg>
-                <span class="text-sm workflow-label">Prompt Architect</span>
+              <div class="flex flex-col gap-1 workflow-icon">
+                <div class="flex items-center gap-3">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                  </svg>
+                  <span class="text-sm workflow-label">Prompt Architect</span>
+                </div>
+                <span class="text-xs text-gray-500 ml-7">Gemini 3.0 Pro</span>
               </div>
               <div id="step1-status" class="status-icon">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -580,11 +583,14 @@
 
             <!-- Code Generator -->
             <div id="step2-item" class="workflow-item" onclick="selectWorkflowStep(2)">
-              <div class="flex items-center gap-3 workflow-icon">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
-                </svg>
-                <span class="text-sm workflow-label">Code Generator</span>
+              <div class="flex flex-col gap-1 workflow-icon">
+                <div class="flex items-center gap-3">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
+                  </svg>
+                  <span class="text-sm workflow-label">Code Generator</span>
+                </div>
+                <span class="text-xs text-gray-500 ml-7">Gemini 3.0 Pro</span>
               </div>
               <div id="step2-status" class="status-icon">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -593,13 +599,16 @@
               </div>
             </div>
 
-            <!-- Code Dissector -->
+            <!-- Code Review -->
             <div id="step3-item" class="workflow-item" onclick="selectWorkflowStep(3)">
-              <div class="flex items-center gap-3 workflow-icon">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-                </svg>
-                <span class="text-sm workflow-label">Code Dissector</span>
+              <div class="flex flex-col gap-1 workflow-icon">
+                <div class="flex items-center gap-3">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                  </svg>
+                  <span class="text-sm workflow-label">Code Review</span>
+                </div>
+                <span class="text-xs text-gray-500 ml-7">Gemini 3.0 Pro</span>
               </div>
               <div id="step3-status" class="status-icon">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -717,7 +726,7 @@
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
                     </svg>
-                    Auto-Fix & Regenerate
+                    Refine & Regenerate Code
                   </button>
                 </div>
                 <div id="step3-output" class="text-sm text-gray-700"></div>
