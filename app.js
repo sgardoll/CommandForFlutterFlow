@@ -3,6 +3,7 @@
 const envGeminiApiKey = import.meta.env.VITE_GEMINI_API_KEY || "";
 const envAnthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY || "";
 const envOpenaiApiKey = import.meta.env.VITE_OPENAI_API_KEY || "";
+const envOpenRouterApiKey = import.meta.env.VITE_OPENROUTER_API_KEY || "";
 
 // Model Configuration
 const PROMPT_ARCHITECT_MODEL = "gemini-3-flash-preview";
@@ -19,55 +20,75 @@ const FF_CORE_PHILOSOPHY = `## THE FLUTTERFLOW INTEGRATION PHILOSOPHY
 
 Key principles:
 1. **Settings and code must match.** FlutterFlow binds custom code by name/signature. If the UI says the widget/action is \`NeuroRadialGauge\`, your Dart must export that exact class/function name. Name mismatches are a top cause of "mysterious" breakage.
-2. **Never modify the auto-import section.** FlutterFlow injects imports above a hard boundary (\`// Do not remove or modify the code above this line\`). Code goes BELOW that line only.
+2. **Respect the Header.** Custom Widgets and Actions MUST start with a specific boilerplate header containing auto-imports. The code generator MUST include this header exactly as specified.
 3. **You are responsible for dependencies.** FlutterFlow won't auto-add pubspec packages. If the code imports it, you must add it in Project Dependencies (and sometimes native config).
 4. **The Parser Gap is real.** FlutterFlow parses custom code to power the UI (parameter panels, variable pickers). That parser is stricter than Dart itself - valid Dart can still be "invalid" to FlutterFlow.`;
 
 const FF_ARTIFACT_TYPES = `## THE FOUR ARTIFACT SURFACES
 
 ### A) Custom Functions (Pure/Sync Logic Silo)
-- **Purpose:** Synchronous data manipulation, math calculations, string formatting, data transformation
-- **CRITICAL RESTRICTION:** NO external imports allowed - only dart:core, dart:math, dart:convert, dart:collection
-- **Returns:** Synchronous value (String, int, double, bool, List, Map, etc.) - NOT Future
-- **Use when:** Pure computation with no side effects, no async operations, no external dependencies
-- **Examples:** Luhn algorithm validation, date formatting, list filtering, math calculations
+- **Purpose:** Synchronous data manipulation, math calculations, string formatting
+- **CRITICAL RESTRICTION:** NO external imports allowed. Stored in \`/lib/flutter_flow/custom_functions.dart\`.
+- **Allowed Imports:** Only predefined imports (dart:convert, dart:math, package:flutter/material.dart, google_fonts, intl, timeago, cloud_firestore, etc). NO custom package imports.
+- **Returns:** Synchronous value only (String, int, double, bool, List, Map) - NOT Future.
+- **Use when:** Pure computation, no side effects, no async.
 
 ### B) Custom Actions (Async/Side Effects Silo)
-- **Purpose:** Side effects, API calls, complex logic chains, third-party library usage, file operations
-- **Return type:** ALWAYS Future<T> - even synchronous logic must be wrapped
-- **External imports:** ALLOWED (packages from pub.dev, added via Project Dependencies)
-- **Optional:** Include BuildContext toggle for context-dependent work
-- **Use when:** Anything async, anything needing external packages, anything with side effects
-- **Examples:** HTTP requests, Bluetooth/sensors, file I/O, device APIs, auth flows
+- **Purpose:** API calls, complex logic, third-party libraries
+- **Return type:** ALWAYS Future<T>
+- **MANDATORY HEADER:** Must start with:
+  \`\`\`dart
+  // Automatic FlutterFlow imports
+  import '/flutter_flow/flutter_flow_theme.dart';
+  import '/flutter_flow/flutter_flow_util.dart';
+  import '/custom_code/actions/index.dart';
+  import '/flutter_flow/custom_functions.dart';
+  import 'package:flutter/material.dart';
+  // Begin custom action code
+  // DO NOT REMOVE OR MODIFY THE CODE ABOVE!
+  \`\`\`
+- **External imports:** Allowed (add under the header). Must be added to Project Dependencies.
+- **Use when:** Async operations, external packages.
 
 ### C) Custom Widgets (Visual/UI Silo)
-- **Purpose:** Custom UI not available in FlutterFlow's component library
-- **CRITICAL:** Must accept \`width\` and \`height\` parameters (both \`double?\`, nullable) - FlutterFlow injects these
-- **Data passing:** Strictly via constructor parameters - no direct access to parent page state
-- **FFAppState access:** Only if explicitly passed as parameter, or use FFAppState().update() pattern
-- **Editor behavior:** Widget is a "black box" - renders as placeholder in design view until compiled
-- **Use when:** Charts, gauges, CustomPainter, complex animations, gesture-heavy interactions
-- **Examples:** Radial gauges, custom charts, signature pads, audio visualizers, game elements
+- **Purpose:** Custom UI components
+- **MANDATORY HEADER:** Must start with:
+  \`\`\`dart
+  // Automatic FlutterFlow imports
+  import '/backend/schema/structs/index.dart';
+  import '/flutter_flow/flutter_flow_theme.dart';
+  import '/flutter_flow/flutter_flow_util.dart';
+  import 'index.dart'; // Imports other custom widgets
+  import 'package:flutter/material.dart';
+  // Begin custom widget code
+  // DO NOT REMOVE OR MODIFY THE CODE ABOVE!
+  \`\`\`
+- **Parameters:** Must accept nullable \`width\` and \`height\`.
+- **Use when:** Custom UI not in standard library.
 
-### D) Code Files (Classes/Enums/Utilities)
-- **Purpose:** Reusable models, enums, utility classes accessible in variable dialogs/action flows
-- **PARSER LIMITATIONS (documented by FlutterFlow):**
-  * NO generics
-  * NO function-typed fields/params
-  * NO extensions
-- **Translation:** Keep Code Files boring and parse-friendly. Anything "clever" belongs elsewhere.
-- **Use when:** Shared utility functions, simple enum definitions, parse-friendly helper classes`;
+### D) Code Files (Classes/Enums/Utilities) - NEW FEATURE
+- **Purpose:** Reusable models, enums, utility classes.
+- **Location:** \`lib/custom_code/\` (not synced unless in widgets/actions, but managed via UI).
+- **Capabilities:** Create custom data types, use properties in UI.
+- **Limitations:** No generics, no function-typed fields. Must re-parse in FF after changes.`;
 
 const FF_TYPE_SYSTEM = `## FLUTTERFLOW TYPE SYSTEM (Parameters)
 
-Only these parameter types work in FlutterFlow's Custom Code UI:
-- **Primitives:** String, bool, int, double, Color, DateTime
-- **Lists of primitives:** List<String>, List<int>, List<double>, List<bool>
-- **FlutterFlow Structs:** \`SomeNameStruct\` or \`List<SomeNameStruct>\` (must exist in FF Data Types)
-- **Special types:** DocumentReference, LatLng (only if project uses Firebase/Maps)
-- **Action callbacks:** \`Future<dynamic> Function()?\` (Custom Widgets only, for triggering FF actions)
+Only these parameter types work in FlutterFlow's Custom Code UI. **ALWAYS Use Simple Types.**
 
-**IMPORTANT:** Never define new Dart model classes for data exchange. If structured data is needed, use FlutterFlow Structs created in Data Types. Custom Dart classes can only be used internally (private) within your code file.`;
+- **Primitives:** String, bool, int, double, Color (nullable), DateTime
+- **Lists:** List<String>, List<int>, List<double>, List<bool>, List<ProductStruct>
+- **FlutterFlow Structs:** \`SomeNameStruct\` (UpperCamelCase, must exist in FF Data Types)
+- **Special types:** DocumentReference, LatLng, FFPlace, FFUploadedFile, Uint8List (Bytes), dynamic (JSON)
+- **Action callbacks:** \`Future Function()?\` or \`Future Function(T)?\`
+- **Widget Builder:** \`Widget Function(BuildContext)\`
+
+**FORBIDDEN COMPLEX TYPES:**
+- ❌ EdgeInsets (use individual doubles: paddingLeft, paddingRight...)
+- ❌ Duration (use int milliseconds)
+- ❌ TextStyle (break into properties)
+
+**IMPORTANT:** Custom Dart classes for data exchange are now allowed via "Code Files", but Structs are still preferred for parameters visible in the UI builder.`;
 
 const FF_STATE_PATTERNS = `## STATE & DATA: FFAppState Patterns
 
@@ -94,114 +115,83 @@ FFAppState().update(() {
 });
 \`\`\``;
 
-const FF_FORBIDDEN_PATTERNS = `## FORBIDDEN PATTERNS (Will cause immediate build failures)
+const FF_FORBIDDEN_PATTERNS = `## FORBIDDEN PATTERNS (Will cause build failures)
 
-These patterns are TOXIC in FlutterFlow custom code:
 - \`void main()\` or \`main()\` function
 - \`runApp()\` call
-- \`MaterialApp\` widget
-- \`CupertinoApp\` or \`WidgetsApp\`
-- \`Scaffold\` widget (unless spec explicitly requires full-screen scaffold, which is rare)
-- \`MyApp\` or similar wrapper classes
-- ANY \`import\` statements (FlutterFlow manages all imports)
-- Custom Dart classes for data models (use FF Structs instead)
-- Generics, extensions, or function-typed params in Code Files`;
+- \`MaterialApp\` or \`Scaffold\` (except rarely)
+- Modifying the mandatory header comments or imports ABOVE the "DO NOT REMOVE" line.
+- Importing packages without adding them to Project Dependencies (in UI).
+- Adding custom imports to Custom Functions (strictly forbidden).
+- Using complex parameter types (EdgeInsets, Duration, TextStyle) in Widgets/Actions.
+- Using generics or function-typed fields in Code Files.`;
 
 const FF_REQUIRED_PATTERNS = `## REQUIRED PATTERNS (For FlutterFlow compatibility)
 
+### Headers (MANDATORY)
+- **Custom Widgets:** Must start with the widget-specific header (see Artifact Types).
+- **Custom Actions:** Must start with the action-specific header (see Artifact Types).
+
 ### Null Safety
-- 100% null-safe Dart required - no exceptions
-- Every nullable input must have explicit defaults or guards
-- NEVER use the \`!\` operator unless mathematically proven safe - prefer \`??\` or \`?.\`
-- Handle null width/height gracefully in Custom Widgets
+- 100% null-safe Dart. Use \`??\` or \`?.\` over \`!\`.
 
-### Widget Parameters (Custom Widgets)
-- ALWAYS include as first parameters:
-  \`\`\`dart
-  final double? width;
-  final double? height;
-  \`\`\`
-- Handle null width/height - never assume they have values
-- Use LayoutBuilder for size-dependent rendering:
-  \`\`\`dart
-  LayoutBuilder(
-    builder: (context, constraints) {
-      final w = widget.width ?? constraints.maxWidth;
-      final h = widget.height ?? constraints.maxHeight;
-      // Use w and h safely
-    }
-  )
-  \`\`\`
-
-### Theming
-- Use \`FlutterFlowTheme.of(context).primary\` instead of \`Colors.blue\`
-- Use \`FlutterFlowTheme.of(context).primaryText\` for text colors
-- Use \`FlutterFlowTheme.of(context).secondaryBackground\` for surfaces
-- Only hardcode colors if intentional and documented
+### Widget Parameters
+- ALWAYS include nullable \`width\` and \`height\`.
+- Use simple types only (e.g., \`double? padding\` instead of \`EdgeInsets?\`).
 
 ### Callbacks & Actions
-- Action callback signature: \`final Future<dynamic> Function()? onSomeAction;\`
-- To invoke callbacks: \`widget.onSomeAction?.call();\`
-- Do NOT embed navigation/database writes inside widgets - expose Action Parameters
+- **Signature:** \`final Future Function()? onTap;\` or \`final Future Function(String)? onChanged;\`
+- **Invocation:** \`await widget.onTap?.call();\` (ALWAYS await actions).
 
-### Resource Management
-- ALWAYS dispose() controllers: AnimationController, StreamSubscription, TextEditingController
-- Use \`with SingleTickerProviderStateMixin\` or \`TickerProviderStateMixin\` for animations
-- Initialize AnimationController in initState(), not in build()
-- Use didUpdateWidget() to respond to parameter changes from FlutterFlow`;
+### Dependencies
+- **Widgets/Actions:** Imports go BELOW the "DO NOT REMOVE" line.
+- **Project Scope:** Dependencies must be added via FlutterFlow UI (Settings -> Project Dependencies).`;
 
-const FF_INTEGRATION_GAP_TABLE = `## THE INTEGRATION GAP (What AI generates vs. What FlutterFlow needs)
+const FF_INTEGRATION_GAP_TABLE = `## THE INTEGRATION GAP (What AI vs. FF Needs)
 
-| Issue | What AI Typically Generates | What FlutterFlow Actually Needs |
-|-------|----------------------------|--------------------------------|
-| Project Scope | Full app with main() | Fragment/component only |
-| Imports | import statements | None (FF manages all imports) |
-| Dependencies | Auto-added in code | Manual entry in Project Dependencies UI |
-| Data Models | \`class User {...}\` | \`UserStruct\` (FF Data Type) |
-| State Access | \`FFAppState()\` directly | Passed as parameter or use update() |
-| Colors | \`Colors.blue\` | \`FlutterFlowTheme.of(context).primary\` |
-| Callbacks | \`ValueChanged<T>\` | \`Future<dynamic> Function()?\` |
-| Widget Sizing | Assumes parent constraints | Must handle null width/height |`;
+| Issue | AI Default | FlutterFlow Requirement |
+|-------|------------|--------------------------|
+| **Imports** | Normal imports | **MANDATORY Header** with specific imports first |
+| **Params** | \`EdgeInsets\` | Individual \`double\`s (paddingTop, etc) |
+| **Duration** | \`Duration\` | \`int\` (milliseconds) |
+| **Callbacks** | \`VoidCallback\` | \`Future Function()\` (always await) |
+| **Colors** | \`Colors.blue\` | \`FlutterFlowTheme.of(context).primary\` |
+| **State** | \`State<T>\` | \`FFAppState().update(() {...})\` |`;
 
-const FF_TROUBLESHOOTING_CHECKLIST = `## TROUBLESHOOTING CHECKLIST (Fast elimination order)
+const FF_TROUBLESHOOTING_CHECKLIST = `## TROUBLESHOOTING CHECKLIST
 
-When something fails, check these in order:
-1. **Name mismatch** between FlutterFlow UI and Dart symbol (widget/action/function name)
-2. **Parameters mismatch** (including nullability + isList flag in FF UI)
-3. **Imports** placed above the boundary (illegal) or missing required imports below it
-4. **Missing dependency** in Project Dependencies
-5. **Type mismatch** between Struct vs Dart class
-6. **FFAppState update not triggering rebuild** - didn't use \`FFAppState().update(() { ... })\`
-7. **Web analyzer lies** - if code is correct but editor complains, compile/export/run locally; consider Exclude from Compilation
-8. **Callback param type inference issues** (common with Firestore refs) - work around with AppState or JSON/primitive transport`;
+1. **Header Mismatch:** Does the file start with the EXACT required boilerplate?
+2. **Type Issues:** Are you using EdgeInsets, Duration, or TextStyle? (Forbidden).
+3. **Imports:** Are custom imports BELOW the "DO NOT REMOVE" line?
+4. **Dependencies:** Did you add packages to Project Dependencies in the UI?
+5. **Actions:** Are you awaiting callbacks? (\`await widget.onTap()\`)
+6. **State:** Use \`FFAppState().update()\` for reactive changes.`;
 
 // --- NEW SECTIONS COMPLETED BASED ON RESEARCH (DEFINITIVE GUIDE) ---
 
 const FF_PROMPT_PROTOCOL = `## THE "CLEAN ROOM" PROMPT PROTOCOL
-Use this preamble for all code generation to ensure FlutterFlow compatibility.
+Use this preamble for all code generation.
 
-> "Act as a Senior Flutter Developer."
-> 1. **Context:** This widget will be injected into a FlutterFlow environment.
-> 2. **Constraints:**
->    * **Do NOT use:** \`Scaffold\`, \`MaterialApp\`, \`AppBar\`, or \`SystemChrome\`.
->    * **State:** Keep state local to the widget.
->    * **Data:** Accept \`[DataTypeStruct]\` as a required parameter (replace with Struct, not Class).
->    * **Styling:** Use \`Theme.of(context)\` for colors; do not hardcode hex values.
->    * **Null Safety:** Assume strict null safety.
->    * **Sizing:** Expect \`width\` and \`height\` parameters to be nullable.`;
+> "Act as a Senior Flutter Developer for FlutterFlow."
+> 1. **Header:** You MUST include the exact FlutterFlow boilerplate header (imports + DO NOT REMOVE line) for the artifact type.
+> 2. **Types:** Use ONLY simple types (double, int, String, bool). NO complex Flutter types like EdgeInsets, Duration, TextStyle.
+> 3. **Actions:** Callbacks must return \`Future\`. Await them.
+> 4. **Theme:** Use \`FlutterFlowTheme.of(context)\`.
+> 5. **Null Safety:** Strict. \`width\`/\`height\` are nullable.`;
 
 const FF_WORKFLOW_PROTOCOL = `## TRI-SURFACE INTEGRATION WORKFLOW
 
-### Phase 1: Extraction (From AI/Local to FF)
-1. **Isolate Core Class:** Extract only the main \`StatefulWidget\` or \`StatelessWidget\`.
-2. **Identify Helpers:** Separate internal data models - these MUST be converted to FlutterFlow Structs.
-3. **Capture Imports:** List all \`import package:...\`. These must be manually added to FF Project Dependencies.
+### Phase 1: Extraction
+1. **Isolate Core Class:** Extract only the main Widget/Action code.
+2. **Identify Helpers:** Separate internal data models (convert to Structs).
+3. **Capture Imports:** List all external packages (add to Project Dependencies).
 
-### Phase 2: Injection (Into FF)
-1. **Prepare Host:** Create Custom Widget in FF with parameters matching the extracted code.
-2. **Refactor Name:** Ensure \`class [WidgetName]\` matches the FF Custom Widget name exactly.
-3. **Refactor Colors:** Replace \`Colors.red\` with \`FlutterFlowTheme.of(context).error\`.
-4. **Refactor Logic:** Convert internal navigation/API calls to \`Future Function()\` callbacks.`;
+### Phase 2: Injection
+1. **Prepare Host:** Create Custom Widget/Action in FF with parameters.
+2. **Add Header:** Paste the MANDATORY boilerplate header (with auto-imports).
+3. **Refactor Name:** Ensure \`class [WidgetName]\` matches exactly.
+4. **Refactor Colors:** Use \`FlutterFlowTheme.of(context).primary\`.
+5. **Refactor Logic:** Convert calls to \`Future Function()\` callbacks.`;
 
 // Compose the full shared template
 const FF_SHARED_CONSTRAINTS = `${FF_CORE_PHILOSOPHY}
@@ -410,6 +400,7 @@ function hasStoredKey(provider) {
     gemini: geminiApiKey,
     anthropic: anthropicApiKey,
     openai: openaiApiKey,
+    openrouter: openRouterApiKey,
     flutterflow: flutterflowApiKey,
     flutterflow_project_id: flutterflowProjectId
   };
@@ -425,6 +416,7 @@ function hasEnvKey(provider) {
 let geminiApiKey = "";
 let anthropicApiKey = "";
 let openaiApiKey = "";
+let openRouterApiKey = "";
 let flutterflowApiKey = "";
 let flutterflowProjectId = "";
 
@@ -432,6 +424,7 @@ async function initializeApiKeys() {
   geminiApiKey = await getApiKey("gemini");
   anthropicApiKey = await getApiKey("anthropic");
   openaiApiKey = await getApiKey("openai");
+  openRouterApiKey = await getApiKey("openrouter");
   flutterflowApiKey = await getApiKey("flutterflow");
   flutterflowProjectId = await getApiKey("flutterflow_project_id");
   updateApiKeyStatusIndicators();
@@ -534,6 +527,7 @@ async function loadApiKeyInputs() {
   const geminiInput = document.getElementById("gemini-api-key-input");
   const anthropicInput = document.getElementById("anthropic-api-key-input");
   const openaiInput = document.getElementById("openai-api-key-input");
+  const openRouterInput = document.getElementById("openrouter-api-key-input");
   const flutterflowInput = document.getElementById("flutterflow-api-key-input");
   const projectIdInput = document.getElementById("flutterflow-project-id-input");
 
@@ -559,6 +553,13 @@ async function loadApiKeyInputs() {
     openaiInput.placeholder = "Enter your OpenAI API key";
   }
 
+  if (openRouterApiKey) {
+    openRouterInput.value = "";
+    openRouterInput.placeholder = "Key saved (enter new to replace)";
+  } else {
+    openRouterInput.placeholder = "Enter your OpenRouter API key";
+  }
+
   if (flutterflowApiKey) {
     flutterflowInput.value = "";
     flutterflowInput.placeholder = "Key saved (enter new to replace)";
@@ -580,6 +581,7 @@ function updateModalKeyStatuses() {
   updateKeyStatus("gemini", "gemini-key-status");
   updateKeyStatus("anthropic", "anthropic-key-status");
   updateKeyStatus("openai", "openai-key-status");
+  updateKeyStatus("openrouter", "openrouter-key-status");
   updateKeyStatus("flutterflow", "flutterflow-key-status");
   updateKeyStatus("flutterflow_project_id", "flutterflow-project-status");
 }
@@ -602,13 +604,27 @@ function updateKeyStatus(provider, statusElementId) {
   }
 }
 
+function updateDeployButtonVisibility() {
+  const deploySection = document.getElementById("deploy-section");
+  if (!deploySection) return;
+
+  const flutterFlowConfigured = hasStoredKey("flutterflow") && hasStoredKey("flutterflow_project_id");
+  const hasGeneratedCode = pipelineState.step2Result && pipelineState.step2Result.length > 0;
+
+  if (flutterFlowConfigured && hasGeneratedCode) {
+    deploySection.classList.remove("hidden");
+  } else {
+    deploySection.classList.add("hidden");
+  }
+}
+
 function updateApiKeyStatusIndicators() {
   const container = document.getElementById("api-keys-status");
   if (!container) return;
 
   const dots = container.querySelectorAll(".key-status-dot");
-  const providers = ["gemini", "anthropic", "openai", "flutterflow"];
-
+  const providers = ["gemini", "anthropic", "openai", "openrouter", "flutterflow"];
+  
   dots.forEach((dot, index) => {
     const provider = providers[index];
     if (provider === "flutterflow") {
@@ -635,12 +651,16 @@ function updateApiKeyStatusIndicators() {
         " (Not configured)";
     }
   });
+  
+  // Toggle deploy button visibility
+  updateDeployButtonVisibility();
 }
 
 async function saveApiKeys() {
   const geminiInput = document.getElementById("gemini-api-key-input");
   const anthropicInput = document.getElementById("anthropic-api-key-input");
   const openaiInput = document.getElementById("openai-api-key-input");
+  const openRouterInput = document.getElementById("openrouter-api-key-input");
   const flutterflowInput = document.getElementById("flutterflow-api-key-input");
   const projectIdInput = document.getElementById("flutterflow-project-id-input");
 
@@ -653,6 +673,9 @@ async function saveApiKeys() {
   }
   if (openaiInput.value.trim()) {
     await saveApiKey("openai", openaiInput.value);
+  }
+  if (openRouterInput.value.trim()) {
+    await saveApiKey("openrouter", openRouterInput.value);
   }
   // Validate FlutterFlow credentials if entered
   if (flutterflowInput.value.trim()) {
@@ -689,7 +712,8 @@ async function saveApiKeys() {
     btn.textContent = originalText;
     btn.classList.remove("bg-green-500");
     btn.classList.add("bg-blue-500", "hover:bg-blue-600");
-  }, 1500);
+    closeApiKeysModal();
+  }, 1000);
 }
 
 async function clearAllApiKeys() {
@@ -698,6 +722,7 @@ async function clearAllApiKeys() {
   localStorage.removeItem(STORAGE_KEY_PREFIX + "gemini");
   localStorage.removeItem(STORAGE_KEY_PREFIX + "anthropic");
   localStorage.removeItem(STORAGE_KEY_PREFIX + "openai");
+  localStorage.removeItem(STORAGE_KEY_PREFIX + "openrouter");
   localStorage.removeItem(STORAGE_KEY_PREFIX + "flutterflow");
   localStorage.removeItem(STORAGE_KEY_PREFIX + "flutterflow_project_id");
 
@@ -969,6 +994,72 @@ async function callOpenAI(prompt, systemInstruction) {
   }
 }
 
+async function callOpenRouter(prompt, systemInstruction, modelId) {
+  if (!openRouterApiKey) {
+    throw new Error("OpenRouter API key not found");
+  }
+
+  // Handle model mapping
+  let actualModel = "openrouter/auto"; // Default for auto-router
+  
+  if (modelId === "openrouter-free") {
+    // For free models, we can use specific free models or a preference
+    // Using a reliable free model as default, or auto with free preference if possible
+    // OpenRouter doesn't have a direct "free" alias in the same way, but google/gemini-2.0-flash-exp:free is good
+    actualModel = "google/gemini-2.0-flash-exp:free";
+  } else if (modelId === "openrouter-auto") {
+    actualModel = "openrouter/auto";
+  } else if (modelId.startsWith("openrouter/")) {
+    actualModel = modelId;
+  }
+
+  const url = "https://openrouter.ai/api/v1/chat/completions";
+  
+  const payload = {
+    model: actualModel,
+    messages: [
+      { role: "system", content: systemInstruction },
+      { role: "user", content: prompt }
+    ],
+    max_tokens: 16384,
+    temperature: 0.7,
+    // Add HTTP referer and X-Title for OpenRouter rankings/stats
+    // These are recommended by OpenRouter
+  };
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${openRouterApiKey}`,
+        "HTTP-Referer": window.location.href, // Site URL for rankings
+        "X-Title": "FlutterFlow Custom Code Command", // Site title for rankings
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("OpenRouter API Error:", response.status, errorText);
+
+      if (response.status === 401) {
+        throw new Error(
+          "OpenRouter API authentication failed. Please check your OpenRouter API key."
+        );
+      }
+
+      throw new Error(`OpenRouter API failed: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+    return data.choices?.[0]?.message?.content || "";
+  } catch (error) {
+    console.error("OpenRouter call failed:", error);
+    throw error;
+  }
+}
+
 // --- FLUTTERFLOW API CLIENT ---
 
 /**
@@ -1088,13 +1179,48 @@ class FlutterFlowApiClient {
         body: JSON.stringify(pushCodeRequest),
       });
       
-      return response;
-    } catch (error) {
-      console.error('API Error syncing code:', error);
-      throw new Error(`API Error syncing code: ${error.message}`);
+    return response;
+      } catch (error) {
+        console.error('API Error syncing code:', error);
+        throw new Error(`API Error syncing code: ${error.message}`);
+      }
+    }
+
+    /**
+     * Lists projects accessible with the current API key.
+     * @param {Object} [options] - Optional parameters
+     * @param {number} [options.page] - Page number for pagination
+     * @param {number} [options.limit] - Maximum number of projects per page
+     * @returns {Promise<Array<Object>>} Array of project objects with id and name
+     */
+    async listProjects(options = {}) {
+      const { page = 1, limit = 100 } = options;
+      console.log(`Listing projects for API key (page ${page}, limit ${limit})`);
+
+      try {
+        const response = await fetch(`${this.baseUrl}/projects`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.apiKey}`,
+          },
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`List projects failed: ${response.status} - ${errorText}`);
+        }
+
+        const data = await response.json();
+        // Assume response shape: { projects: [...] }
+        const projects = data.projects || data.items || data;
+        return Array.isArray(projects) ? projects : [];
+      } catch (error) {
+        console.error('Error listing projects:', error);
+        throw error;
+      }
     }
   }
-}
 
 /**
  * Parses the response from pushCode API call.
@@ -1109,6 +1235,17 @@ async function parsePushCodeResponse(response) {
     jsonResult = await response.json();
   } catch (error) {
     const text = await originalResponse.text();
+    
+    // Check if the response was an error with plain text body (common for 500s)
+    if (!response.ok) {
+      return {
+        success: false,
+        responseCode: response.status,
+        errorMessage: text || `HTTP ${response.status}`,
+        errorMap: new Map(),
+      };
+    }
+    
     throw new Error(`Invalid JSON response: ${text}`);
   }
   
@@ -1222,6 +1359,9 @@ function getFilePathForCodeType(fileName, codeType) {
       return 'lib/flutter_flow/custom_functions.dart';
     case CodeType.DEPENDENCIES:
       return 'pubspec.yaml';
+    case CodeType.OTHER:
+      // Fallback for unknown types - treat as action/code file
+      return `lib/custom_code/actions/${fileName}`;
     default:
       return fileName;
   }
@@ -1413,7 +1553,234 @@ function serializePubspecToYaml(pubspec) {
 }
 
 
+/**
+ * Runs pre-commit validation checks.
+ * @param {Object} codeInfo - Prepared code info
+ * @returns {Object} Check results { canProceed: boolean, issues: string[], warnings: string[] }
+ */
+function runPreCommitChecks(codeInfo) {
+  const issues = [];
+  const warnings = [];
+  
+  if (codeInfo.content.length > 50000) {
+    warnings.push('Code file is large (>50KB). This may take longer to commit.');
+  }
+  if (codeInfo.content.length > 100000) {
+    issues.push('Code file is too large (>100KB). Consider splitting into smaller components.');
+  }
+  
+  const lineCount = codeInfo.content.split('\n').length;
+  if (lineCount > 500) {
+    warnings.push(`Code has ${lineCount} lines. Consider breaking it into smaller widgets.`);
+  }
+  
+  if (codeInfo.content.includes('setState') && codeInfo.codeType === CodeType.ACTION) {
+    warnings.push('Using setState in a Custom Action may not work as expected. Consider using a Custom Widget.');
+  }
+  
+  if (codeInfo.content.includes('dynamic') && !codeInfo.content.includes('?')) {
+    warnings.push('Code uses "dynamic" types. Consider adding explicit types for better null safety.');
+  }
+  
+  if (codeInfo.content.match(/Color\(0xFF[0-9A-Fa-f]{6}\)/)) {
+    warnings.push('Code contains hardcoded colors. Consider using FlutterFlowTheme.of(context) for theme consistency.');
+  }
+  
+  const printMatches = codeInfo.content.match(/print\s*\(/g);
+  if (printMatches && printMatches.length > 3) {
+    warnings.push(`Code contains ${printMatches.length} print statements. Consider removing debug prints before committing.`);
+  }
+  
+  return {
+    canProceed: issues.length === 0,
+    issues,
+    warnings,
+  };
+}
+
+/**
+ * Shows pre-commit summary to user for confirmation.
+ * @param {Object} codeInfo - Prepared code info
+ * @param {Object} checks - Results from runPreCommitChecks
+ * @returns {Promise<boolean>} True if user confirms commit
+ */
+async function showPreCommitSummary(codeInfo, checks) {
+  let summaryHtml = `
+    <div class="space-y-4">
+      <div>
+        <h3 class="font-semibold text-gray-900">Commit Summary</h3>
+        <p class="text-sm text-gray-600 mt-1">
+          File: <strong>${codeInfo.fileName}</strong><br>
+          Type: <strong>${codeInfo.artifactType}</strong><br>
+          Size: <strong>${(codeInfo.content.length / 1024).toFixed(1)} KB</strong><br>
+          Lines: <strong>${codeInfo.content.split('\n').length}</strong>
+        </p>
+      </div>
+  `;
+  
+  if (checks.warnings.length > 0) {
+    summaryHtml += `
+      <div class="bg-yellow-50 border border-yellow-200 rounded p-3">
+        <h4 class="font-medium text-yellow-800 text-sm">Warnings (${checks.warnings.length})</h4>
+        <ul class="text-xs text-yellow-700 mt-2 space-y-1">
+          ${checks.warnings.map(w => `<li>• ${w}</li>`).join('')}
+        </ul>
+      </div>
+    `;
+  }
+  
+  if (checks.issues.length > 0) {
+    summaryHtml += `
+      <div class="bg-red-50 border border-red-200 rounded p-3">
+        <h4 class="font-medium text-red-800 text-sm">Issues (${checks.issues.length})</h4>
+        <ul class="text-xs text-red-700 mt-2 space-y-1">
+          ${checks.issues.map(i => `<li>• ${i}</li>`).join('')}
+        </ul>
+      </div>
+    `;
+  }
+  
+  summaryHtml += '</div>';
+  
+  console.log('Pre-commit summary:', summaryHtml);
+  
+  if (!checks.canProceed) {
+    return false;
+  }
+  
+  if (checks.warnings.length > 0) {
+    return confirm(`Found ${checks.warnings.length} warning(s). Proceed with commit?\n\n${checks.warnings.join('\n')}`);
+  }
+  
+  return true;
+}
+
 // --- FILE VALIDATION FUNCTIONS ---
+
+/**
+ * Prepares generated code for FlutterFlow commit.
+ * @param {string} rawCode - Raw generated Dart code
+ * @param {Object} options - Preparation options
+ * @param {string} options.artifactType - Type of artifact (CustomWidget, CustomAction, CustomFunction)
+ * @param {string} options.artifactName - Name of the artifact class/function
+ * @returns {Object} Prepared code info { content: string, fileName: string, codeType: string }
+ */
+function prepareCodeForCommit(rawCode, options = {}) {
+  const { artifactType = 'CustomWidget', artifactName = 'GeneratedCode' } = options;
+  
+  // Clean up the code
+  let cleanedCode = rawCode.trim();
+  
+  // Remove markdown code fences if present
+  if (cleanedCode.startsWith('```dart')) {
+    cleanedCode = cleanedCode.replace(/^```dart\n/, '');
+  } else if (cleanedCode.startsWith('```')) {
+     cleanedCode = cleanedCode.replace(/^```\n/, '');
+  }
+  
+  if (cleanedCode.endsWith('```')) {
+    cleanedCode = cleanedCode.replace(/\n```$/, '');
+  }
+  
+  // Ensure proper class/function naming
+  let fileName = artifactName;
+  if (!fileName.endsWith('.dart')) {
+    fileName += '.dart';
+  }
+  
+  // Determine code type from artifact type
+  let codeType = CodeType.OTHER;
+  switch (artifactType) {
+    case 'CustomAction':
+      codeType = CodeType.ACTION;
+      break;
+    case 'CustomWidget':
+      codeType = CodeType.WIDGET;
+      break;
+    case 'CustomFunction':
+      codeType = CodeType.FUNCTION;
+      fileName = 'custom_functions.dart';
+      break;
+    case 'CodeFile':
+      // Code Files are treated as Actions for file structure purposes
+      // They live in lib/custom_code/actions/
+      codeType = CodeType.ACTION;
+      break;
+  }
+  
+  return {
+    content: cleanedCode,
+    fileName,
+    codeType,
+    artifactType,
+    artifactName,
+  };
+}
+
+/**
+ * Extracts pubspec dependencies from generated code analysis.
+ * @param {string} code - Dart code to analyze
+ * @returns {Object} Map of package names to versions
+ */
+function extractDependencies(code) {
+  const deps = {};
+  
+  // Common FlutterFlow packages that might be imported
+  const packagePatterns = [
+    { name: 'flutter_animate', pattern: /flutter_animate/ },
+    { name: 'google_fonts', pattern: /google_fonts/ },
+    { name: 'flutter_svg', pattern: /flutter_svg/ },
+    { name: 'http', pattern: /package:http\/http.dart/ },
+    { name: 'intl', pattern: /package:intl\/intl.dart/ },
+    { name: 'collection', pattern: /package:collection\/collection.dart/ },
+    { name: 'rxdart', pattern: /package:rxdart\/rxdart.dart/ },
+    { name: 'timeago', pattern: /package:timeago\/timeago.dart/ },
+    { name: 'url_launcher', pattern: /package:url_launcher\/url_launcher.dart/ },
+    { name: 'cloud_firestore', pattern: /package:cloud_firestore\/cloud_firestore.dart/ },
+    { name: 'firebase_auth', pattern: /package:firebase_auth\/firebase_auth.dart/ },
+  ];
+  
+  for (const { name, pattern } of packagePatterns) {
+    if (pattern.test(code)) {
+      // Use latest stable versions (as of 2024-2025)
+      const versions = {
+        flutter_animate: '^4.5.0',
+        google_fonts: '^6.2.1',
+        flutter_svg: '^2.0.10',
+        http: '^1.2.0',
+        intl: '^0.19.0',
+        collection: '^1.18.0',
+        rxdart: '^0.27.7',
+        timeago: '^3.6.1',
+        url_launcher: '^6.2.5',
+        cloud_firestore: '^4.15.5',
+        firebase_auth: '^4.17.5',
+      };
+      deps[name] = versions[name] || '^1.0.0';
+    }
+  }
+  
+  return deps;
+}
+
+/**
+ * Builds metadata for the commit operation.
+ * @param {Object} codeInfo - Code info from prepareCodeForCommit
+ * @param {Object} pipelineResult - Results from the generation pipeline (optional)
+ * @returns {Object} Commit metadata
+ */
+function buildCommitMetadata(codeInfo, pipelineResult = {}) {
+  return {
+    timestamp: new Date().toISOString(),
+    artifactType: codeInfo.artifactType,
+    artifactName: codeInfo.artifactName,
+    codeType: codeInfo.codeType,
+    fileName: codeInfo.fileName,
+    generatedFrom: pipelineResult.step1Result ? 'pipeline' : 'direct',
+    model: pipelineResult.selectedModel || 'unknown',
+    codeSize: codeInfo.content.length,
+  };
+}
 
 /**
  * Validates a Dart file for FlutterFlow compatibility.
@@ -1663,7 +2030,14 @@ const commitState = {
  * @returns {Promise<Object>} Commit result
  */
 async function commitToFlutterFlow(dartCode, fileName, options = {}) {
-  const { codeType = 'W', pubspecDeps = {} } = options;
+  let { codeType = 'W' } = options;
+  const { pubspecDeps = {} } = options;
+
+  // Validate/fix codeType if passed as full string
+  if (codeType === 'CustomWidget') codeType = CodeType.WIDGET;
+  if (codeType === 'CustomAction') codeType = CodeType.ACTION;
+  if (codeType === 'CustomFunction') codeType = CodeType.FUNCTION;
+  if (codeType === 'CodeFile') codeType = CodeType.ACTION;
   
   // Reset and start
   commitState.reset();
@@ -1728,7 +2102,7 @@ async function commitToFlutterFlow(dartCode, fileName, options = {}) {
     // Prepare push request
     const pushRequest = {
       project_id: projectId,
-      zipped_custom_code: '', // We'll skip zipping for web version - send raw
+      zipped_custom_code: '', // We'll skip zipping for web version - send empty string
       uid: `web_${Date.now()}`,
       branch_name: apiClient.branchName,
       serialized_yaml: serializedYaml,
@@ -1770,6 +2144,146 @@ async function commitToFlutterFlow(dartCode, fileName, options = {}) {
       success: false,
       error: error.message,
       state: commitState.currentState,
+    };
+  }
+}
+
+/**
+ * Executes the complete commit action with all integrations.
+ * @param {string} code - Generated Dart code
+ * @param {Object} options - Commit options
+ * @param {string} options.artifactType - Type of artifact
+ * @param {string} options.artifactName - Name of artifact
+ * @param {Object} options.pipelineResult - Pipeline generation results
+ * @returns {Promise<Object>} Commit result with full details
+ */
+async function executeCommit(code, options = {}) {
+  const { artifactType, artifactName, pipelineResult } = options;
+  
+  console.log(`Starting commit for ${artifactName} (${artifactType})`);
+  
+  try {
+    // Step 1: Prepare the code
+    commitState.setState(CommitState.PREPARING);
+    const codeInfo = prepareCodeForCommit(code, { artifactType, artifactName });
+    
+    // Step 2: Extract dependencies
+    const deps = extractDependencies(codeInfo.content);
+    console.log('Detected dependencies:', deps);
+    
+    // Step 3: Validate FlutterFlow credentials
+    commitState.setState(CommitState.VALIDATING);
+    const apiKey = await getApiKey('flutterflow');
+    const projectId = await getApiKey('flutterflow_project_id');
+    
+    if (!apiKey) {
+      throw new Error('FlutterFlow API Key not configured. Please add it in API Keys settings.');
+    }
+    if (!projectId) {
+      throw new Error('FlutterFlow Project ID not configured. Please add it in API Keys settings.');
+    }
+    
+    // Step 4: Validate API key format
+    if (!validateFlutterFlowApiKey(apiKey)) {
+      throw new Error('Invalid FlutterFlow API Key format.');
+    }
+    if (!validateFlutterFlowProjectId(projectId)) {
+      throw new Error('Invalid FlutterFlow Project ID format.');
+    }
+    
+    // Step 5: Prepare file map
+    const fileMap = new Map();
+    fileMap.set(codeInfo.fileName, {
+      content: codeInfo.content,
+      type: codeInfo.codeType,
+      path: getFilePathForCodeType(codeInfo.fileName, codeInfo.codeType),
+    });
+    
+    commitState.setProgress(0, fileMap.size);
+    
+    // Step 6: Validate files
+    const validation = validateFileMap(fileMap);
+    if (!validation.valid) {
+      throw new Error(`File validation failed:\n${validation.errors.join('\n')}`);
+    }
+    
+    if (validation.warnings.length > 0) {
+      console.warn('Validation warnings:', validation.warnings);
+    }
+    
+    // Step 7: Prepare pubspec with dependencies
+    // createDefaultPubspec returns an object, no need to JSON.parse
+    let pubspec = createDefaultPubspec();
+    
+    // Add default flutter dependency
+    if (!pubspec.dependencies) pubspec.dependencies = {};
+    if (!pubspec.dependencies.flutter) pubspec.dependencies.flutter = { sdk: 'flutter' };
+    
+    if (Object.keys(deps).length > 0) {
+      pubspec = mergeDependencies(pubspec, deps);
+    }
+    const serializedYaml = serializePubspecToYaml(pubspec);
+    
+    // Step 8: Build file map contents
+    const fileMapContents = JSON.stringify(
+      Object.fromEntries(
+        Array.from(fileMap.entries()).map(([name, info]) => [
+          name,
+          { content: info.content, type: info.type }
+        ])
+      )
+    );
+    
+    // Step 9: Create API client and push
+    commitState.setState(CommitState.PUSHING);
+    const apiClient = new FlutterFlowApiClient(apiKey, projectId);
+    
+    const pushRequest = {
+      project_id: projectId,
+      zipped_custom_code: '',
+      uid: `web_${Date.now()}`,
+      branch_name: apiClient.branchName,
+      serialized_yaml: serializedYaml,
+      file_map: fileMapContents,
+      functions_map: '{}',
+    };
+    
+    commitState.setProgress(1, fileMap.size);
+    
+    const response = await apiClient.pushCode(pushRequest);
+    const result = await parsePushCodeResponse(response);
+    
+    // Step 10: Handle result
+    if (result.success) {
+      const metadata = buildCommitMetadata(codeInfo, pipelineResult);
+      
+      commitState.setSuccess({
+        ...metadata,
+        fileCount: fileMap.size,
+        warnings: result.errorMap ? Array.from(result.errorMap.entries()) : [],
+      });
+      
+      return {
+        success: true,
+        message: `Successfully committed ${codeInfo.fileName} to FlutterFlow`,
+        metadata,
+        warnings: result.errorMap ? Array.from(result.errorMap.entries()) : [],
+        elapsedTime: commitState.getElapsedTime(),
+      };
+    } else {
+      const errorMsg = result.errorMessage || getFlutterFlowErrorMessage(result.responseCode);
+      throw new Error(errorMsg);
+    }
+    
+  } catch (error) {
+    console.error('Commit execution failed:', error);
+    commitState.setError(error);
+    
+    return {
+      success: false,
+      error: error.message,
+      state: commitState.currentState,
+      elapsedTime: commitState.getElapsedTime(),
     };
   }
 }
@@ -1999,6 +2513,16 @@ ADDITIONAL GUIDANCE FOR THIS MODEL:
 - Ensure all edge cases from the spec are handled
 - Double-check parameter types match exactly`,
 
+      "openrouter-auto": `
+ADDITIONAL GUIDANCE FOR OPENROUTER AUTO:
+- Focus on efficient, clean code
+- Follow best practices for Flutter performance`,
+
+      "openrouter-free": `
+ADDITIONAL GUIDANCE FOR FREE MODELS:
+- Keep implementations simple and standard
+- Avoid experimental features unless necessary`,
+
       "gemini-3.0-pro": `
 ADDITIONAL GUIDANCE FOR THIS MODEL:
 - Strictly follow the JSON specification structure
@@ -2030,12 +2554,18 @@ Remember: Output ONLY the raw Dart code. No markdown, no explanations.`;
       case "gpt-5.1-codex-max":
         result = await callOpenAI(formattedPrompt, systemInstruction);
         break;
+      case "openrouter-auto":
+        result = await callOpenRouter(formattedPrompt, systemInstruction, "openrouter-auto");
+        break;
+      case "openrouter-free":
+        result = await callOpenRouter(formattedPrompt, systemInstruction, "openrouter-free");
+        break;
       case "gemini-3.0-pro":
       default:
         result = await callGemini(
           formattedPrompt,
           systemInstruction,
-          "gemini-3.0-pro-preview"
+          "gemini-3-pro-preview"
         );
         break;
     }
@@ -2059,7 +2589,7 @@ Remember: Output ONLY the raw Dart code. No markdown, no explanations.`;
         result = await callGemini(
           formattedPrompt,
           fallbackInstruction,
-          "gemini-3.0-pro-preview"
+          "gemini-3-pro-preview"
         );
         return result;
       } catch (fallbackError) {
@@ -2544,8 +3074,101 @@ function updateModelInfo(selectedModel) {
     "gemini-3.0-pro": "Gemini 3.0 Pro",
     "claude-4.5-opus": "Claude 4.5 Opus",
     "gpt-5.1-codex-max": "GPT-5.1-Codex-Max",
+    "openrouter-auto": "OpenRouter: Auto",
+    "openrouter-free": "OpenRouter: Free Models",
   };
   console.log(`Using model: ${modelNames[selectedModel] || selectedModel}`);
+}
+
+async function runRefinement() {
+  console.log("runRefinement called");
+  
+  if (pipelineState.isRunning) return;
+  
+  // Get current model
+  const selectedModel = document.getElementById("code-generator-model").value;
+  
+  // Set running state
+  pipelineState.isRunning = true;
+  const btns = document.querySelectorAll(".btn-refine-action");
+  
+  btns.forEach(btn => {
+      btn.disabled = true;
+      btn.innerHTML = `<svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+      </svg>
+      Refining...`;
+  });
+
+  try {
+    // Construct refinement prompt
+    const refinementPrompt = `CRITICAL: This is a REFINEMENT task.
+The previously generated code has issues that need fixing.
+
+ORIGINAL SPECIFICATION:
+${pipelineState.step1Result}
+
+CURRENT CODE:
+${pipelineState.step2Result}
+
+AUDIT REPORT (ISSUES TO FIX):
+${pipelineState.step3Result}
+
+Please RE-GENERATE the code to fix the issues listed in the AUDIT REPORT.
+Ensure it still adheres to the ORIGINAL SPECIFICATION.
+`;
+
+    // Step 2: Code Generator (Refinement)
+    selectWorkflowStep(2);
+    showStepLoading(2, true);
+    
+    // We use the same runCodeGenerator function but with the refinement prompt
+    pipelineState.step2Result = await runCodeGenerator(
+      refinementPrompt,
+      selectedModel
+    );
+
+    const step2Output = document.getElementById("step2-output");
+    const cleanStep2 = extractCodeFromMarkdown(pipelineState.step2Result);
+    step2Output.innerHTML = highlightCode(cleanStep2);
+    step2Output.dataset.raw = cleanStep2;
+    showStepLoading(2, false);
+
+    // Step 3: Code Audit (Re-audit)
+    selectWorkflowStep(3);
+    showStepLoading(3, true);
+
+    pipelineState.step3Result = await runCodeDissector(
+      pipelineState.step2Result
+    );
+
+    const auditOutput = document.getElementById("step3-output");
+    auditOutput.innerHTML = renderMarkdownAudit(pipelineState.step3Result);
+
+    showStepLoading(3, false);
+    
+  } catch (error) {
+    console.error("Refinement failed:", error);
+    alert("Refinement failed: " + error.message);
+    
+    // If it failed, we might want to stay on the step where it failed or go back to 3
+    // For now, let's just re-enable the button if we are still on step 3 or visible
+  } finally {
+    pipelineState.isRunning = false;
+    btns.forEach(btn => {
+        btn.disabled = false;
+        
+        let btnText = "Refine & Regenerate Code";
+        if (btn.id === "btn-refine-top") {
+            btnText = "Auto-Fix & Regenerate";
+        }
+        
+        btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+        </svg>
+        ${btnText}`;
+    });
+  }
 }
 
 // --- MAIN PIPELINE ---
@@ -2731,6 +3354,94 @@ function retryWithDifferentModel() {
   }
 }
 
+/**
+ * Initiates the commit to FlutterFlow process from the UI.
+ * Called when user clicks the "Commit to FlutterFlow" button.
+ */
+async function initiateCommitToFlutterFlow() {
+  if (!pipelineState.step2Result) {
+    alert('No code to commit. Please run the pipeline first to generate code.');
+    return;
+  }
+  
+  const apiKey = await getApiKey('flutterflow');
+  const projectId = await getApiKey('flutterflow_project_id');
+  
+  if (!apiKey || !projectId) {
+    alert('FlutterFlow credentials not configured. Please add your API Key and Project ID in the API Keys settings.');
+    openApiKeysModal();
+    return;
+  }
+  
+  const code = pipelineState.step2Result;
+  
+  let artifactType = 'CustomWidget';
+  let artifactName = 'GeneratedWidget';
+  
+  if (pipelineState.step1Result) {
+    try {
+      const spec = JSON.parse(pipelineState.step1Result);
+      artifactType = spec.artifactType || 'CustomWidget';
+      artifactName = spec.artifactName || 'GeneratedWidget';
+    } catch (e) {
+      console.warn('Could not parse step 1 result:', e);
+    }
+  }
+  
+  const codeInfo = prepareCodeForCommit(code, { artifactType, artifactName });
+  
+  const checks = runPreCommitChecks(codeInfo);
+  
+  const shouldProceed = await showPreCommitSummary(codeInfo, checks);
+  
+  if (!shouldProceed) {
+    console.log('User cancelled commit');
+    return;
+  }
+  
+  const result = await executeCommit(code, {
+    artifactType,
+    artifactName,
+    pipelineResult: {
+      step1Result: pipelineState.step1Result,
+      selectedModel: document.getElementById('code-generator-model')?.value,
+    },
+  });
+  
+  if (result.success) {
+    alert(`Success! ${result.message}\n\nTime: ${(result.elapsedTime / 1000).toFixed(1)}s`);
+  } else {
+    alert(`Commit failed: ${result.error}`);
+  }
+}
+
+/**
+ * Updates the FlutterFlow credential status indicator in Step 3.
+ */
+async function updateFlutterFlowCredentialStatus() {
+  const statusDot = document.getElementById('ff-status-dot');
+  const statusText = document.getElementById('ff-status-text');
+  
+  if (!statusDot || !statusText) return;
+  
+  const apiKey = await getApiKey('flutterflow');
+  const projectId = await getApiKey('flutterflow_project_id');
+  
+  if (apiKey && projectId) {
+    statusDot.className = 'w-2 h-2 rounded-full bg-green-500';
+    statusText.textContent = 'FlutterFlow credentials configured';
+    statusText.className = 'text-green-600';
+  } else if (apiKey || projectId) {
+    statusDot.className = 'w-2 h-2 rounded-full bg-yellow-500';
+    statusText.textContent = 'FlutterFlow credentials incomplete';
+    statusText.className = 'text-yellow-600';
+  } else {
+    statusDot.className = 'w-2 h-2 rounded-full bg-red-500';
+    statusText.textContent = 'FlutterFlow credentials not configured';
+    statusText.className = 'text-red-600';
+  }
+}
+
 // --- SYNTAX HIGHLIGHTING ---
 
 // Extract code from markdown code blocks (strips ```dart ... ```)
@@ -2819,6 +3530,19 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
     });
   }
+  
+  window.addEventListener('commitStateChange', (event) => {
+    const { state } = event.detail;
+    updateProgressFromState(state);
+    
+    if (state === CommitState.PREPARING || 
+        state === CommitState.VALIDATING || 
+        state === CommitState.PUSHING) {
+      showCommitProgress();
+    } else if (state === CommitState.SUCCESS || state === CommitState.ERROR) {
+      setTimeout(hideCommitProgress, 1000);
+    }
+  });
 });
 
 // --- WELCOME VIDEO FUNCTIONS ---
@@ -2861,6 +3585,196 @@ function dismissWelcomeVideo() {
   showWalkthroughIfNeeded();
 }
 
+// Store commit data for confirmation
+let pendingCommitData = null;
+
+/**
+ * Opens the commit confirmation modal with code details.
+ * @param {Object} codeInfo - Prepared code info
+ * @param {Object} checks - Pre-commit check results
+ * @param {Object} deps - Detected dependencies
+ */
+function openCommitConfirmModal(codeInfo, checks, deps) {
+  pendingCommitData = { codeInfo, checks, deps };
+  
+  document.getElementById('confirm-file-name').textContent = codeInfo.fileName;
+  document.getElementById('confirm-artifact-type').textContent = codeInfo.artifactType;
+  document.getElementById('confirm-file-size').textContent = `${(codeInfo.content.length / 1024).toFixed(1)} KB`;
+  document.getElementById('confirm-line-count').textContent = codeInfo.content.split('\n').length;
+  
+  getApiKey('flutterflow_project_id').then(projectId => {
+    document.getElementById('confirm-project-id').textContent = projectId || 'Not configured';
+  });
+  
+  const depsList = document.getElementById('confirm-deps-list');
+  const depsSection = document.getElementById('confirm-deps-section');
+  if (deps && Object.keys(deps).length > 0) {
+    depsList.innerHTML = Object.entries(deps)
+      .map(([name, version]) => `<li>• ${name}: ${version}</li>`)
+      .join('');
+    depsSection.classList.remove('hidden');
+  } else {
+    depsSection.classList.add('hidden');
+  }
+  
+  const warningsList = document.getElementById('confirm-warnings-list');
+  const warningsSection = document.getElementById('confirm-warnings-section');
+  if (checks.warnings && checks.warnings.length > 0) {
+    warningsList.innerHTML = checks.warnings.map(w => `<li>• ${w}</li>`).join('');
+    warningsSection.classList.remove('hidden');
+  } else {
+    warningsSection.classList.add('hidden');
+  }
+  
+  document.getElementById('confirm-code-preview').textContent = codeInfo.content;
+  
+  document.getElementById('code-preview-content').classList.add('hidden');
+  document.getElementById('code-preview-chevron').style.transform = 'rotate(0deg)';
+  
+  const modal = document.getElementById('commit-confirm-modal');
+  if (modal) {
+    modal.classList.add('open');
+  }
+}
+
+/**
+ * Closes the commit confirmation modal.
+ * @param {Event} [event] - Optional click event
+ */
+function closeCommitConfirmModal(event) {
+  if (event && event.target !== event.currentTarget) return;
+  const modal = document.getElementById('commit-confirm-modal');
+  if (modal) {
+    modal.classList.remove('open');
+  }
+  pendingCommitData = null;
+}
+
+/**
+ * Toggles the code preview section.
+ */
+function toggleCodePreview() {
+  const content = document.getElementById('code-preview-content');
+  const chevron = document.getElementById('code-preview-chevron');
+  
+  if (content.classList.contains('hidden')) {
+    content.classList.remove('hidden');
+    chevron.style.transform = 'rotate(90deg)';
+  } else {
+    content.classList.add('hidden');
+    chevron.style.transform = 'rotate(0deg)';
+  }
+}
+
+/**
+ * Shows the commit progress overlay.
+ */
+function showCommitProgress() {
+  const overlay = document.getElementById('commit-progress-overlay');
+  if (overlay) {
+    overlay.classList.add('open');
+    updateCommitProgress(0, 'Initializing...', 'Step 0 of 4');
+  }
+}
+
+/**
+ * Hides the commit progress overlay.
+ */
+function hideCommitProgress() {
+  const overlay = document.getElementById('commit-progress-overlay');
+  if (overlay) {
+    overlay.classList.remove('open');
+  }
+}
+
+/**
+ * Updates the commit progress UI.
+ * @param {number} percent - Progress percentage (0-100)
+ * @param {string} message - Status message
+ * @param {string} detail - Detailed step info
+ */
+function updateCommitProgress(percent, message, detail) {
+  const progressBar = document.getElementById('commit-progress-bar');
+  const progressMessage = document.getElementById('progress-message');
+  const progressDetail = document.getElementById('progress-detail');
+  
+  if (progressBar) {
+    progressBar.style.width = `${percent}%`;
+  }
+  if (progressMessage) {
+    progressMessage.textContent = message;
+  }
+  if (progressDetail) {
+    progressDetail.textContent = detail;
+  }
+}
+
+/**
+ * Maps commit state to progress UI.
+ * @param {string} state - CommitState value
+ */
+function updateProgressFromState(state) {
+  const stateProgressMap = {
+    [CommitState.IDLE]: { percent: 0, message: 'Ready', detail: '' },
+    [CommitState.PREPARING]: { percent: 25, message: 'Preparing code...', detail: 'Step 1 of 4' },
+    [CommitState.VALIDATING]: { percent: 50, message: 'Validating...', detail: 'Step 2 of 4' },
+    [CommitState.PUSHING]: { percent: 75, message: 'Pushing to FlutterFlow...', detail: 'Step 3 of 4' },
+    [CommitState.SUCCESS]: { percent: 100, message: 'Complete!', detail: 'Step 4 of 4' },
+    [CommitState.ERROR]: { percent: 100, message: 'Failed', detail: 'Error occurred' },
+  };
+  
+  const progress = stateProgressMap[state];
+  if (progress) {
+    updateCommitProgress(progress.percent, progress.message, progress.detail);
+  }
+}
+
+/**
+ * Confirms the commit after modal review.
+ */
+async function confirmCommitToFlutterFlow() {
+  closeCommitConfirmModal();
+  
+  if (!pendingCommitData) {
+    console.error('No pending commit data');
+    return;
+  }
+  
+  showCommitProgress();
+  
+  const { codeInfo } = pendingCommitData;
+  
+  let artifactType = 'CustomWidget';
+  let artifactName = 'GeneratedWidget';
+  
+  if (pipelineState.step1Result) {
+    try {
+      const spec = JSON.parse(pipelineState.step1Result);
+      artifactType = spec.artifactType || 'CustomWidget';
+      artifactName = spec.artifactName || 'GeneratedWidget';
+    } catch (e) {
+      console.warn('Could not parse step 1 result:', e);
+    }
+  }
+  
+  const result = await executeCommit(codeInfo.content, {
+    artifactType,
+    artifactName,
+    pipelineResult: {
+      step1Result: pipelineState.step1Result,
+      selectedModel: document.getElementById('code-generator-model')?.value,
+    },
+  });
+  
+  if (result.success) {
+    alert(`Success! ${result.message}`);
+  } else {
+    alert(`Commit failed: ${result.error}`);
+  }
+  
+  pendingCommitData = null;
+}
+
 // Global exports
 window.runThinkingPipeline = runThinkingPipeline;
 window.toggleStep = toggleStep;
@@ -2896,3 +3810,9 @@ window.clearAllApiKeys = clearAllApiKeys;
 window.toggleKeyVisibility = toggleKeyVisibility;
 window.handleWelcomeVideoEnd = handleWelcomeVideoEnd;
 window.dismissWelcomeVideo = dismissWelcomeVideo;
+window.initiateCommitToFlutterFlow = initiateCommitToFlutterFlow;
+window.updateFlutterFlowCredentialStatus = updateFlutterFlowCredentialStatus;
+window.closeCommitConfirmModal = closeCommitConfirmModal;
+window.toggleCodePreview = toggleCodePreview;
+window.confirmCommitToFlutterFlow = confirmCommitToFlutterFlow;
+window.runRefinement = runRefinement;
