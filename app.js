@@ -3395,7 +3395,6 @@ function copyCode(elementId) {
 }
 
 function updateModelInfo(selectedModel) {
-  // Model info display removed in new UI - function kept for compatibility
   const modelNames = {
     "gemini-3-pro-preview": "Gemini 3.0 Pro",
     "claude-4.5-opus": "Claude 4.5 Opus",
@@ -3403,6 +3402,13 @@ function updateModelInfo(selectedModel) {
     "openrouter-auto": "OpenRouter: Auto",
     "openrouter-free": "OpenRouter: Free Models",
   };
+  
+  // Update sidebar model label for Code Generator
+  const modelLabel = document.getElementById("step2-model-label");
+  if (modelLabel) {
+    modelLabel.textContent = modelNames[selectedModel] || selectedModel;
+  }
+  
   console.log(`Using model: ${modelNames[selectedModel] || selectedModel}`);
 }
 
@@ -3860,6 +3866,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   const modelSelect = document.getElementById("code-generator-model");
   if (modelSelect) {
     modelSelect.addEventListener("change", () => {
+      const selectedModel = modelSelect.value;
+      updateModelInfo(selectedModel);
+      
       if (walkthroughStep === 3) {
         advanceWalkthrough();
         updateWalkthroughUI();
