@@ -5,21 +5,22 @@
 See: .planning/PROJECT.md (updated 2025-02-13)
 
 **Core value:** Seamless one-click deployment from code generation to FlutterFlow project, eliminating manual copy-paste workflow.
-**Current focus:** Phase 5 — State Management
+**Current focus:** Phase 11 — Project List Dropdown
 
 ## Current Position
 
-Phase: 5 of 10 (State Management)
-Plan: 2 of 2 in current phase
+Phase: 11 of 11 (Project List Dropdown)
+Plan: 1 of 1 in current phase
 Status: Phase complete
-Last activity: 2026-02-13 — Completed 05-02-PLAN.md (integrate state updates)
+Last activity: 2026-02-14 — Completed 11-01-PLAN.md
+Next Phase: None (project complete)
 
-Progress: █████░░░░░ 46% (11/24 plans complete)
+Progress: ██████████████████░░░░░░ 75% (18/24 plans complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 11
+- Total plans completed: 18
 - Average duration: 6 min
 - Total execution time: 1.18 hours
 
@@ -37,14 +38,17 @@ Progress: █████░░░░░ 46% (11/24 plans complete)
 
 ## Accumulated Context
 
-### Decisions
+### Roadmap Evolution
+- Phase 11 added: IN THE API Keys screen, once the user enters their FlutterFlow API key, run the listProjects endpoint and displqy their projects in a drop-down list so they don't have to manually copy and paste their project id in. Remove the 2 warning boxess or reduce in size so that the modal fits on the page. Add a "Save & Close" button.
 
+### Decisions
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
 1. **API Client Pattern:** Browser-adapted client using native fetch, following VS Code extension pattern but simplified for web use
 2. **JSDoc Types:** Using JSDoc comments for type definitions to maintain JavaScript codebase consistency
 3. **Native fetch API:** Using browser's native fetch instead of external HTTP libraries
+4. **OpenRouter Integration:** Added OpenRouter as a selectable model provider for code generation (Step 2), while keeping Gemini as the required engine for Prompt Architect (Step 1) and Code Dissector (Step 3).
 
 ### Deferred Issues
 
@@ -56,8 +60,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-13
-Stopped at: Completed 05-02-PLAN.md (integrate state updates)
+Last session: 2026-02-14
+Stopped at: Completed 11-01-PLAN.md
 Resume file: None
 
 ## Accumulated Decisions
@@ -78,3 +82,4 @@ Resume file: None
 14. **Integrated Commit State:** Integrated commit state tracking directly into commitToFlutterFlow function
 15. **Global Commit State:** Used global commitState object for tracking progress and errors
 16. **Global Export:** Added window export for commitToFlutterFlow for UI access
+17. **OpenRouter Integration:** Added OpenRouter support (Auto Router & Free Models) to code generator step.

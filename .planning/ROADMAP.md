@@ -143,6 +143,17 @@ Plans:
 - [ ] 10-01: Add loading states and progress indicators
 - [ ] 10-02: Final UX review and adjustments
 
+### Phase 11: Project List Dropdown
+**Goal**: Auto-fetch FlutterFlow projects after API key entry and simplify the API Keys modal UI.
+**Depends on**: Phase 10
+**Plans**: 1 plan
+
+Plans:
+- [x] 11-01: Implement project list dropdown in API Keys modal
+
+**Details:**
+IN THE API Keys screen, once the user enters their FlutterFlow API key, run the listProjects endpoint and displqy their projects in a drop-down list so they don't have to manually copy and paste their project id in. Remove the 2 warning boxess or reduce in size so that the modal fits on the page. Add a "Save & Close" button.
+
 ## Progress
 
 **Execution Order:**
@@ -160,3 +171,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 8. Feedback System | 0/3 | Planned | - |
 | 9. Testing | 0/2 | Planned | - |
 | 10. Polish | 0/2 | Planned | - |
+| 11. Project List Dropdown | 1/1 | Complete | 2026-02-14 |
