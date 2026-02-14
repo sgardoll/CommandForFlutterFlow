@@ -377,6 +377,18 @@ async function getApiKey(provider) {
   return "";
 }
 
+function getFlutterFlowEndpoint() {
+  return localStorage.getItem('flutterflow_api_endpoint') || 'production';
+}
+
+function setFlutterFlowEndpoint(endpoint) {
+  if (FF_API_ENDPOINTS[endpoint]) {
+    localStorage.setItem('flutterflow_api_endpoint', endpoint);
+    return true;
+  }
+  return false;
+}
+
 function hasStoredKey(provider) {
   // Check if we actually have a usable (decrypted) key, not just encrypted data
   const keys = {
@@ -1070,10 +1082,7 @@ async function callOpenRouter(prompt, systemInstruction, modelId) {
   let actualModel = "openrouter/auto"; // Default for auto-router
   
   if (modelId === "openrouter-free") {
-    // For free models, we can use specific free models or a preference
-    // Using a reliable free model as default, or auto with free preference if possible
-    // OpenRouter doesn't have a direct "free" alias in the same way, but google/gemini-2.0-flash-exp:free is good
-    actualModel = "google/gemini-2.0-flash-exp:free";
+    actualModel = "google/gemma-2-9b-it:free";
   } else if (modelId === "openrouter-auto") {
     actualModel = "openrouter/auto";
   } else if (modelId.startsWith("openrouter/")) {
@@ -1144,6 +1153,14 @@ async function callOpenRouter(prompt, systemInstruction, modelId) {
  */
 
 /**
+ * FlutterFlow API endpoints
+ */
+const FF_API_ENDPOINTS = {
+  production: 'https://api.flutterflow.io/v1',
+  staging: 'https://api.flutterflow.io/v1-staging',
+};
+
+/**
  * Client for interacting with the FlutterFlow API.
  * Adapted from the VS Code extension for browser use.
  * Handles authentication and provides methods for code synchronization.
@@ -1154,12 +1171,14 @@ class FlutterFlowApiClient {
    * @param {string} apiKey - Authentication token for API access
    * @param {string} projectId - ID of the FlutterFlow project
    * @param {string} [branchName='main'] - Name of the branch to work with
+   * @param {string} [endpoint='production'] - API endpoint to use
    */
-  constructor(apiKey, projectId, branchName = 'main') {
+  constructor(apiKey, projectId, branchName = 'main', endpoint = 'production') {
     this.apiKey = apiKey;
-    this.baseUrl = 'https://api.flutterflow.io/v1';
+    this.baseUrl = FF_API_ENDPOINTS[endpoint] || FF_API_ENDPOINTS.production;
     this._projectId = projectId;
     this._branchName = branchName;
+    this._endpoint = endpoint;
   }
 
   /**
@@ -1231,27 +1250,60 @@ class FlutterFlowApiClient {
    * @param {string} pushCodeRequest.uid - User identifier
    * @param {string} pushCodeRequest.branch_name - Target branch name
    * @param {string} pushCodeRequest.serialized_yaml - Serialized pubspec.yaml content
-   * @param {string} pushCodeRequest.file_map - JSON string of file path to content mapping
-   * @param {string} pushCodeRequest.functions_map - JSON string of function definitions
-   * @returns {Promise<Response>} Fetch response object
-   */
-  async pushCode(pushCodeRequest) {
-    try {
-      const response = await fetch(`${this.baseUrl}/syncCustomCodeChanges`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`,
-        },
-        body: JSON.stringify(pushCodeRequest),
-      });
-      
-    return response;
-      } catch (error) {
-        console.error('API Error syncing code:', error);
-        throw new Error(`API Error syncing code: ${error.message}`);
+    * @param {string} pushCodeRequest.file_map - JSON string of file path to content mapping
+    * @param {string} pushCodeRequest.functions_map - JSON string of function definitions
+    * @returns {Promise<Response>} Fetch response object
+    */
+  async pushCodeWithRetry(pushCodeRequest, maxRetries = 3) {
+    const endpoints = ['production', 'staging'];
+    const startEndpoint = Math.max(0, endpoints.indexOf(this._endpoint));
+    
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      for (let ei = startEndpoint; ei < endpoints.length; ei++) {
+        const endpoint = endpoints[ei];
+        const baseUrl = FF_API_ENDPOINTS[endpoint];
+        
+        try {
+          console.log(`Push attempt ${attempt + 1} to ${endpoint}: ${baseUrl}/syncCustomCodeChanges`);
+          console.log('Request:', JSON.stringify(pushCodeRequest, null, 2));
+          const response = await fetch(`${baseUrl}/syncCustomCodeChanges`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${this.apiKey}`,
+            },
+            body: JSON.stringify(pushCodeRequest),
+          });
+          
+          if (response.ok) {
+            console.log(`Push to ${endpoint} succeeded!`);
+            return response;
+          }
+          
+          const responseText = await response.text();
+          console.log(`Push to ${endpoint} returned ${response.status}: ${responseText}`);
+          
+          if (response.status === 500) {
+            console.warn(`Endpoint ${endpoint} returned 500, trying next...`);
+            await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+            continue;
+          }
+          
+          // For other errors, return the response to be handled by caller
+          return response;
+        } catch (error) {
+          console.warn(`Push to ${endpoint} failed: ${error.message}, trying next...`);
+          await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+        }
       }
     }
+    
+    throw new Error('All API endpoints failed after retries');
+  }
+  
+  async pushCode(pushCodeRequest) {
+    return this.pushCodeWithRetry(pushCodeRequest);
+  }
 
     /**
      * Lists projects accessible with the current API key.
@@ -1454,6 +1506,57 @@ function getFilePathForCodeType(fileName, codeType) {
     default:
       return fileName;
   }
+}
+
+/**
+ * Derives the FlutterFlow identifier name from a file name and code type.
+ * Widgets use PascalCase, actions use camelCase.
+ * @param {string} fileName - File name (e.g., 'BigRedBox.dart')
+ * @param {string} codeType - Code type (A, W, F, D, O)
+ * @returns {string} Identifier name for FlutterFlow
+ */
+function deriveIdentifierName(fileName, codeType) {
+  const baseName = fileName.replace(/\.dart$/, '')
+  if (codeType === CodeType.WIDGET) {
+    // PascalCase - first letter of each word uppercase
+    return baseName.replace(/(^|_)(\w)/g, (_, __, c) => c.toUpperCase())
+  }
+  if (codeType === CodeType.ACTION) {
+    // camelCase - first word lowercase, rest uppercase
+    const pascal = baseName.replace(/(^|_)(\w)/g, (_, __, c) => c.toUpperCase())
+    return pascal.charAt(0).toLowerCase() + pascal.slice(1)
+  }
+  if (codeType === CodeType.FUNCTION) {
+    return 'CustomFunctions'
+  }
+  if (codeType === CodeType.DEPENDENCIES) {
+    return 'pubspec.yaml'
+  }
+  return baseName
+}
+
+/**
+ * Builds the file_map in the format expected by FlutterFlow's syncCustomCodeChanges API.
+ * Must match the VS Code extension's FileInfo format:
+ * { old_identifier_name, new_identifier_name, type, is_deleted }
+ * Does NOT include content (content goes in the zip only).
+ * @param {Map} fileMap - Internal file map with content/type/path
+ * @returns {string} JSON string of file_map for the API
+ */
+function buildApiFileMap(fileMap) {
+  const apiFileMap = {}
+  for (const [name, info] of fileMap.entries()) {
+    // Skip pubspec.yaml - the VS Code extension filters out DEPENDENCIES type
+    if (info.type === CodeType.DEPENDENCIES) continue
+    const identifierName = deriveIdentifierName(name, info.type)
+    apiFileMap[name] = {
+      old_identifier_name: identifierName,
+      new_identifier_name: identifierName,
+      type: info.type,
+      is_deleted: false,
+    }
+  }
+  return JSON.stringify(apiFileMap)
 }
 
 /**
@@ -2246,8 +2349,9 @@ async function commitToFlutterFlow(dartCode, fileName, options = {}) {
       throw new Error('Invalid FlutterFlow Project ID format.');
     }
     
-    // Create API client
-    const apiClient = new FlutterFlowApiClient(apiKey, projectId);
+    // Create API client with endpoint
+    const endpoint = getFlutterFlowEndpoint();
+    const apiClient = new FlutterFlowApiClient(apiKey, projectId, 'main', endpoint);
     
     // Prepare file map
     commitState.setState(CommitState.VALIDATING);
@@ -2281,25 +2385,25 @@ async function commitToFlutterFlow(dartCode, fileName, options = {}) {
       serializedYaml = serializePubspecToYaml(basePubspec);
     }
     
-    // Build file map contents for API
-    const fileMapContents = JSON.stringify(
-      Object.fromEntries(
-        Array.from(fileMap.entries()).map(([name, info]) => [
-          info.path,
-          { content: info.content, type: info.type }
-        ])
-      )
-    );
+    const fileMapContents = buildApiFileMap(fileMap);
     
-    // Prepare push request
+    const fileMapWithPubspec = new Map(fileMap);
+    fileMapWithPubspec.set('pubspec.yaml', {
+      content: serializedYaml,
+      type: 'D',
+      path: 'pubspec.yaml'
+    });
+    
+    const zippedCustomCode = await createZipFromFileMap(fileMapWithPubspec);
+    
     const pushRequest = {
       project_id: projectId,
-      zipped_custom_code: '', // We'll skip zipping for web version - send empty string
+      zipped_custom_code: zippedCustomCode,
       uid: `web_${Date.now()}`,
       branch_name: apiClient.branchName,
       serialized_yaml: serializedYaml,
       file_map: fileMapContents,
-      functions_map: '{}', // No function changes for single-file commits
+      functions_map: '{}',
     };
     
     // Push to FlutterFlow
@@ -2346,9 +2450,30 @@ async function commitToFlutterFlow(dartCode, fileName, options = {}) {
  * @param {Object} options - Commit options
  * @param {string} options.artifactType - Type of artifact
  * @param {string} options.artifactName - Name of artifact
- * @param {Object} options.pipelineResult - Pipeline generation results
- * @returns {Promise<Object>} Commit result with full details
- */
+  * @param {Object} options.pipelineResult - Pipeline generation results
+  * @returns {Promise<Object>} Commit result with full details
+  */
+
+async function createZipFromFileMap(fileMap) {
+  try {
+    const zip = new JSZip();
+    
+    for (const [name, info] of fileMap.entries()) {
+      zip.file(name, info.content);
+    }
+    
+    const zipBuffer = await zip.generateAsync({ 
+      type: 'base64',
+      compression: 'DEFLATE',
+      compressionOptions: { level: 6 }
+    });
+    return zipBuffer;
+  } catch (error) {
+    console.error('Error creating zip:', error);
+    return '';
+  }
+}
+
 async function executeCommit(code, options = {}) {
   const { artifactType, artifactName, pipelineResult } = options;
   
@@ -2416,23 +2541,24 @@ async function executeCommit(code, options = {}) {
     }
     const serializedYaml = serializePubspecToYaml(pubspec);
     
-    // Step 8: Build file map contents
-    const fileMapContents = JSON.stringify(
-      Object.fromEntries(
-        Array.from(fileMap.entries()).map(([name, info]) => [
-          info.path,
-          { content: info.content, type: info.type }
-        ])
-      )
-    );
+    const fileMapContents = buildApiFileMap(fileMap);
     
-    // Step 9: Create API client and push
+    const fileMapWithPubspec = new Map(fileMap);
+    fileMapWithPubspec.set('pubspec.yaml', {
+      content: serializedYaml,
+      type: 'D',
+      path: 'pubspec.yaml'
+    });
+    
     commitState.setState(CommitState.PUSHING);
-    const apiClient = new FlutterFlowApiClient(apiKey, projectId);
+    const endpoint = getFlutterFlowEndpoint();
+    const apiClient = new FlutterFlowApiClient(apiKey, projectId, 'main', endpoint);
+    
+    const zippedCustomCode = await createZipFromFileMap(fileMapWithPubspec);
     
     const pushRequest = {
       project_id: projectId,
-      zipped_custom_code: '',
+      zipped_custom_code: zippedCustomCode,
       uid: `web_${Date.now()}`,
       branch_name: apiClient.branchName,
       serialized_yaml: serializedYaml,
@@ -3691,6 +3817,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Setup FlutterFlow credential validation
   setupFlutterFlowValidation();
 
+  // Initialize endpoint selector
+  const endpointSelect = document.getElementById('flutterflow-endpoint-select');
+  if (endpointSelect) {
+    const savedEndpoint = getFlutterFlowEndpoint();
+    endpointSelect.value = savedEndpoint;
+  }
+
   showWalkthroughIfNeeded();
 
   // Walkthrough step tracking
@@ -4017,3 +4150,5 @@ window.closeCommitConfirmModal = closeCommitConfirmModal;
 window.toggleCodePreview = toggleCodePreview;
 window.confirmCommitToFlutterFlow = confirmCommitToFlutterFlow;
 window.runRefinement = runRefinement;
+window.setFlutterFlowEndpoint = setFlutterFlowEndpoint;
+window.getFlutterFlowEndpoint = getFlutterFlowEndpoint;
