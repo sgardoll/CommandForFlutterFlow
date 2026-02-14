@@ -1082,7 +1082,7 @@ async function callOpenRouter(prompt, systemInstruction, modelId) {
   let actualModel = "openrouter/auto"; // Default for auto-router
   
   if (modelId === "openrouter-free") {
-    actualModel = "google/gemma-2-9b-it:free";
+    actualModel = "openrouter/free";
   } else if (modelId === "openrouter-auto") {
     actualModel = "openrouter/auto";
   } else if (modelId.startsWith("openrouter/")) {
