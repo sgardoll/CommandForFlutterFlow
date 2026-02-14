@@ -2135,6 +2135,14 @@ async function commitToFlutterFlow(dartCode, fileName, options = {}) {
       throw new Error('FlutterFlow credentials not configured. Please set your API key and Project ID in the API Keys settings.');
     }
     
+    // Validate format
+    if (!validateFlutterFlowApiKey(apiKey)) {
+      throw new Error('Invalid FlutterFlow API Key format.');
+    }
+    if (!validateFlutterFlowProjectId(projectId)) {
+      throw new Error('Invalid FlutterFlow Project ID format.');
+    }
+    
     // Create API client
     const apiClient = new FlutterFlowApiClient(apiKey, projectId);
     
@@ -2161,22 +2169,20 @@ async function commitToFlutterFlow(dartCode, fileName, options = {}) {
     }
     
     // Prepare pubspec
-    let serializedYaml = createDefaultPubspec();
+    let serializedYaml = serializePubspecToYaml(createDefaultPubspec());
     
     // Check if we need to merge dependencies
     if (Object.keys(pubspecDeps).length > 0) {
       let basePubspec = createDefaultPubspec();
       basePubspec = mergeDependencies(basePubspec, pubspecDeps);
       serializedYaml = serializePubspecToYaml(basePubspec);
-    } else {
-      serializedYaml = serializePubspecToYaml(createDefaultPubspec());
     }
     
     // Build file map contents for API
     const fileMapContents = JSON.stringify(
       Object.fromEntries(
         Array.from(fileMap.entries()).map(([name, info]) => [
-          name,
+          info.path,
           { content: info.content, type: info.type }
         ])
       )
@@ -2311,7 +2317,7 @@ async function executeCommit(code, options = {}) {
     const fileMapContents = JSON.stringify(
       Object.fromEntries(
         Array.from(fileMap.entries()).map(([name, info]) => [
-          name,
+          info.path,
           { content: info.content, type: info.type }
         ])
       )
