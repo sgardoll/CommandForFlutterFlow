@@ -780,6 +780,13 @@ function setupFlutterFlowValidation() {
       updateInputValidationState('flutterflow-api-key-input', isValid);
       showValidationError('flutterflow-api-key-error', e.target.value && !isValid);
     });
+    // Add blur event to fetch projects when key is valid
+    apiKeyInput.addEventListener('blur', debounce(async (e) => {
+      const key = e.target.value.trim();
+      if (key && validateFlutterFlowApiKey(key)) {
+        await fetchProjects(key);
+      }
+    }, 500));
   }
   
   if (projectIdInput) {
@@ -788,6 +795,82 @@ function setupFlutterFlowValidation() {
       updateInputValidationState('flutterflow-project-id-input', isValid);
       showValidationError('flutterflow-project-id-error', e.target.value && !isValid);
     });
+  }
+}
+
+/**
+ * Simple debounce utility.
+ * @param {Function} func - Function to debounce
+ * @param {number} wait - Milliseconds to wait
+ * @returns {Function} Debounced function
+ */
+function debounce(func, wait) {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+}
+
+/**
+ * Fetches projects from FlutterFlow API and populates dropdown.
+ * @param {string} apiKey - FlutterFlow API key
+ */
+async function fetchProjects(apiKey) {
+  const container = document.getElementById('flutterflow-projects-container');
+  const select = document.getElementById('flutterflow-projects-select');
+  const errorElement = document.getElementById('flutterflow-projects-error');
+  
+  if (!container || !select) {
+    console.error('Projects dropdown elements not found');
+    return;
+  }
+  
+  // Show loading state
+  container.classList.remove('hidden');
+  select.innerHTML = '<option value="">Loading projects...</option>';
+  if (errorElement) errorElement.classList.add('hidden');
+  
+  try {
+    // Create temporary client instance (no project ID needed)
+    const client = new FlutterFlowApiClient(apiKey, '');
+    const projects = await client.listProjects();
+    
+    if (!projects || projects.length === 0) {
+      select.innerHTML = '<option value="">No projects found</option>';
+      return;
+    }
+    
+    // Populate dropdown
+    select.innerHTML = '<option value="">Select a project...</option>';
+    projects.forEach(project => {
+      const option = document.createElement('option');
+      option.value = project.id || project.projectId || '';
+      option.textContent = project.name || project.projectName || `Project ${project.id}`;
+      select.appendChild(option);
+    });
+    
+    // Connect selection to Project ID input
+    select.addEventListener('change', () => {
+      const projectIdInput = document.getElementById('flutterflow-project-id-input');
+      if (projectIdInput && select.value) {
+        projectIdInput.value = select.value;
+        // Trigger validation
+        projectIdInput.dispatchEvent(new Event('input'));
+      }
+    });
+    
+  } catch (error) {
+    console.error('Failed to fetch projects:', error);
+    select.innerHTML = '<option value="">Error loading projects</option>';
+    if (errorElement) {
+      errorElement.textContent = `Failed to load projects: ${error.message}`;
+      errorElement.classList.remove('hidden');
+    }
   }
 }
 
