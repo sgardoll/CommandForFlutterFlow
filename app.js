@@ -2592,16 +2592,34 @@ async function executeCommit(code, options = {}) {
       };
     } else {
       const errorMsg = result.errorMessage || getFlutterFlowErrorMessage(result.responseCode);
-      throw new Error(errorMsg);
+      const errorWithMap = new Error(errorMsg);
+      errorWithMap.errorMap = result.errorMap;
+      throw errorWithMap;
     }
     
   } catch (error) {
     console.error('Commit execution failed:', error);
     commitState.setError(error);
     
+    // Try to extract errorMap from the error if available
+    let errorMap = new Map();
+    if (error.errorMap) {
+      errorMap = error.errorMap;
+    } else if (error.message && error.message.includes('{')) {
+      // Try to parse errorMap from error message
+      try {
+        const match = error.message.match(/\{[\s\S]*\}/);
+        if (match) {
+          const parsed = JSON.parse(match[0]);
+          errorMap = new Map(Object.entries(parsed));
+        }
+      } catch (e) {}
+    }
+    
     return {
       success: false,
       error: error.message,
+      errorMap: errorMap,
       state: commitState.currentState,
       elapsedTime: commitState.getElapsedTime(),
     };
@@ -3746,8 +3764,161 @@ async function initiateCommitToFlutterFlow() {
   if (result.success) {
     alert(`Success! ${result.message}\n\nTime: ${(result.elapsedTime / 1000).toFixed(1)}s`);
   } else {
-    alert(`Commit failed: ${result.error}`);
+    showCommitError(result);
   }
+}
+
+/**
+ * Shows commit errors in the UI with option to regenerate
+ */
+function showCommitError(result) {
+  // Parse error map from result
+  let errorMap = result.errorMap || new Map();
+  
+  // If errorMap is not a Map, try to convert it
+  if (!(errorMap instanceof Map) && typeof errorMap === 'object') {
+    errorMap = new Map(Object.entries(errorMap));
+  }
+  
+  // Format error message
+  let errorHtml = `<div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+    <h4 class="text-red-600 font-bold text-sm uppercase mb-2">FlutterFlow Commit Failed</h4>
+    <p class="text-sm text-red-700 mb-3">${escapeHtml(result.error)}</p>`;
+  
+  if (errorMap && errorMap.size > 0) {
+    errorHtml += `<div class="mt-3">
+      <p class="text-xs font-semibold text-red-600 uppercase mb-2">Errors:</p>
+      <ul class="text-sm text-red-700 space-y-2">`;
+    
+    for (const [fileName, errorInfo] of errorMap.entries()) {
+      const message = errorInfo.errorMessage || errorInfo;
+      errorHtml += `<li class="bg-white p-2 rounded border border-red-100">
+        <strong class="text-red-800">${escapeHtml(fileName)}:</strong> ${escapeHtml(message)}
+      </li>`;
+    }
+    
+    errorHtml += `</ul></div>`;
+  }
+  
+  errorHtml += `</div>`;
+  
+  // Add regenerate button
+  errorHtml += `<div class="flex gap-3 mt-4">
+    <button id="btn-regenerate-from-error" class="btn-primary bg-indigo-600 hover:bg-indigo-700">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+      </svg>
+      Fix Errors & Regenerate
+    </button>
+  </div>`;
+  
+  // Display in step 3 output
+  const step3Output = document.getElementById('step3-output');
+  if (step3Output) {
+    step3Output.innerHTML = errorHtml;
+    
+    // Add click handler for regenerate button
+    document.getElementById('btn-regenerate-from-error')?.addEventListener('click', () => {
+      regenerateWithErrors(result.error, errorMap);
+    });
+  }
+}
+
+/**
+ * Regenerates code with FlutterFlow errors included in the prompt
+ */
+async function regenerateWithErrors(originalError, errorMap) {
+  if (pipelineState.isRunning) return;
+  
+  const selectedModel = document.getElementById('code-generator-model').value;
+  
+  pipelineState.isRunning = true;
+  
+  const btn = document.getElementById('btn-regenerate-from-error');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+    </svg> Fixing...`;
+  }
+  
+  try {
+    // Build error context for regeneration
+    let errorContext = "The previous code had the following errors when committing to FlutterFlow:\n\n";
+    
+    if (errorMap && errorMap.size > 0) {
+      for (const [fileName, errorInfo] of errorMap.entries()) {
+        const message = errorInfo.errorMessage || errorInfo;
+        errorContext += `File: ${fileName}\nError: ${message}\n\n`;
+      }
+    } else {
+      errorContext += `${originalError}\n`;
+    }
+    
+    const refinementPrompt = `CRITICAL: This is a REGENERATION task to fix FlutterFlow errors.
+
+ORIGINAL SPECIFICATION:
+${pipelineState.step1Result}
+
+CURRENT CODE:
+${pipelineState.step2Result}
+
+FLUTTERFLOW ERRORS TO FIX:
+${errorContext}
+
+Please regenerate the code to fix these errors while maintaining the original specification.`;
+
+    // Go to step 2
+    selectWorkflowStep(2);
+    showStepLoading(2, true);
+    
+    // Generate new code
+    pipelineState.step2Result = await runCodeGenerator(
+      refinementPrompt,
+      selectedModel
+    );
+    
+    const step2Output = document.getElementById("step2-output");
+    const cleanStep2 = extractCodeFromMarkdown(pipelineState.step2Result);
+    step2Output.innerHTML = highlightCode(cleanStep2);
+    step2Output.dataset.raw = cleanStep2;
+    showStepLoading(2, false);
+    
+    // Run audit
+    selectWorkflowStep(3);
+    showStepLoading(3, true);
+    
+    pipelineState.step3Result = await runCodeDissector(
+      pipelineState.step2Result
+    );
+    
+    const auditOutput = document.getElementById("step3-output");
+    auditOutput.innerHTML = renderMarkdownAudit(pipelineState.step3Result);
+    
+    showStepLoading(3, false);
+    
+  } catch (error) {
+    console.error("Regeneration failed:", error);
+    alert("Regeneration failed: " + error.message);
+  } finally {
+    pipelineState.isRunning = false;
+    
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+      </svg> Fix Errors & Regenerate`;
+    }
+    
+    updateDeployButtonVisibility();
+  }
+}
+
+function escapeHtml(text) {
+  if (!text) return '';
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML.replace(/\n/g, '<br>');
 }
 
 /**
