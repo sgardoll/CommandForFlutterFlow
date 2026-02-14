@@ -18,11 +18,12 @@ Add direct FlutterFlow project integration to the Dreamflow Command web applicat
 - [ ] **Phase 3: API Client Core** - Create FlutterFlow API client foundation
 - [ ] **Phase 4: File Preparation** - Adapt file utilities from VS-Code-Extension
 - [ ] **Phase 5: State Management** - Implement commit state tracking
-- [ ] **Phase 6: Commit Action** - Create push-to-FlutterFlow action
-- [ ] **Phase 7: UI Integration** - Add commit button and workflow
+- [x] **Phase 6: Commit Action** - Create push-to-FlutterFlow action
+- [x] **Phase 7: UI Integration** - Add commit button and workflow
 - [ ] **Phase 8: Feedback System** - Success/error handling and mitigation
 - [ ] **Phase 9: Testing** - Integration testing and validation
 - [ ] **Phase 10: Polish** - UX refinement and edge cases
+- [x] **Phase 11: Project List Dropdown** - Auto-fetch FF projects
 
 ## Phase Details
 
@@ -90,24 +91,24 @@ Plans:
 **Research**: Likely (adapt action pattern to web workflow)
 **Research topics**: Review pushToFF.ts implementation; adapt for single-file commit workflow
 **Plans**: 3 plans
-**Status**: Planned
+**Status**: Complete (2026-02-14)
 
 Plans:
-- [ ] 06-01: Create code preparation utilities
-- [ ] 06-02: Integrate commit action with API client
-- [ ] 06-03: Add pre-commit validation and checks
+- [x] 06-01: Create code preparation utilities
+- [x] 06-02: Integrate commit action with API client
+- [x] 06-03: Add pre-commit validation and checks
 
 ### Phase 7: UI Integration
 **Goal**: Add "Commit to FlutterFlow" button and integrate into Step 3 workflow
 **Depends on**: Phase 6
 **Research**: Unlikely (existing UI patterns)
 **Plans**: 3 plans
-**Status**: Planned
+**Status**: Complete (2026-02-14)
 
 Plans:
-- [ ] 07-01: Add "Commit to FlutterFlow" button in Step 3 (Code Dissector)
-- [ ] 07-02: Create commit confirmation modal
-- [ ] 07-03: Integrate commit action with UI feedback
+- [x] 07-01: Add "Commit to FlutterFlow" button in Step 3 (Code Dissector)
+- [x] 07-02: Create commit confirmation modal
+- [x] 07-03: Integrate commit action with UI feedback
 
 ### Phase 8: Feedback System
 **Goal**: Implement success/error feedback and mitigation options
@@ -166,8 +167,8 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 3. API Client Core | 4/4 | Complete | 2026-02-13 |
 | 4. File Preparation | 3/3 | Complete | 2026-02-13 |
 | 5. State Management | 2/2 | Complete | 2026-02-13 |
-| 6. Commit Action | 0/3 | Planned | - |
-| 7. UI Integration | 0/3 | Planned | - |
+| 6. Commit Action | 3/3 | Complete | 2026-02-14 |
+| 7. UI Integration | 3/3 | Complete | 2026-02-14 |
 | 8. Feedback System | 0/3 | Planned | - |
 | 9. Testing | 0/2 | Planned | - |
 | 10. Polish | 0/2 | Planned | - |

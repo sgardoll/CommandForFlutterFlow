@@ -6,9 +6,9 @@ const envOpenaiApiKey = import.meta.env.VITE_OPENAI_API_KEY || "";
 const envOpenRouterApiKey = import.meta.env.VITE_OPENROUTER_API_KEY || "";
 
 // Model Configuration
-const PROMPT_ARCHITECT_MODEL = "gemini-3-flash-preview";
-const CODE_DISSECTOR_MODEL = "gemini-3-flash-preview";
-const FALLBACK_MODEL = "gemini-2.5-flash-preview-09-2025";
+const PROMPT_ARCHITECT_MODEL = "gemini-3-pro-preview";
+const CODE_DISSECTOR_MODEL = "gemini-3-pro-preview";
+const FALLBACK_MODEL = "gemini-3-flash-preview";
 
 // --- SHARED FLUTTERFLOW CONSTRAINTS TEMPLATE ---
 // These constraints are shared across all three pipeline agents to ensure consistency.
@@ -20,7 +20,7 @@ const FF_CORE_PHILOSOPHY = `## THE FLUTTERFLOW INTEGRATION PHILOSOPHY
 
 Key principles:
 1. **Settings and code must match.** FlutterFlow binds custom code by name/signature. If the UI says the widget/action is \`NeuroRadialGauge\`, your Dart must export that exact class/function name. Name mismatches are a top cause of "mysterious" breakage.
-2. **Respect the Header.** Custom Widgets and Actions MUST start with a specific boilerplate header containing auto-imports. The code generator MUST include this header exactly as specified.
+2. **Headers are automatic.** The boilerplate header (with imports) is added automatically at commit time - generated code should be clean (class/function only).
 3. **You are responsible for dependencies.** FlutterFlow won't auto-add pubspec packages. If the code imports it, you must add it in Project Dependencies (and sometimes native config).
 4. **The Parser Gap is real.** FlutterFlow parses custom code to power the UI (parameter panels, variable pickers). That parser is stricter than Dart itself - valid Dart can still be "invalid" to FlutterFlow.`;
 
@@ -36,33 +36,16 @@ const FF_ARTIFACT_TYPES = `## THE FOUR ARTIFACT SURFACES
 ### B) Custom Actions (Async/Side Effects Silo)
 - **Purpose:** API calls, complex logic, third-party libraries
 - **Return type:** ALWAYS Future<T>
-- **MANDATORY HEADER:** Must start with:
-  \`\`\`dart
-  // Automatic FlutterFlow imports
-  import '/flutter_flow/flutter_flow_theme.dart';
-  import '/flutter_flow/flutter_flow_util.dart';
-  import '/custom_code/actions/index.dart';
-  import '/flutter_flow/custom_functions.dart';
-  import 'package:flutter/material.dart';
-  // Begin custom action code
-  // DO NOT REMOVE OR MODIFY THE CODE ABOVE!
-  \`\`\`
-- **External imports:** Allowed (add under the header). Must be added to Project Dependencies.
+- **Imports:** 
+  - External packages: include (e.g., \`import 'package:flutter_tts/flutter_tts.dart';\`)
+  - FlutterFlow imports: DO NOT include - added at commit
 - **Use when:** Async operations, external packages.
 
 ### C) Custom Widgets (Visual/UI Silo)
 - **Purpose:** Custom UI components
-- **MANDATORY HEADER:** Must start with:
-  \`\`\`dart
-  // Automatic FlutterFlow imports
-  import '/backend/schema/structs/index.dart';
-  import '/flutter_flow/flutter_flow_theme.dart';
-  import '/flutter_flow/flutter_flow_util.dart';
-  import 'index.dart'; // Imports other custom widgets
-  import 'package:flutter/material.dart';
-  // Begin custom widget code
-  // DO NOT REMOVE OR MODIFY THE CODE ABOVE!
-  \`\`\`
+- **Imports:** 
+  - External packages: include (e.g., \`import 'package:percent_indicator/percent_indicator.dart';\`)
+  - FlutterFlow imports: DO NOT include - added at commit
 - **Parameters:** Must accept nullable \`width\` and \`height\`.
 - **Use when:** Custom UI not in standard library.
 
@@ -173,7 +156,7 @@ const FF_PROMPT_PROTOCOL = `## THE "CLEAN ROOM" PROMPT PROTOCOL
 Use this preamble for all code generation.
 
 > "Act as a Senior Flutter Developer for FlutterFlow."
-> 1. **Header:** You MUST include the exact FlutterFlow boilerplate header (imports + DO NOT REMOVE line) for the artifact type.
+> 1. **No Header Needed:** Do NOT include import statements or boilerplate headers - these are added automatically at commit time.
 > 2. **Types:** Use ONLY simple types (double, int, String, bool). NO complex Flutter types like EdgeInsets, Duration, TextStyle.
 > 3. **Actions:** Callbacks must return \`Future\`. Await them.
 > 4. **Theme:** Use \`FlutterFlowTheme.of(context)\`.
@@ -187,8 +170,8 @@ const FF_WORKFLOW_PROTOCOL = `## TRI-SURFACE INTEGRATION WORKFLOW
 3. **Capture Imports:** List all external packages (add to Project Dependencies).
 
 ### Phase 2: Injection
-1. **Prepare Host:** Create Custom Widget/Action in FF with parameters.
-2. **Add Header:** Paste the MANDATORY boilerplate header (with auto-imports).
+1. **Generate:** Code is generated WITHOUT headers (clean class/function only).
+2. **Commit:** Headers are added AUTOMATICALLY when committing to FlutterFlow.
 3. **Refactor Name:** Ensure \`class [WidgetName]\` matches exactly.
 4. **Refactor Colors:** Use \`FlutterFlowTheme.of(context).primary\`.
 5. **Refactor Logic:** Convert calls to \`Future Function()\` callbacks.`;
@@ -428,6 +411,7 @@ async function initializeApiKeys() {
   flutterflowApiKey = await getApiKey("flutterflow");
   flutterflowProjectId = await getApiKey("flutterflow_project_id");
   updateApiKeyStatusIndicators();
+  updateDeployButtonVisibility();
 }
 
 // --- API KEY UI FUNCTIONS ---
@@ -1278,15 +1262,19 @@ class FlutterFlowApiClient {
      */
     async listProjects(options = {}) {
       const { page = 1, limit = 100 } = options;
-      console.log(`Listing projects for API key (page ${page}, limit ${limit})`);
+      console.log(`Listing projects for API key via V2 endpoint`);
 
       try {
-        const response = await fetch(`${this.baseUrl}/projects`, {
-          method: 'GET',
+        const response = await fetch('https://api.flutterflow.io/v2/l/listProjects', {
+          method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${this.apiKey}`,
           },
+          body: JSON.stringify({
+            project_type: 'ALL',
+            deserialize_response: true,
+          }),
         });
 
         if (!response.ok) {
@@ -1295,8 +1283,26 @@ class FlutterFlowApiClient {
         }
 
         const data = await response.json();
-        // Assume response shape: { projects: [...] }
-        const projects = data.projects || data.items || data;
+        
+        // Handle the specific FlutterFlow API wrapper format:
+        // { success: true, value: "{\"entries\": [...]}" }
+        if (data.success && typeof data.value === 'string') {
+          try {
+            const parsedValue = JSON.parse(data.value);
+            if (parsedValue && Array.isArray(parsedValue.entries)) {
+              // Map to standard format: { id, name }
+              return parsedValue.entries.map(entry => ({
+                id: entry.id,
+                name: entry.project?.name || entry.id
+              }));
+            }
+          } catch (parseError) {
+            console.error('Failed to parse stringified project value:', parseError);
+          }
+        }
+
+        // Fallback for other potential formats
+        const projects = data.projects || data.items || data.entries || (Array.isArray(data) ? data : []);
         return Array.isArray(projects) ? projects : [];
       } catch (error) {
         console.error('Error listing projects:', error);
@@ -1791,8 +1797,50 @@ function prepareCodeForCommit(rawCode, options = {}) {
       break;
   }
   
+  // Add mandatory FlutterFlow header (matching VS-Code-Extension pattern)
+  let header = '';
+  if (codeType === CodeType.WIDGET) {
+    header = `// Automatic FlutterFlow imports
+import '/flutter_flow/flutter_flow_theme.dart';
+import '/flutter_flow/flutter_flow_util.dart';
+import 'index.dart';
+import '/custom_code/actions/index.dart';
+import '/flutter_flow/custom_functions.dart';
+import 'package:flutter/material.dart';
+// Begin custom widget code
+// DO NOT REMOVE OR MODIFY THE CODE ABOVE!
+
+`;
+  } else if (codeType === CodeType.ACTION) {
+    header = `// Automatic FlutterFlow imports
+import '/flutter_flow/flutter_flow_theme.dart';
+import '/flutter_flow/flutter_flow_util.dart';
+import 'index.dart';
+import '/flutter_flow/custom_functions.dart';
+import 'package:flutter/material.dart';
+// Begin custom action code
+// DO NOT REMOVE OR MODIFY THE CODE ABOVE!
+
+`;
+  } else if (codeType === CodeType.FUNCTION) {
+    header = `// Automatic FlutterFlow imports
+import 'dart:convert';
+import 'dart:math' as math;
+
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
+import 'package:timeago/timeago.dart' as timeago;
+import '/flutter_flow/lat_lng.dart';
+import '/flutter_flow/place.dart';
+import '/flutter_flow/uploaded_file.dart';
+import '/flutter_flow/custom_functions.dart';
+
+`;
+  }
+  
   return {
-    content: cleanedCode,
+    content: header + cleanedCode,
     fileName,
     codeType,
     artifactType,
@@ -1813,33 +1861,59 @@ function extractDependencies(code) {
     { name: 'flutter_animate', pattern: /flutter_animate/ },
     { name: 'google_fonts', pattern: /google_fonts/ },
     { name: 'flutter_svg', pattern: /flutter_svg/ },
-    { name: 'http', pattern: /package:http\/http.dart/ },
-    { name: 'intl', pattern: /package:intl\/intl.dart/ },
-    { name: 'collection', pattern: /package:collection\/collection.dart/ },
-    { name: 'rxdart', pattern: /package:rxdart\/rxdart.dart/ },
-    { name: 'timeago', pattern: /package:timeago\/timeago.dart/ },
-    { name: 'url_launcher', pattern: /package:url_launcher\/url_launcher.dart/ },
-    { name: 'cloud_firestore', pattern: /package:cloud_firestore\/cloud_firestore.dart/ },
-    { name: 'firebase_auth', pattern: /package:firebase_auth\/firebase_auth.dart/ },
+    { name: 'http', pattern: /package:http\b/ },
+    { name: 'intl', pattern: /package:intl\b/ },
+    { name: 'collection', pattern: /package:collection\b/ },
+    { name: 'rxdart', pattern: /package:rxdart\b/ },
+    { name: 'timeago', pattern: /package:timeago\b/ },
+    { name: 'url_launcher', pattern: /package:url_launcher\b/ },
+    { name: 'cloud_firestore', pattern: /package:cloud_firestore\b/ },
+    { name: 'firebase_auth', pattern: /package:firebase_auth\b/ },
+    { name: 'flutter_tts', pattern: /package:flutter_tts\b/ },
+    { name: 'percent_indicator', pattern: /package:percent_indicator\b/ },
+    { name: 'fl_chart', pattern: /package:fl_chart\b/ },
+    { name: 'cached_network_image', pattern: /package:cached_network_image\b/ },
+    { name: 'image_picker', pattern: /package:image_picker\b/ },
+    { name: 'file_picker', pattern: /package:file_picker\b/ },
+    { name: 'shared_preferences', pattern: /package:shared_preferences\b/ },
+    { name: 'sqflite', pattern: /package:sqflite\b/ },
+    { name: 'path_provider', pattern: /package:path_provider\b/ },
+    { name: 'uuid', pattern: /package:uuid\b/ },
+    { name: 'xml', pattern: /package:xml\b/ },
+    { name: 'html', pattern: /package:html\b/ },
+    { name: 'csv', pattern: /package:csv\b/ },
+    { name: 'pdf', pattern: /package:pdf\b/ },
+    { name: 'printing', pattern: /package:printing\b/ },
+    { name: 'flutter_local_notifications', pattern: /package:flutter_local_notifications\b/ },
+    { name: 'geolocator', pattern: /package:geolocator\b/ },
+    { name: 'geocoding', pattern: /package:geocoding\b/ },
+    { name: 'firebase_core', pattern: /package:firebase_core\b/ },
+    { name: 'firebase_storage', pattern: /package:firebase_storage\b/ },
+    { name: 'firebase_messaging', pattern: /package:firebase_messaging\b/ },
+    { name: 'cloud_functions', pattern: /package:cloud_functions\b/ },
+    { name: 'firebase_analytics', pattern: /package:firebase_analytics\b/ },
+    { name: 'stripe_checkout', pattern: /package:stripe_checkout\b/ },
+    { name: 'pay', pattern: /package:pay\b/ },
+    { name: 'in_app_purchase', pattern: /package:in_app_purchase\b/ },
+    { name: 'audioplayers', pattern: /package:audioplayers\b/ },
+    { name: 'just_audio', pattern: /package:just_audio\b/ },
+    { name: 'video_player', pattern: /package:video_player\b/ },
+    { name: 'chewie', pattern: /package:chewie\b/ },
+    { name: 'flutter_rating_bar', pattern: /package:flutter_rating_bar\b/ },
+    { name: 'shimmer', pattern: /package:shimmer\b/ },
+    { name: 'carousel_slider', pattern: /package:carousel_slider\b/ },
+    { name: 'flutter_staggered_grid_view', pattern: /package:flutter_staggered_grid_view\b/ },
+    { name: 'smooth_page_indicator', pattern: /package:smooth_page_indicator\b/ },
+    { name: 'qr_flutter', pattern: /package:qr_flutter\b/ },
+    { name: 'barcode_widget', pattern: /package:barcode_widget\b/ },
+    { name: 'qr_code_scanner', pattern: /package:qr_code_scanner\b/ },
+    { name: 'lottie', pattern: /package:lottie\b/ },
+    { name: 'rive', pattern: /package:rive\b/ },
   ];
   
   for (const { name, pattern } of packagePatterns) {
     if (pattern.test(code)) {
-      // Use latest stable versions (as of 2024-2025)
-      const versions = {
-        flutter_animate: '^4.5.0',
-        google_fonts: '^6.2.1',
-        flutter_svg: '^2.0.10',
-        http: '^1.2.0',
-        intl: '^0.19.0',
-        collection: '^1.18.0',
-        rxdart: '^0.27.7',
-        timeago: '^3.6.1',
-        url_launcher: '^6.2.5',
-        cloud_firestore: '^4.15.5',
-        firebase_auth: '^4.17.5',
-      };
-      deps[name] = versions[name] || '^1.0.0';
+      deps[name] = '^1.0.0';
     }
   }
   
@@ -1880,8 +1954,37 @@ function validateDartFile(fileName, content) {
     { pattern: /runApp\s*\(/, message: 'Contains runApp() - not allowed in FlutterFlow' },
     { pattern: /MaterialApp\s*\(/, message: 'Contains MaterialApp - not allowed in FlutterFlow' },
     { pattern: /Scaffold\s*\(/, message: 'Contains Scaffold - usually not needed in FlutterFlow widgets' },
-    { pattern: /^\s*import\s+/m, message: 'Contains import statements - FlutterFlow manages imports' },
   ];
+  
+  // Validate imports based on artifact type
+  const isCustomFunction = fileName.includes('custom_functions') || fileName.includes('functions');
+  const importRegex = /^\s*import\s+['"]([^'"]+)['"]/gm;
+  let match;
+  while ((match = importRegex.exec(content)) !== null) {
+    const importPath = match[1];
+    const isAllowedFFImport = 
+      importPath.startsWith('/flutter_flow/') ||
+      importPath.startsWith('/backend/') ||
+      importPath.startsWith('/custom_code/') ||
+      importPath === 'index.dart' ||
+      importPath === 'package:flutter/material.dart' ||
+      importPath === 'package:flutter/services.dart';
+    const isDartSdkImport = 
+      importPath.startsWith('dart:') ||
+      importPath.startsWith('package:');
+    
+    if (isCustomFunction) {
+      // Custom Functions: only dart: imports allowed (no external packages)
+      if (!importPath.startsWith('dart:')) {
+        errors.push(`Custom Functions cannot use '${importPath}' - only Dart SDK imports allowed`);
+      }
+    } else {
+      // Widgets/Actions: allow FF imports + dart: + flutter packages
+      if (!isAllowedFFImport && !isDartSdkImport) {
+        errors.push(`Unknown import '${importPath}' - use FlutterFlow managed imports`);
+      }
+    }
+  }
   
   for (const { pattern, message } of forbiddenPatterns) {
     if (pattern.test(content)) {
@@ -2529,10 +2632,16 @@ You understand that FlutterFlow is the host organism - your code must conform to
 
 ## HARD CONSTRAINTS (NON-NEGOTIABLE)
 
-### Boilerplate Mandate
-- Do NOT output any import statements - FlutterFlow manages all imports automatically
+### Import Rules
+- **External packages (package:xxx)**: MUST be included in generated code - user needs these to add to FF Dependencies
+- **FlutterFlow-managed imports**: Do NOT include these - they are added automatically at commit time:
+  - /flutter_flow/flutter_flow_theme.dart
+  - /flutter_flow/flutter_flow_util.dart
+  - index.dart (relative)
+  - /custom_code/actions/index.dart
+  - /flutter_flow/custom_functions.dart
+  - package:flutter/material.dart
 - Do NOT include comments like "// Automatic FlutterFlow imports" or "// Do not edit above"
-- Code will be pasted BELOW FlutterFlow's auto-generated import section
 - Class/function name MUST match the "artifactName" from the specification EXACTLY (case-sensitive)
 
 ### External Dependencies
@@ -2612,14 +2721,14 @@ ADDITIONAL GUIDANCE FOR FREE MODELS:
 - Keep implementations simple and standard
 - Avoid experimental features unless necessary`,
 
-      "gemini-3.0-pro": `
+      "gemini-3-pro-preview": `
 ADDITIONAL GUIDANCE FOR THIS MODEL:
 - Strictly follow the JSON specification structure
 - Do not add features not specified in the requirements
 - Keep the implementation focused and minimal`,
     };
 
-    const tweak = modelTweaks[model] || modelTweaks["gemini-3.0-pro"];
+    const tweak = modelTweaks[model] || modelTweaks["gemini-3-pro-preview"];
     return baseInstruction + "\n\n---\n" + tweak;
   };
 
@@ -2649,7 +2758,7 @@ Remember: Output ONLY the raw Dart code. No markdown, no explanations.`;
       case "openrouter-free":
         result = await callOpenRouter(formattedPrompt, systemInstruction, "openrouter-free");
         break;
-      case "gemini-3.0-pro":
+      case "gemini-3-pro-preview":
       default:
         result = await callGemini(
           formattedPrompt,
@@ -2667,18 +2776,18 @@ Remember: Output ONLY the raw Dart code. No markdown, no explanations.`;
       error.message.includes("authentication") ||
       error.message.includes("401")
     ) {
-      console.log(
-        "Selected model failed due to API key issues, falling back to Gemini 3.0 Pro..."
-      );
+        console.log(
+          "Selected model failed due to API key issues, falling back to Gemini 3.0 Flash..."
+        );
       try {
         const fallbackInstruction = getModelSpecificInstruction(
           baseSystemInstruction,
-          "gemini-3.0-pro"
+          "gemini-3-flash-preview"
         );
         result = await callGemini(
           formattedPrompt,
           fallbackInstruction,
-          "gemini-3-pro-preview"
+          "gemini-3-flash-preview"
         );
         return result;
       } catch (fallbackError) {
@@ -2712,7 +2821,7 @@ Check for and flag:
 3. \`MaterialApp\` widget - TOXIC, this is harness code
 4. \`CupertinoApp\` or \`WidgetsApp\` - TOXIC
 5. \`Scaffold\` widget (unless spec explicitly requires it) - Usually TOXIC
-6. ANY \`import\` statements - FlutterFlow manages these
+6. (Removed - imports are now added automatically at commit time)
 7. Custom Dart classes for data (e.g., \`class User {}\`) - Should use FF Structs
 8. Missing \`width\`/\`height\` parameters for Custom Widgets
 9. Generics, extensions, or function-typed params in Code Files (Parser Gap)
@@ -3160,7 +3269,7 @@ function copyCode(elementId) {
 function updateModelInfo(selectedModel) {
   // Model info display removed in new UI - function kept for compatibility
   const modelNames = {
-    "gemini-3.0-pro": "Gemini 3.0 Pro",
+    "gemini-3-pro-preview": "Gemini 3.0 Pro",
     "claude-4.5-opus": "Claude 4.5 Opus",
     "gpt-5.1-codex-max": "GPT-5.1-Codex-Max",
     "openrouter-auto": "OpenRouter: Auto",
@@ -3257,6 +3366,7 @@ Ensure it still adheres to the ORIGINAL SPECIFICATION.
         </svg>
         ${btnText}`;
     });
+    updateDeployButtonVisibility();
   }
 }
 
@@ -3279,7 +3389,7 @@ async function runThinkingPipeline() {
 
   // Check for image references in non-Gemini models
   if (
-    selectedModel !== "gemini-3.0-pro" &&
+    selectedModel !== "gemini-3-pro-preview" &&
     (userInput.toLowerCase().includes("screenshot") ||
       userInput.toLowerCase().includes("image") ||
       userInput.toLowerCase().includes("picture") ||
@@ -3418,6 +3528,8 @@ async function runThinkingPipeline() {
       <path d="M8 5v14l11-7z"/>
     </svg>
     Run Pipeline`;
+    
+    updateDeployButtonVisibility();
   }
 }
 
@@ -3425,7 +3537,7 @@ function retryWithDifferentModel() {
   // Show model selection dialog
   const currentModel = document.getElementById("code-generator-model").value;
   const otherModels = [
-    "gemini-3.0-pro",
+    "gemini-3-pro-preview",
     "claude-4.5-opus",
     "gpt-5.1-codex-max",
   ].filter((model) => model !== currentModel);
