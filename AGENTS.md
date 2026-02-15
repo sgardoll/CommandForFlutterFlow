@@ -99,22 +99,25 @@ async function example() {
 ### Forbidden Patterns (Code Generator must NOT output)
 - `void main()` or `main()` function
 - `runApp()`, `MaterialApp`, `Scaffold`
-- Any `import` statements (FlutterFlow manages imports)
-- Custom Dart classes for data models (use FF Structs)
+- Custom imports in Custom Functions
+- Complex parameter types (`EdgeInsets`, `Duration`, `TextStyle`)
+- `Scaffold` widget (unless explicitly requested)
 
 ### Required Patterns (Code Generator MUST include)
+- **MANDATORY Header** for Custom Widgets & Actions (with imports)
 - `width` and `height` parameters for Custom Widgets
 - Null safety with `??` and `?.` operators
 - `FlutterFlowTheme.of(context)` for colors
 - `Future<dynamic> Function()?` for action callbacks
 - Proper `dispose()` for controllers
 
-### The Three Artifact Types
+### The Four Artifact Types
 | Type | Constraints |
 |------|-------------|
 | Custom Function | Sync only, NO external packages, pure Dart |
-| Custom Action | Must return `Future<T>`, external packages OK |
-| Custom Widget | Must handle null width/height, use LayoutBuilder |
+| Custom Action | Must return `Future<T>`, external packages OK, Mandatory Header |
+| Custom Widget | Must handle null width/height, use LayoutBuilder, Mandatory Header |
+| Code File | Reusable models/enums, No generics or function fields |
 
 ---
 

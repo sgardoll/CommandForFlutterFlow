@@ -3,8 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Custom Code Command</title>
+    <title>FlutterFlow Custom Code Connect</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha512-XMVd28F1oH/O71fzwBnV7HucLxVwtxf26XV8P4wPk26EDxuGZ91N8bsOttmnomcCD3CS5ZMRL50H0GgOHvegtg==" crossorigin="anonymous"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/dart.min.js"></script>
@@ -191,7 +192,7 @@
       }
       /* Primary button */
       .btn-primary {
-        background: #3b82f6;
+        background: var(--btn-bg, #3b82f6);
         color: white;
         font-weight: 600;
         padding: 12px 24px;
@@ -206,11 +207,11 @@
         width: 100%;
         font-size: 15px;
       }
-      .btn-primary:hover { background: #2563eb; }
+      .btn-primary:hover { background: var(--btn-bg-hover, #2563eb); }
       .btn-primary:disabled { 
         opacity: 0.6; 
         cursor: not-allowed;
-        background: #3b82f6;
+        background: var(--btn-bg, #3b82f6);
       }
       /* Code block with copy button */
       .code-container {
@@ -318,7 +319,7 @@
         border-radius: 12px;
         box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
         width: 100%;
-        max-width: 480px;
+        max-width: 560px;
         max-height: 90vh;
         overflow-y: auto;
         transform: scale(0.95);
@@ -402,7 +403,7 @@
         text-align: center;
       }
     </style>
-    <script type="module" crossorigin src="/assets/index-C0BWIOHn.js"></script>
+    <script type="module" crossorigin src="/assets/index-N1ropT0q.js"></script>
   </head>
   <body>
     <div class="flex">
@@ -411,8 +412,8 @@
         <!-- Header -->
         <div class="border-b border-gray-200">
           <img
-            src="/sidebar-header-20260108.png"
-            alt="FlutterFlow - Custom Code Command"
+            src="/assets/sidebar-header-blue-CpTFVIZ0.png"
+            alt="FlutterFlow Custom Code Connect"
             class="w-full h-auto block"
           />
         </div>
@@ -428,6 +429,8 @@
               <div class="key-status-dot missing" title="Gemini"></div>
               <div class="key-status-dot missing" title="Claude"></div>
               <div class="key-status-dot missing" title="OpenAI"></div>
+              <div class="key-status-dot missing" title="FlutterFlow"></div>
+              <div class="key-status-dot missing" title="OpenRouter"></div>
             </div>
           </button>
         </div>
@@ -467,6 +470,8 @@
                 <option value="gemini-3.0-pro" selected>Gemini 3.0 Pro</option>
                 <option value="claude-4.5-opus">Claude 4.5 Opus</option>
                 <option value="gpt-5.1-codex-max">GPT-5.1-Codex-Max</option>
+                <option value="openrouter-auto">OpenRouter: Auto Router</option>
+                <option value="openrouter-free">OpenRouter: Free Models</option>
               </select>
             </div>
           </div>
@@ -498,11 +503,14 @@
           <div id="workflow-status-content" class="section-content open">
             <!-- Prompt Architect -->
             <div id="step1-item" class="workflow-item" onclick="selectWorkflowStep(1)">
-              <div class="flex items-center gap-3 workflow-icon">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                </svg>
-                <span class="text-sm workflow-label">Prompt Architect</span>
+              <div class="flex flex-col gap-1 workflow-icon">
+                <div class="flex items-center gap-3">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                  </svg>
+                  <span class="text-sm workflow-label">Prompt Architect</span>
+                </div>
+                <span class="text-xs text-gray-500 ml-7">Gemini 3.0 Pro</span>
               </div>
               <div id="step1-status" class="status-icon">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -513,11 +521,14 @@
 
             <!-- Code Generator -->
             <div id="step2-item" class="workflow-item" onclick="selectWorkflowStep(2)">
-              <div class="flex items-center gap-3 workflow-icon">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
-                </svg>
-                <span class="text-sm workflow-label">Code Generator</span>
+              <div class="flex flex-col gap-1 workflow-icon">
+                <div class="flex items-center gap-3">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
+                  </svg>
+                  <span class="text-sm workflow-label">Code Generator</span>
+                </div>
+                <span id="step2-model-label" class="text-xs text-gray-500 ml-7">Gemini 3.0 Pro</span>
               </div>
               <div id="step2-status" class="status-icon">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -526,13 +537,16 @@
               </div>
             </div>
 
-            <!-- Code Dissector -->
+            <!-- Code Review -->
             <div id="step3-item" class="workflow-item" onclick="selectWorkflowStep(3)">
-              <div class="flex items-center gap-3 workflow-icon">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-                </svg>
-                <span class="text-sm workflow-label">Code Dissector</span>
+              <div class="flex flex-col gap-1 workflow-icon">
+                <div class="flex items-center gap-3">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                  </svg>
+                  <span class="text-sm workflow-label">Code Review</span>
+                </div>
+                <span class="text-xs text-gray-500 ml-7">Gemini 3.0 Pro</span>
               </div>
               <div id="step3-status" class="status-icon">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -542,20 +556,37 @@
             </div>
           </div>
         </div>
+
+        <!-- Deploy to FlutterFlow Button -->
+        <div id="deploy-section" class="p-5 border-t border-gray-200 hidden">
+          <button 
+            id="btn-deploy-to-ff" 
+            class="btn-primary"
+            style="--btn-bg:#f97316;--btn-bg-hover:#ea580c;"
+            onclick="initiateCommitToFlutterFlow()"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+            </svg>
+            Deploy to FlutterFlow
+          </button>
+        </div>
       </aside>
 
       <!-- Main Content -->
       <main class="main-content relative">
         <!-- Welcome Video (shown on first load) -->
         <div id="welcome-video" class="absolute inset-0 bg-black flex items-center justify-center z-10">
-          <iframe
+          <video
             id="welcome-video-player"
-            class="w-full h-full"
-            src="https://www.youtube.com/embed/zRjexvW58IQ?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1"
-            frameborder="0"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowfullscreen
-          ></iframe>
+            class="w-full h-full object-cover"
+            autoplay
+            muted
+            loop
+            playsinline
+          >
+            <source src="/CCC.mp4" type="video/mp4" />
+          </video>
         </div>
 
         <div class="main-stage relative">
@@ -627,7 +658,33 @@
                 <p class="text-gray-600">Auditing code...</p>
               </div>
               <div id="step3-result" class="hidden">
+                <div class="flex justify-end mb-4">
+                  <button 
+                    id="btn-refine-top"
+                    class="btn-primary bg-indigo-600 hover:bg-indigo-700 w-auto btn-refine-action"
+                    onclick="runRefinement()"
+                  >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                    </svg>
+                    Refine & Regenerate Code
+                  </button>
+                </div>
                 <div id="step3-output" class="text-sm text-gray-700"></div>
+                
+                <!-- Refinement Actions -->
+                <div id="refinement-actions" class="mt-6 border-t border-gray-200 pt-4 flex justify-end">
+                  <button 
+                    id="btn-refine" 
+                    class="btn-primary bg-indigo-600 hover:bg-indigo-700 w-auto btn-refine-action"
+                    onclick="runRefinement()"
+                  >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                    </svg>
+                    Refine & Regenerate Code
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -751,11 +808,166 @@
             </div>
           </div>
 
-          <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
-            <p class="text-xs text-blue-700">
-              <strong>Security:</strong> Your API keys are encrypted using AES-256 before being stored in your browser's local storage. When you run the pipeline, the keys are sent to this site's <code>/api/*</code> proxy endpoints to reach the AI providers.
-            </p>
+          <!-- OpenRouter API Key -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">
+              <span class="flex items-center gap-2">
+                <svg class="w-4 h-4 text-purple-600" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                </svg>
+                OpenRouter API Key
+              </span>
+            </label>
+            <div class="relative">
+              <input 
+                type="password" 
+                id="openrouter-api-key-input" 
+                class="api-key-input pr-10" 
+                placeholder="Enter your OpenRouter API key"
+              />
+              <button 
+                onclick="toggleKeyVisibility('openrouter-api-key-input')" 
+                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <svg class="w-4 h-4 eye-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                </svg>
+              </button>
+            </div>
+            <div id="openrouter-key-status" class="key-status">
+              <div class="key-status-dot missing"></div>
+              <span class="text-gray-500">Not configured</span>
+            </div>
           </div>
+
+          <!-- FlutterFlow API Key -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">
+              <span class="flex items-center gap-2">
+                <svg class="w-4 h-4 text-orange-500" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                </svg>
+                FlutterFlow API Key
+              </span>
+            </label>
+            <div class="relative">
+              <input 
+                type="password" 
+                id="flutterflow-api-key-input" 
+                class="api-key-input pr-10" 
+                placeholder="Enter your FlutterFlow API key"
+              />
+              <button 
+                onclick="toggleKeyVisibility('flutterflow-api-key-input')" 
+                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <svg class="w-4 h-4 eye-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                </svg>
+              </button>
+            </div>
+            <div id="flutterflow-key-status" class="key-status">
+              <div class="key-status-dot missing"></div>
+              <span class="text-gray-500">Not configured</span>
+            </div>
+            <div id="flutterflow-api-key-error" class="text-xs text-red-600 mt-1 hidden">
+              API key should be at least 20 characters with only letters, numbers, underscores, and dashes
+            </div>
+            <p class="text-xs text-gray-500 mt-1">
+              Get your API key from FlutterFlow → 
+              <a href="https://app.flutterflow.io/settings/api" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-700 hover:underline">Settings → API Access</a>
+            </p>
+            
+            <!-- Advanced Section -->
+            <details class="group mt-3">
+              <summary class="flex items-center gap-2 cursor-pointer text-sm font-medium text-gray-600 hover:text-gray-800 list-none">
+                <svg class="w-4 h-4 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
+                Advanced
+              </summary>
+              <div class="mt-3 pl-4 border-l-2 border-gray-200">
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                  API Endpoint
+                </label>
+                <select 
+                  id="flutterflow-endpoint-select" 
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                  onchange="setFlutterFlowEndpoint(this.value)"
+                >
+                  <option value="https://api.flutterflow.io/v2/">Production (api.flutterflow.io)</option>
+                  <option value="https://api.flutterflow.io/v2-staging/">Staging (api.flutterflow.io/v2-staging)</option>
+                </select>
+                <p class="text-xs text-gray-500 mt-1">
+                  Use Staging if Production returns 500 errors
+                </p>
+              </div>
+            </details>
+           </div>
+
+            <!-- FlutterFlow Projects Dropdown -->
+           <div id="flutterflow-projects-container" class="hidden">
+             <label class="block text-sm font-medium text-gray-700 mb-2">
+               <span class="flex items-center gap-2">
+                 <svg class="w-4 h-4 text-orange-500" viewBox="0 0 24 24" fill="currentColor">
+                   <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
+                 </svg>
+                 Select Project
+               </span>
+             </label>
+             <select id="flutterflow-projects-select" class="api-key-input w-full">
+               <option value="">Loading projects...</option>
+             </select>
+             <p class="text-xs text-gray-500 mt-1">
+               Select a project to automatically fill Project ID
+             </p>
+             <div id="flutterflow-projects-error" class="text-xs text-red-600 mt-1 hidden">
+               Failed to load projects. Check your API key and try again.
+             </div>
+           </div>
+
+           <!-- FlutterFlow Project ID -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">
+              <span class="flex items-center gap-2">
+                <svg class="w-4 h-4 text-orange-500" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
+                </svg>
+                FlutterFlow Project ID
+              </span>
+            </label>
+            <input 
+              type="text" 
+              id="flutterflow-project-id-input" 
+              class="api-key-input" 
+              placeholder="Enter your FlutterFlow Project ID"
+            />
+            <p class="text-xs text-gray-500 mt-1">
+              Found in your project URL: flutterflow.io/project/[PROJECT-ID]<br>
+              <span class="text-gray-400">e.g., my-app-1234-abcd</span>
+            </p>
+            <div id="flutterflow-project-status" class="key-status">
+              <div class="key-status-dot missing"></div>
+              <span class="text-gray-500">Not configured</span>
+            </div>
+            <div id="flutterflow-project-id-error" class="text-xs text-red-600 mt-1 hidden">
+              Project ID should be at least 5 characters with only letters, numbers, and dashes
+            </div>
+          </div>
+
+           <div class="bg-orange-50 border border-orange-200 rounded-lg p-1 mb-1">
+             <p class="text-xs text-orange-700">
+               <strong>FlutterFlow Direct Commit:</strong> Configures direct commit from Step 3.
+             </p>
+           </div>
+
+           <div class="bg-blue-50 border border-blue-200 rounded-lg p-1">
+             <p class="text-xs text-blue-700">
+               <strong>Security:</strong> Keys are encrypted locally (AES-256) and never stored on our servers.
+             </p>
+           </div>
         </div>
 
         <div class="px-6 py-4 border-t border-gray-200 flex gap-3 justify-end">
@@ -769,7 +981,7 @@
             onclick="saveApiKeys()" 
             class="px-4 py-2 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors"
           >
-            Save Keys
+            Save & Close
           </button>
         </div>
       </div>
@@ -778,7 +990,7 @@
     <div id="walkthrough-modal" class="modal-overlay" onclick="closeWalkthroughModal(event)">
       <div class="modal-content" onclick="event.stopPropagation()">
         <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-          <h2 class="font-semibold text-lg text-gray-900">Welcome to Custom Code Command</h2>
+          <h2 class="font-semibold text-lg text-gray-900">Welcome to FlutterFlow Custom Code Connect</h2>
           <button onclick="closeWalkthroughModal()" class="p-1 hover:bg-gray-100 rounded-lg transition-colors">
             <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
@@ -848,6 +1060,205 @@
         <div class="px-6 py-4 border-t border-gray-200 flex justify-end">
           <button onclick="closeWalkthroughModal()" class="px-4 py-2 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors">
             Got It!
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Commit Confirmation Modal -->
+    <div id="commit-confirm-modal" class="modal-overlay" onclick="closeCommitConfirmModal(event)">
+      <div class="modal-content" onclick="event.stopPropagation()" style="max-width: 640px;">
+        <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+          <h2 class="font-semibold text-lg text-gray-900">Confirm Commit to FlutterFlow</h2>
+          <button onclick="closeCommitConfirmModal()" class="p-1 hover:bg-gray-100 rounded-lg transition-colors">
+            <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+          <!-- Code Summary -->
+          <div>
+            <h3 class="font-medium text-gray-900 mb-2">Code Summary</h3>
+            <div class="bg-gray-50 rounded-lg p-3 text-sm">
+              <div class="grid grid-cols-2 gap-2">
+                <div><span class="text-gray-500">File:</span> <span id="confirm-file-name" class="font-medium"></span></div>
+                <div><span class="text-gray-500">Type:</span> <span id="confirm-artifact-type" class="font-medium"></span></div>
+                <div><span class="text-gray-500">Size:</span> <span id="confirm-file-size" class="font-medium"></span></div>
+                <div><span class="text-gray-500">Lines:</span> <span id="confirm-line-count" class="font-medium"></span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Dependencies -->
+          <div id="confirm-deps-section" class="hidden">
+            <h3 class="font-medium text-gray-900 mb-2">Dependencies</h3>
+            <div class="bg-blue-50 rounded-lg p-3">
+              <p class="text-xs text-blue-700 mb-2">The following packages will be added to pubspec.yaml:</p>
+              <ul id="confirm-deps-list" class="text-xs text-blue-800 space-y-1"></ul>
+            </div>
+          </div>
+
+          <!-- Warnings -->
+          <div id="confirm-warnings-section" class="hidden">
+            <h3 class="font-medium text-amber-700 mb-2">Warnings</h3>
+            <div class="bg-amber-50 rounded-lg p-3">
+              <ul id="confirm-warnings-list" class="text-xs text-amber-800 space-y-1"></ul>
+            </div>
+          </div>
+
+          <!-- Project Info -->
+          <div>
+            <h3 class="font-medium text-gray-900 mb-2">Target Project</h3>
+            <div class="flex items-center gap-2 text-sm">
+              <svg class="w-4 h-4 text-orange-500" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+              </svg>
+              <span id="confirm-project-id" class="text-gray-700"></span>
+            </div>
+          </div>
+
+          <!-- Code Preview (collapsible) -->
+          <div>
+            <button onclick="toggleCodePreview()" class="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700">
+              <svg id="code-preview-chevron" class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+              </svg>
+              Preview Code
+            </button>
+            <div id="code-preview-content" class="hidden mt-2">
+              <div class="code-container" style="max-height: 300px;">
+                <pre id="confirm-code-preview" class="code-font text-gray-300 text-xs"></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="px-6 py-4 border-t border-gray-200 flex gap-3 justify-end">
+          <button 
+            onclick="closeCommitConfirmModal()" 
+            class="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            Cancel
+          </button>
+          <button 
+            onclick="confirmCommitToFlutterFlow()" 
+            class="px-4 py-2 text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 rounded-lg transition-colors"
+          >
+            Confirm Commit
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Commit Progress Overlay -->
+    <div id="commit-progress-overlay" class="modal-overlay" style="background: rgba(0, 0, 0, 0.7);">
+      <div class="modal-content" style="max-width: 400px; text-align: center;">
+        <div class="p-6">
+          <div class="spinner mb-4 mx-auto"></div>
+          <h3 class="font-semibold text-gray-900 mb-2" id="progress-title">Committing to FlutterFlow...</h3>
+          <p class="text-sm text-gray-500 mb-4" id="progress-message">Preparing code</p>
+          
+          <!-- Progress Bar -->
+          <div class="w-full bg-gray-200 rounded-full h-2 mb-2">
+            <div id="commit-progress-bar" class="bg-orange-500 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+          </div>
+          <p class="text-xs text-gray-400" id="progress-detail">Step 1 of 4</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Commit Success Modal -->
+    <div id="commit-success-modal" class="modal-overlay" onclick="closeCommitSuccessModal(event)">
+      <div class="modal-content" onclick="event.stopPropagation()" style="max-width: 480px;">
+        <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+          <h2 class="font-semibold text-lg text-green-700 flex items-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
+            Commit Successful!
+          </h2>
+          <button onclick="closeCommitSuccessModal()" class="p-1 hover:bg-gray-100 rounded-lg transition-colors">
+            <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="p-6 space-y-4">
+          <!-- Success Message -->
+          <div class="text-center">
+            <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+              <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+              </svg>
+            </div>
+            <p class="text-gray-700" id="success-message">Code committed successfully!</p>
+          </div>
+
+          <!-- Commit Details -->
+          <div class="bg-gray-50 rounded-lg p-4 text-sm">
+            <h3 class="font-medium text-gray-900 mb-2">Commit Details</h3>
+            <div class="space-y-1">
+              <div class="flex justify-between">
+                <span class="text-gray-500">Project:</span>
+                <span class="font-medium text-gray-900" id="success-project-id"></span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-gray-500">File:</span>
+                <span class="font-medium text-gray-900" id="success-file-name"></span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-gray-500">Type:</span>
+                <span class="font-medium text-gray-900" id="success-artifact-type"></span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-gray-500">Time:</span>
+                <span class="font-medium text-gray-900" id="success-time"></span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-gray-500">Size:</span>
+                <span class="font-medium text-gray-900" id="success-size"></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Warnings (if any) -->
+          <div id="success-warnings-section" class="hidden bg-amber-50 border border-amber-200 rounded-lg p-3">
+            <h3 class="font-medium text-amber-800 text-sm mb-1">Warnings</h3>
+            <ul id="success-warnings-list" class="text-xs text-amber-700 space-y-1"></ul>
+          </div>
+
+          <!-- Next Steps -->
+          <div class="bg-blue-50 rounded-lg p-4">
+            <h3 class="font-medium text-blue-900 text-sm mb-2">What's Next?</h3>
+            <ul class="text-sm text-blue-800 space-y-1">
+              <li>• Open your FlutterFlow project to see the changes</li>
+              <li>• Check the Custom Code section in FlutterFlow</li>
+              <li>• Test the code in FlutterFlow's preview mode</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="px-6 py-4 border-t border-gray-200 flex gap-3 justify-end">
+          <a 
+            id="success-open-ff-link"
+            href="#"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="px-4 py-2 text-sm font-medium text-orange-600 hover:bg-orange-50 rounded-lg transition-colors flex items-center gap-2"
+          >
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+            </svg>
+            Open in FlutterFlow
+          </a>
+          <button 
+            onclick="closeCommitSuccessModal()" 
+            class="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
+          >
+            Done
           </button>
         </div>
       </div>
