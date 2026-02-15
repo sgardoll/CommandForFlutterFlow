@@ -402,18 +402,18 @@ function hasStoredKey(provider) {
 
 function checkRequiredApiKeys(selectedModel) {
   // Map models to their required API key providers
-  const modelKeyRequirements = {
+  const MODEL_KEY_REQUIREMENTS = {
     "gemini-3.0-pro": "gemini",
     "gemini-3-pro-preview": "gemini",
     "claude-4.6-opus": "anthropic",
     "gpt-5.2-codex": "openai",
     "openrouter-auto": "openrouter",
     "openrouter-free": "openrouter"
-  };
+  }
   
-  const requiredProvider = modelKeyRequirements[selectedModel];
+  const requiredProvider = MODEL_KEY_REQUIREMENTS[selectedModel]
   if (!requiredProvider) {
-    return { valid: false, message: "Unknown model selected" };
+    return { valid: false, message: "Unknown model selected" }
   }
   
   if (!hasStoredKey(requiredProvider)) {
@@ -422,15 +422,15 @@ function checkRequiredApiKeys(selectedModel) {
       anthropic: "Anthropic (Claude)",
       openai: "OpenAI",
       openrouter: "OpenRouter"
-    };
+    }
     return {
       valid: false,
       message: `${providerNames[requiredProvider]} API key is required to use this model. Please configure your API keys in the settings.`,
       provider: requiredProvider
-    };
+    }
   }
   
-  return { valid: true };
+  return { valid: true }
 }
 
 function updateRunPipelineButtonState() {
@@ -1003,7 +1003,7 @@ async function callClaude(prompt, systemInstruction) {
   // Use proxy to avoid CORS issues
   const url = "/api/anthropic/v1/messages";
   const payload = {
-    model: "claude-3-opus-20240229",
+    model: "claude-opus-4-6",
     max_tokens: 16384,
     system: systemInstruction,
     messages: [{ role: "user", content: prompt }],
@@ -3440,7 +3440,7 @@ function updateModelInfo(selectedModel) {
   const modelNames = {
     "gemini-3-pro-preview": "Gemini 3.0 Pro",
     "claude-4.6-opus": "Claude 4.6 Opus",
-    "gpt-5.2-codex": "GPT-5.3-Codex",
+    "gpt-5.2-codex": "GPT-5.2-Codex",
     "openrouter-auto": "OpenRouter: Auto",
     "openrouter-free": "OpenRouter: Free Models",
   };
