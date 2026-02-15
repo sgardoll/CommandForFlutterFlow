@@ -65,7 +65,7 @@ export function pathToCodeType(filePath: string): CodeType {
  */
 export function isRootIndexFile(filePath: string, customCodeDir: string): boolean {
   const relativePath = path.relative(customCodeDir, filePath);
-  return relativePath === 'index.dart' || relativePath === 'index.dart';
+  return relativePath === 'index.dart';
 }
 
 /**

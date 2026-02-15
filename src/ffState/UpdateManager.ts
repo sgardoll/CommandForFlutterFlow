@@ -1,7 +1,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { FileInfo, CodeType, FileMap } from '../types';
-import { getFileKey, getRelativePath, pathToCodeType, isRootIndexFile, modifiedFiles, deletedFiles } from '../fileUtils/FileInfo';
+import { getFileKey, pathToCodeType, isRootIndexFile, modifiedFiles, deletedFiles } from '../fileUtils/FileInfo';
 
 export class UpdateManager {
   private customCodeDir: string;
@@ -27,12 +27,10 @@ export class UpdateManager {
     return getFileKey(filePath, codeType, this.customCodeDir);
   }
 
-  /**
-   * FIX #3: deleteFile now uses the correct key (relativePath for OTHER files)
-   */
   async deleteFile(filePath: string): Promise<FileInfo | null> {
-    const codeType = pathToCodeType(filePath);
-    const fileKey = this.computeFileKey(filePath, codeType);
+    const relativePath = path.relative(this.customCodeDir, filePath);
+    const codeType = pathToCodeType(relativePath);
+    const fileKey = this.computeFileKey(relativePath, codeType);
     const fileInfo = this.fileMap.get(fileKey);
 
     if (!fileInfo) {
@@ -44,12 +42,10 @@ export class UpdateManager {
     return fileInfo;
   }
 
-  /**
-   * FIX #4 & #5: updateFile now uses the correct key (relativePath for OTHER files)
-   */
   async updateFile(filePath: string, content: string): Promise<FileInfo | null> {
-    const codeType = pathToCodeType(filePath);
-    const fileKey = this.computeFileKey(filePath, codeType);
+    const relativePath = path.relative(this.customCodeDir, filePath);
+    const codeType = pathToCodeType(relativePath);
+    const fileKey = this.computeFileKey(relativePath, codeType);
     const fileInfo = this.fileMap.get(fileKey);
 
     if (!fileInfo) {
@@ -63,14 +59,11 @@ export class UpdateManager {
     return fileInfo;
   }
 
-  /**
-   * FIX #3: addFile now uses the correct key for existing-file check
-   * Uses relativePath for OTHER files, baseName for others
-   */
   async addFile(filePath: string, content?: string): Promise<FileInfo> {
-    const codeType = pathToCodeType(filePath);
-    const fileKey = this.computeFileKey(filePath, codeType);
-    
+    const relativePath = path.relative(this.customCodeDir, filePath);
+    const codeType = pathToCodeType(relativePath);
+    const fileKey = this.computeFileKey(relativePath, codeType);
+
     const existingFile = this.fileMap.get(fileKey);
     if (existingFile) {
       return existingFile;
@@ -79,7 +72,7 @@ export class UpdateManager {
     const fileInfo: FileInfo = {
       filePath,
       codeType,
-      relativePath: getRelativePath(filePath, codeType, this.customCodeDir),
+      relativePath: relativePath,
       baseName: path.basename(filePath),
       isDeleted: false,
       isModified: false,
@@ -149,8 +142,9 @@ export class UpdateManager {
   }
 
   getFileInfo(filePath: string): FileInfo | undefined {
-    const codeType = pathToCodeType(filePath);
-    const fileKey = this.computeFileKey(filePath, codeType);
+    const relativePath = path.relative(this.customCodeDir, filePath);
+    const codeType = pathToCodeType(relativePath);
+    const fileKey = this.computeFileKey(relativePath, codeType);
     return this.fileMap.get(fileKey);
   }
 }
