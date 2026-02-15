@@ -406,7 +406,7 @@ function checkRequiredApiKeys(selectedModel) {
     "gemini-3.0-pro": "gemini",
     "gemini-3-pro-preview": "gemini",
     "claude-4.6-opus": "anthropic",
-    "gpt-5.3-codex": "openai",
+    "gpt-5.2-codex": "openai",
     "openrouter-auto": "openrouter",
     "openrouter-free": "openrouter"
   };
@@ -1003,7 +1003,7 @@ async function callClaude(prompt, systemInstruction) {
   // Use proxy to avoid CORS issues
   const url = "/api/anthropic/v1/messages";
   const payload = {
-    model: "claude-opus-4-6",
+    model: "claude-3-opus-20240229",
     max_tokens: 16384,
     system: systemInstruction,
     messages: [{ role: "user", content: prompt }],
@@ -1044,8 +1044,9 @@ async function callClaude(prompt, systemInstruction) {
     const data = await response.json();
     return data.content?.[0]?.text;
   } catch (error) {
-    console.error("Claude call failed:", error);
-    throw error;
+    console.error("Claude call failed, falling back to Gemini:", error);
+    // Fallback to Gemini if Claude fails
+    return callGemini(prompt, systemInstruction, FALLBACK_MODEL);
   }
 }
 
@@ -1060,7 +1061,7 @@ async function callOpenAI(prompt, systemInstruction) {
   // Responses API uses 'input' with instructions, not messages array
   // Note: temperature is not supported with codex models
   const payload = {
-    model: "gpt-5.3-codex",
+    model: "gpt-5.2-codex",
     instructions: systemInstruction,
     input: prompt,
     max_output_tokens: 16384,
@@ -1107,8 +1108,9 @@ async function callOpenAI(prompt, systemInstruction) {
     const textContent = messageOutput?.content?.find(c => c.type === "output_text");
     return textContent?.text || "";
   } catch (error) {
-    console.error("OpenAI call failed:", error);
-    throw error;
+    console.error("OpenAI call failed, falling back to Gemini:", error);
+    // Fallback to Gemini if OpenAI fails
+    return callGemini(prompt, systemInstruction, FALLBACK_MODEL);
   }
 }
 
@@ -2879,7 +2881,7 @@ ADDITIONAL GUIDANCE FOR THIS MODEL:
 - Prefer explicit type annotations over inference
 - Use comprehensive null checks`,
 
-      "gpt-5.3-codex": `
+      "gpt-5.2-codex": `
 ADDITIONAL GUIDANCE FOR THIS MODEL:  
 - Focus on code correctness over verbosity
 - Ensure all edge cases from the spec are handled
@@ -2923,7 +2925,7 @@ Remember: Output ONLY the raw Dart code. No markdown, no explanations.`;
       case "claude-4.6-opus":
         result = await callClaude(formattedPrompt, systemInstruction);
         break;
-      case "gpt-5.3-codex":
+      case "gpt-5.2-codex":
         result = await callOpenAI(formattedPrompt, systemInstruction);
         break;
       case "openrouter-auto":
@@ -3444,7 +3446,7 @@ function updateModelInfo(selectedModel) {
   const modelNames = {
     "gemini-3-pro-preview": "Gemini 3.0 Pro",
     "claude-4.6-opus": "Claude 4.6 Opus",
-    "gpt-5.3-codex": "GPT-5.3-Codex",
+    "gpt-5.2-codex": "GPT-5.3-Codex",
     "openrouter-auto": "OpenRouter: Auto",
     "openrouter-free": "OpenRouter: Free Models",
   };
@@ -3708,7 +3710,7 @@ function retryWithDifferentModel() {
   const otherModels = [
     "gemini-3-pro-preview",
     "claude-4.6-opus",
-    "gpt-5.3-codex",
+    "gpt-5.2-codex",
   ].filter((model) => model !== currentModel);
 
   const selectedModel = prompt(
