@@ -399,6 +399,58 @@ function hasStoredKey(provider) {
   return keys[provider] && keys[provider].length > 0;
 }
 
+
+function checkRequiredApiKeys(selectedModel) {
+  // Map models to their required API key providers
+  const modelKeyRequirements = {
+    "gemini-3.0-pro": "gemini",
+    "claude-4.6-opus": "anthropic",
+    "gpt-5.3-codex": "openai",
+    "openrouter-auto": "openrouter",
+    "openrouter-free": "openrouter"
+  };
+  
+  const requiredProvider = modelKeyRequirements[selectedModel];
+  if (!requiredProvider) {
+    return { valid: false, message: "Unknown model selected" };
+  }
+  
+  if (!hasStoredKey(requiredProvider)) {
+    const providerNames = {
+      gemini: "Gemini",
+      anthropic: "Anthropic (Claude)",
+      openai: "OpenAI",
+      openrouter: "OpenRouter"
+    };
+    return {
+      valid: false,
+      message: `${providerNames[requiredProvider]} API key is required to use this model. Please configure your API keys in the settings.`,
+      provider: requiredProvider
+    };
+  }
+  
+  return { valid: true };
+}
+
+function updateRunPipelineButtonState() {
+  const btn = document.getElementById("btn-run-pipeline");
+  const modelSelect = document.getElementById("code-generator-model");
+  if (!btn || !modelSelect) return;
+  
+  const selectedModel = modelSelect.value;
+  const keyCheck = checkRequiredApiKeys(selectedModel);
+  
+  if (!keyCheck.valid) {
+    btn.disabled = true;
+    btn.classList.add("opacity-50", "cursor-not-allowed");
+    btn.title = keyCheck.message;
+  } else {
+    btn.disabled = false;
+    btn.classList.remove("opacity-50", "cursor-not-allowed");
+    btn.title = "";
+  }
+}
+
 function hasEnvKey(provider) {
   // Environment keys are not used by default
   return false;
@@ -949,7 +1001,7 @@ async function callClaude(prompt, systemInstruction) {
   // Use proxy to avoid CORS issues
   const url = "/api/anthropic/v1/messages";
   const payload = {
-    model: "claude-opus-4-5-20251101",
+    model: "claude-opus-4-6",
     max_tokens: 16384,
     system: systemInstruction,
     messages: [{ role: "user", content: prompt }],
@@ -1006,7 +1058,7 @@ async function callOpenAI(prompt, systemInstruction) {
   // Responses API uses 'input' with instructions, not messages array
   // Note: temperature is not supported with codex models
   const payload = {
-    model: "gpt-5.1-codex-max",
+    model: "gpt-5.3-codex",
     instructions: systemInstruction,
     input: prompt,
     max_output_tokens: 16384,
@@ -2819,13 +2871,13 @@ ${codeGeneratorSpecificInstructions}`;
   // Model-specific instruction adjustments
   const getModelSpecificInstruction = (baseInstruction, model) => {
     const modelTweaks = {
-      "claude-4.5-opus": `
+      "claude-4.6-opus": `
 ADDITIONAL GUIDANCE FOR THIS MODEL:
 - Be extremely precise with Dart syntax
 - Prefer explicit type annotations over inference
 - Use comprehensive null checks`,
 
-      "gpt-5.1-codex-max": `
+      "gpt-5.3-codex": `
 ADDITIONAL GUIDANCE FOR THIS MODEL:  
 - Focus on code correctness over verbosity
 - Ensure all edge cases from the spec are handled
@@ -2866,10 +2918,10 @@ Remember: Output ONLY the raw Dart code. No markdown, no explanations.`;
 
   try {
     switch (selectedModel) {
-      case "claude-4.5-opus":
+      case "claude-4.6-opus":
         result = await callClaude(formattedPrompt, systemInstruction);
         break;
-      case "gpt-5.1-codex-max":
+      case "gpt-5.3-codex":
         result = await callOpenAI(formattedPrompt, systemInstruction);
         break;
       case "openrouter-auto":
@@ -3389,8 +3441,8 @@ function copyCode(elementId) {
 function updateModelInfo(selectedModel) {
   const modelNames = {
     "gemini-3-pro-preview": "Gemini 3.0 Pro",
-    "claude-4.5-opus": "Claude 4.5 Opus",
-    "gpt-5.1-codex-max": "GPT-5.1-Codex-Max",
+    "claude-4.6-opus": "Claude 4.6 Opus",
+    "gpt-5.3-codex": "GPT-5.3-Codex",
     "openrouter-auto": "OpenRouter: Auto",
     "openrouter-free": "OpenRouter: Free Models",
   };
@@ -3510,6 +3562,13 @@ async function runThinkingPipeline() {
 
   if (!userInput.trim()) {
     alert("Please describe your FlutterFlow widget first.");
+    return;
+  }
+
+  // Check for required API keys before running
+  const keyCheck = checkRequiredApiKeys(selectedModel);
+  if (!keyCheck.valid) {
+    alert(keyCheck.message + "\n\nClick the settings icon (⚙️) in the top right to configure API keys.");
     return;
   }
 
@@ -3664,8 +3723,8 @@ function retryWithDifferentModel() {
   const currentModel = document.getElementById("code-generator-model").value;
   const otherModels = [
     "gemini-3-pro-preview",
-    "claude-4.5-opus",
-    "gpt-5.1-codex-max",
+    "claude-4.6-opus",
+    "gpt-5.3-codex",
   ].filter((model) => model !== currentModel);
 
   const selectedModel = prompt(
@@ -4013,6 +4072,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     modelSelect.addEventListener("change", () => {
       const selectedModel = modelSelect.value;
       updateModelInfo(selectedModel);
+      updateRunPipelineButtonState();
       
       if (walkthroughStep === 3) {
         advanceWalkthrough();
@@ -4020,6 +4080,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
     });
   }
+  
+  // Initial button state check after API keys are loaded
+  updateRunPipelineButtonState();
   
   window.addEventListener('commitStateChange', (event) => {
     const { state } = event.detail;

@@ -113,8 +113,8 @@ The **Code Dissector** doesn't just find problems—it tells you exactly what to
 Choose your AI backend:
 - **Gemini 3.0 Flash** (default, fastest)
 - **Gemini 2.5 Flash** (fallback)
-- **Claude 4.5 Opus** (optional)
-- **GPT-5.2 Codex** (optional)
+- **Claude 4.6 Opus** (optional)
+- **GPT-5.3 Codex** (optional)
 
 Each model receives optimized prompts tailored to its strengths.
 
