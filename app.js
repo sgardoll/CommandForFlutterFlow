@@ -3572,27 +3572,7 @@ async function runThinkingPipeline() {
     return;
   }
 
-  // Check for image references in non-Gemini models
-  if (
-    selectedModel !== "gemini-3-pro-preview" &&
-    (userInput.toLowerCase().includes("screenshot") ||
-      userInput.toLowerCase().includes("image") ||
-      userInput.toLowerCase().includes("picture") ||
-      userInput.toLowerCase().includes(".png") ||
-      userInput.toLowerCase().includes(".jpg") ||
-      userInput.toLowerCase().includes(".jpeg") ||
-      userInput.toLowerCase().includes(".gif") ||
-      userInput.toLowerCase().includes("Screenshot"))
-  ) {
-    const proceed = confirm(
-      "⚠️ Your request mentions images.\n\n" +
-        `${selectedModel} doesn't support image input.\n\n` +
-        "Use Gemini 3.0 Pro for image-based requests,\n" +
-        "or remove image references and continue.\n\n" +
-        "Continue anyway?"
-    );
-    if (!proceed) return;
-  }
+
 
   const btn = document.getElementById("btn-run-pipeline");
 
