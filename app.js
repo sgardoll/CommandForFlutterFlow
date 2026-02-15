@@ -404,6 +404,7 @@ function checkRequiredApiKeys(selectedModel) {
   // Map models to their required API key providers
   const modelKeyRequirements = {
     "gemini-3.0-pro": "gemini",
+    "gemini-3-pro-preview": "gemini",
     "claude-4.6-opus": "anthropic",
     "gpt-5.3-codex": "openai",
     "openrouter-auto": "openrouter",
@@ -473,6 +474,7 @@ async function initializeApiKeys() {
   flutterflowProjectId = await getApiKey("flutterflow_project_id");
   updateApiKeyStatusIndicators();
   updateDeployButtonVisibility();
+  updateRunPipelineButtonState();
 }
 
 // --- API KEY UI FUNCTIONS ---
@@ -3568,7 +3570,9 @@ async function runThinkingPipeline() {
   // Check for required API keys before running
   const keyCheck = checkRequiredApiKeys(selectedModel);
   if (!keyCheck.valid) {
-    alert(keyCheck.message + "\n\nClick the settings icon (⚙️) in the top right to configure API keys.");
+    alert(`${keyCheck.message}
+
+Click the settings icon (⚙️) in the top right to configure API keys.`);
     return;
   }
 
