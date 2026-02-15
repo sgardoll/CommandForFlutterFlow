@@ -1740,8 +1740,8 @@ function serializePubspecToYaml(pubspec) {
     }
   }
 
-  // FlutterFlow requires dependency_overrides section (can be empty)
-  lines.push('dependency_overrides:');
+  // FlutterFlow requires dependency_overrides section (must be a map, not null)
+  lines.push('dependency_overrides: {}');
 
   return lines.join('\n');
 }

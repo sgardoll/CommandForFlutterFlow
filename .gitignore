@@ -23,4 +23,4 @@ dist/assets/index-DcT-QQC1.js
 dist/assets/
 .sisyphus/ralph-loop.local.md
 VS-Code-Extension
-.gitignore
+/.planning
