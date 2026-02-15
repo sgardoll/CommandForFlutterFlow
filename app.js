@@ -1948,9 +1948,6 @@ function prepareCodeForCommit(rawCode, options = {}) {
     header = `// Automatic FlutterFlow imports
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
-import 'index.dart';
-import '/custom_code/actions/index.dart';
-import '/flutter_flow/custom_functions.dart';
 import 'package:flutter/material.dart';
 // Begin custom widget code
 // DO NOT REMOVE OR MODIFY THE CODE ABOVE!
@@ -1960,8 +1957,6 @@ import 'package:flutter/material.dart';
     header = `// Automatic FlutterFlow imports
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
-import 'index.dart';
-import '/flutter_flow/custom_functions.dart';
 import 'package:flutter/material.dart';
 // Begin custom action code
 // DO NOT REMOVE OR MODIFY THE CODE ABOVE!
@@ -1979,7 +1974,6 @@ import 'package:timeago/timeago.dart' as timeago;
 import '/flutter_flow/lat_lng.dart';
 import '/flutter_flow/place.dart';
 import '/flutter_flow/uploaded_file.dart';
-import '/flutter_flow/custom_functions.dart';
 
 `;
   }
