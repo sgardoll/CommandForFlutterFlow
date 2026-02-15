@@ -378,15 +378,12 @@ async function getApiKey(provider) {
 }
 
 function getFlutterFlowEndpoint() {
-  return localStorage.getItem('flutterflow_api_endpoint') || 'production';
+  return localStorage.getItem('flutterflow_api_endpoint') || FF_API_ENDPOINTS.production;
 }
 
 function setFlutterFlowEndpoint(endpoint) {
-  if (FF_API_ENDPOINTS[endpoint]) {
-    localStorage.setItem('flutterflow_api_endpoint', endpoint);
-    return true;
-  }
-  return false;
+  localStorage.setItem('flutterflow_api_endpoint', endpoint);
+  return true;
 }
 
 function hasStoredKey(provider) {
@@ -673,13 +670,7 @@ async function saveApiKeys() {
   if (openRouterInput.value.trim()) {
     await saveApiKey("openrouter", openRouterInput.value);
   }
-  // Validate FlutterFlow credentials if entered
   if (flutterflowInput.value.trim()) {
-    if (!validateFlutterFlowApiKey(flutterflowInput.value)) {
-      alert("Invalid FlutterFlow API Key format. API keys should be at least 20 characters and contain only letters, numbers, underscores, and dashes.");
-      flutterflowInput.focus();
-      return;
-    }
     await saveApiKey("flutterflow", flutterflowInput.value);
   }
   if (projectIdInput.value.trim()) {
@@ -732,11 +723,7 @@ async function clearAllApiKeys() {
 // --- FLUTTERFLOW CREDENTIAL VALIDATION ---
 
 function validateFlutterFlowApiKey(key) {
-  // FF API keys are typically long alphanumeric strings
-  // Basic validation: non-empty, reasonable length (min 20 chars), no spaces
-  if (!key || key.trim().length < 20) return false;
-  if (key.includes(' ')) return false;
-  return /^[a-zA-Z0-9_-]+$/.test(key);
+  return Boolean(key && key.trim().length > 0);
 }
 
 function validateFlutterFlowProjectId(projectId) {
@@ -772,14 +759,12 @@ function setupFlutterFlowValidation() {
   
   if (apiKeyInput) {
     apiKeyInput.addEventListener('input', (e) => {
-      const isValid = validateFlutterFlowApiKey(e.target.value);
-      updateInputValidationState('flutterflow-api-key-input', isValid);
-      showValidationError('flutterflow-api-key-error', e.target.value && !isValid);
+      const hasValue = e.target.value.trim().length > 0;
+      updateInputValidationState('flutterflow-api-key-input', hasValue);
     });
-    // Add blur event to fetch projects when key is valid
     apiKeyInput.addEventListener('blur', debounce(async (e) => {
       const key = e.target.value.trim();
-      if (key && validateFlutterFlowApiKey(key)) {
+      if (key) {
         await fetchProjects(key);
       }
     }, 500));
@@ -1156,8 +1141,8 @@ async function callOpenRouter(prompt, systemInstruction, modelId) {
  * FlutterFlow API endpoints
  */
 const FF_API_ENDPOINTS = {
-  production: 'https://api.flutterflow.io/v1',
-  staging: 'https://api.flutterflow.io/v1-staging',
+  production: 'https://api.flutterflow.io/v2/',
+  staging: 'https://api.flutterflow.io/v2-staging/',
 };
 
 /**
@@ -1173,9 +1158,9 @@ class FlutterFlowApiClient {
    * @param {string} [branchName='main'] - Name of the branch to work with
    * @param {string} [endpoint='production'] - API endpoint to use
    */
-  constructor(apiKey, projectId, branchName = 'main', endpoint = 'production') {
+  constructor(apiKey, projectId, branchName = 'main', endpoint = FF_API_ENDPOINTS.production) {
     this.apiKey = apiKey;
-    this.baseUrl = FF_API_ENDPOINTS[endpoint] || FF_API_ENDPOINTS.production;
+    this.baseUrl = endpoint;
     this._projectId = projectId;
     this._branchName = branchName;
     this._endpoint = endpoint;
@@ -1207,7 +1192,7 @@ class FlutterFlowApiClient {
     console.log(`Pulling code from FlutterFlow project: ${this.projectId}, branch: ${this.branchName || 'main'}`);
 
     try {
-      const response = await fetch(`${this.baseUrl}/exportCode`, {
+      const response = await fetch(`${this.baseUrl}exportCode`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1255,18 +1240,17 @@ class FlutterFlowApiClient {
     * @returns {Promise<Response>} Fetch response object
     */
   async pushCodeWithRetry(pushCodeRequest, maxRetries = 3) {
-    const endpoints = ['production', 'staging'];
-    const startEndpoint = Math.max(0, endpoints.indexOf(this._endpoint));
+    const endpointUrls = [FF_API_ENDPOINTS.production, FF_API_ENDPOINTS.staging];
+    const startEndpoint = Math.max(0, endpointUrls.indexOf(this._endpoint));
     
     for (let attempt = 0; attempt < maxRetries; attempt++) {
-      for (let ei = startEndpoint; ei < endpoints.length; ei++) {
-        const endpoint = endpoints[ei];
-        const baseUrl = FF_API_ENDPOINTS[endpoint];
+      for (let ei = startEndpoint; ei < endpointUrls.length; ei++) {
+        const baseUrl = endpointUrls[ei];
         
         try {
-          console.log(`Push attempt ${attempt + 1} to ${endpoint}: ${baseUrl}/syncCustomCodeChanges`);
+          console.log(`Push attempt ${attempt + 1} to ${baseUrl}syncCustomCodeChanges`);
           console.log('Request:', JSON.stringify(pushCodeRequest, null, 2));
-          const response = await fetch(`${baseUrl}/syncCustomCodeChanges`, {
+          const response = await fetch(`${baseUrl}syncCustomCodeChanges`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -1276,23 +1260,23 @@ class FlutterFlowApiClient {
           });
           
           if (response.ok) {
-            console.log(`Push to ${endpoint} succeeded!`);
+            console.log(`Push to ${baseUrl} succeeded!`);
             return response;
           }
           
           const clonedForLog = response.clone();
           const responseText = await clonedForLog.text();
-          console.log(`Push to ${endpoint} returned ${response.status}: ${responseText}`);
+          console.log(`Push to ${baseUrl} returned ${response.status}: ${responseText}`);
           
           if (response.status === 500) {
-            console.warn(`Endpoint ${endpoint} returned 500, trying next...`);
+            console.warn(`Endpoint ${baseUrl} returned 500, trying next...`);
             await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
             continue;
           }
           
           return response;
         } catch (error) {
-          console.warn(`Push to ${endpoint} failed: ${error.message}, trying next...`);
+          console.warn(`Push to ${baseUrl} failed: ${error.message}, trying next...`);
           await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
         }
       }
@@ -2343,15 +2327,10 @@ async function commitToFlutterFlow(dartCode, fileName, options = {}) {
       throw new Error('FlutterFlow credentials not configured. Please set your API key and Project ID in the API Keys settings.');
     }
     
-    // Validate format
-    if (!validateFlutterFlowApiKey(apiKey)) {
-      throw new Error('Invalid FlutterFlow API Key format.');
-    }
     if (!validateFlutterFlowProjectId(projectId)) {
       throw new Error('Invalid FlutterFlow Project ID format.');
     }
     
-    // Create API client with endpoint
     const endpoint = getFlutterFlowEndpoint();
     const apiClient = new FlutterFlowApiClient(apiKey, projectId, 'main', endpoint);
     
@@ -2502,10 +2481,6 @@ async function executeCommit(code, options = {}) {
       throw new Error('FlutterFlow Project ID not configured. Please add it in API Keys settings.');
     }
     
-    // Step 4: Validate API key format
-    if (!validateFlutterFlowApiKey(apiKey)) {
-      throw new Error('Invalid FlutterFlow API Key format.');
-    }
     if (!validateFlutterFlowProjectId(projectId)) {
       throw new Error('Invalid FlutterFlow Project ID format.');
     }
@@ -4167,6 +4142,42 @@ function closeCommitConfirmModal(event) {
 }
 
 /**
+ * Closes the commit success modal and resets all success fields.
+ * @param {Event} [event] - Optional click event (may be undefined)
+ */
+function closeCommitSuccessModal(event) {
+  if (event && event.target !== event.currentTarget) return;
+  const modal = document.getElementById('commit-success-modal');
+  if (modal) {
+    modal.classList.remove('open');
+  }
+
+  // Reset success fields
+  const fieldIds = [
+    'success-message',
+    'success-project-id',
+    'success-file-name',
+    'success-artifact-type',
+    'success-time',
+    'success-size',
+  ];
+  for (const id of fieldIds) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = '';
+  }
+
+  // Hide warnings section
+  const warningsSection = document.getElementById('success-warnings-section');
+  if (warningsSection) {
+    warningsSection.classList.add('hidden');
+  }
+  const warningsList = document.getElementById('success-warnings-list');
+  if (warningsList) {
+    warningsList.innerHTML = '';
+  }
+}
+
+/**
  * Toggles the code preview section.
  */
 function toggleCodePreview() {
@@ -4329,6 +4340,7 @@ window.dismissWelcomeVideo = dismissWelcomeVideo;
 window.initiateCommitToFlutterFlow = initiateCommitToFlutterFlow;
 window.updateFlutterFlowCredentialStatus = updateFlutterFlowCredentialStatus;
 window.closeCommitConfirmModal = closeCommitConfirmModal;
+window.closeCommitSuccessModal = closeCommitSuccessModal;
 window.toggleCodePreview = toggleCodePreview;
 window.confirmCommitToFlutterFlow = confirmCommitToFlutterFlow;
 window.runRefinement = runRefinement;

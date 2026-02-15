@@ -30,7 +30,7 @@ export class UpdateManager {
   async deleteFile(filePath: string): Promise<FileInfo | null> {
     const relativePath = path.relative(this.customCodeDir, filePath);
     const codeType = pathToCodeType(relativePath);
-    const fileKey = this.computeFileKey(relativePath, codeType);
+    const fileKey = this.computeFileKey(filePath, codeType);
     const fileInfo = this.fileMap.get(fileKey);
 
     if (!fileInfo) {
@@ -45,7 +45,7 @@ export class UpdateManager {
   async updateFile(filePath: string, content: string): Promise<FileInfo | null> {
     const relativePath = path.relative(this.customCodeDir, filePath);
     const codeType = pathToCodeType(relativePath);
-    const fileKey = this.computeFileKey(relativePath, codeType);
+    const fileKey = this.computeFileKey(filePath, codeType);
     const fileInfo = this.fileMap.get(fileKey);
 
     if (!fileInfo) {
@@ -62,7 +62,7 @@ export class UpdateManager {
   async addFile(filePath: string, content?: string): Promise<FileInfo> {
     const relativePath = path.relative(this.customCodeDir, filePath);
     const codeType = pathToCodeType(relativePath);
-    const fileKey = this.computeFileKey(relativePath, codeType);
+    const fileKey = this.computeFileKey(filePath, codeType);
 
     const existingFile = this.fileMap.get(fileKey);
     if (existingFile) {
@@ -144,7 +144,7 @@ export class UpdateManager {
   getFileInfo(filePath: string): FileInfo | undefined {
     const relativePath = path.relative(this.customCodeDir, filePath);
     const codeType = pathToCodeType(relativePath);
-    const fileKey = this.computeFileKey(relativePath, codeType);
+    const fileKey = this.computeFileKey(filePath, codeType);
     return this.fileMap.get(fileKey);
   }
 }
