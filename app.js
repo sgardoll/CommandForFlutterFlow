@@ -2034,7 +2034,7 @@ function buildCommitMetadata(codeInfo, pipelineResult = {}) {
  * @param {string} content - File content
  * @returns {Object} Validation result { valid: boolean, errors: string[] }
  */
-function validateDartFile(fileName, content) {
+function validateDartFile(fileName, content, codeType) {
   const errors = [];
   
   // Check for forbidden patterns in FlutterFlow
@@ -2090,8 +2090,7 @@ function validateDartFile(fileName, content) {
     }
   }
   
-  // Check for class definition
-  if (!content.match(/class\s+\w+/)) {
+  if (codeType === CodeType.WIDGET && !content.match(/class\s+\w+/)) {
     errors.push('No class definition found');
   }
   
@@ -2156,7 +2155,7 @@ function validateFileMap(fileMap) {
     
     // Validate Dart files
     if (path.endsWith('.dart')) {
-      const result = validateDartFile(path, fileInfo.content);
+      const result = validateDartFile(path, fileInfo.content, fileInfo.type);
       if (!result.valid) {
         errors.push(...result.errors.map(e => `${path}: ${e}`));
       }
