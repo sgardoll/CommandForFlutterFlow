@@ -6,6 +6,9 @@
 # Node modules
 node_modules/
 
+# Build output
+dist/
+
 # OS files
 .DS_Store
 Thumbs.db
@@ -24,3 +27,7 @@ dist/assets/
 .sisyphus/ralph-loop.local.md
 VS-Code-Extension
 /.planning
+/workspace/*
+!/workspace/slides/
+!/workspace/build-slides.cjs
+!/workspace/lib/

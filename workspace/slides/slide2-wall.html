@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+html { background: #0f172a; }
+body {
+  width: 720pt; height: 405pt; margin: 0; padding: 0;
+  font-family: Arial, sans-serif;
+  display: flex; flex-direction: column;
+  background: #0f172a;
+}
+.accent-bar { width: 100%; height: 4pt; background: #f97316; }
+.header { margin: 30pt 50pt 0 50pt; }
+.header h1 { color: #ffffff; font-size: 28pt; margin: 0; }
+.header .orange { color: #f97316; }
+.header p { color: #64748b; font-size: 11pt; margin: 6pt 0 0 0; }
+.body { margin: 20pt 50pt 0 50pt; display: flex; gap: 24pt; flex: 1; }
+.col {
+  flex: 1; border-radius: 8pt; padding: 20pt;
+}
+.col-green { background: #0d2818; border-left: 4pt solid #22c55e; }
+.col-red { background: #2a0d0d; border-left: 4pt solid #ef4444; }
+.col h2 { font-size: 13pt; margin: 0 0 12pt 0; }
+.col-green h2 { color: #22c55e; }
+.col-red h2 { color: #ef4444; }
+.col p { color: #cbd5e1; font-size: 11pt; margin: 0 0 8pt 0; }
+.col .dim { color: #64748b; font-size: 10pt; }
+</style>
+</head>
+<body>
+<div class="accent-bar"></div>
+<div class="header">
+  <h1>You Hit <span class="orange">The Wall</span></h1>
+  <p>FlutterFlow is incredible for building apps fast. Until you need custom logic.</p>
+</div>
+<div class="body">
+  <div class="col col-green">
+    <h2>FF Designer Handles</h2>
+    <p>Screen layouts and navigation</p>
+    <p>Theming and styling</p>
+    <p>Firestore CRUD bindings</p>
+    <p>State variables and dropdowns</p>
+    <p>Animations and loading states</p>
+    <p class="dim">All drag-and-drop. All visual.</p>
+  </div>
+  <div class="col col-red">
+    <h2>Where It Breaks Down</h2>
+    <p>Complex API calls with retry logic</p>
+    <p>Response parsing and transformation</p>
+    <p>Offline caching and sync</p>
+    <p>Custom business logic</p>
+    <p>Third-party SDK integrations</p>
+    <p class="dim">Generic AI code won't compile in FF.</p>
+  </div>
+</div>
+</body>
+</html>

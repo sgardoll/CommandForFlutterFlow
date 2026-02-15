@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+html { background: #0f172a; }
+body {
+  width: 720pt; height: 405pt; margin: 0; padding: 0;
+  font-family: Arial, sans-serif;
+  display: flex; flex-direction: column;
+  background: #0f172a;
+}
+.accent-bar { width: 100%; height: 6pt; background: #f97316; }
+.content {
+  flex: 1; display: flex; flex-direction: column;
+  justify-content: center; margin: 0 60pt;
+}
+h1 { color: #ffffff; font-size: 30pt; margin: 0 0 6pt 0; }
+.orange { color: #f97316; }
+.rule {
+  width: 60pt; height: 3pt; background: #f97316;
+  border-radius: 2pt; margin: 16pt 0;
+}
+.steps p { color: #cbd5e1; font-size: 14pt; margin: 0 0 10pt 0; }
+.steps .num { color: #f97316; font-weight: bold; }
+.tagline { color: #64748b; font-size: 12pt; margin: 20pt 0 0 0; }
+.bottom { margin: 0 60pt 30pt 60pt; }
+.bottom p { color: #475569; font-size: 10pt; margin: 0; }
+</style>
+</head>
+<body>
+<div class="accent-bar"></div>
+<div class="content">
+  <h1>The <span class="orange">Key Insight</span></h1>
+  <div class="rule"></div>
+  <div class="steps">
+    <p><span class="num">1.</span> Design the screen in FlutterFlow Designer</p>
+    <p><span class="num">2.</span> Describe what the button should <span class="orange">do</span></p>
+    <p><span class="num">3.</span> Deploy the generated code back to FF</p>
+  </div>
+  <p class="tagline">Reference your exact App State variables, struct names, and Firestore collections in the prompt. The generated code plugs in without renaming anything.</p>
+</div>
+<div class="bottom">
+  <p>Stop fighting FlutterFlow. Start building.</p>
+</div>
+</body>
+</html>

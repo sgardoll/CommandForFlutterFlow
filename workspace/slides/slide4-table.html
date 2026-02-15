@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+html { background: #0f172a; }
+body {
+  width: 720pt; height: 405pt; margin: 0; padding: 0;
+  font-family: Arial, sans-serif;
+  display: flex; flex-direction: column;
+  background: #0f172a;
+}
+.accent-bar { width: 100%; height: 4pt; background: #f97316; }
+.header { margin: 30pt 50pt 0 50pt; }
+.header h1 { color: #ffffff; font-size: 26pt; margin: 0; }
+.header .orange { color: #f97316; }
+.table-area { margin: 20pt 50pt 0 50pt; flex: 1; }
+.row { display: flex; border-bottom: 1pt solid #1e293b; }
+.row-header { border-bottom: 2pt solid #334155; }
+.cell { flex: 1; padding: 10pt 12pt; }
+.cell-label { flex: 0 0 180pt; }
+.row-header .cell p { color: #64748b; font-size: 10pt; margin: 0; font-weight: bold; }
+.row-header .cell-ff p { color: #f97316; }
+.row-header .cell-cc p { color: #3b82f6; }
+.cell p { color: #cbd5e1; font-size: 11pt; margin: 0; }
+.cell-label p { color: #94a3b8; font-size: 11pt; font-weight: bold; }
+.footer { margin: 12pt 50pt 24pt 50pt; }
+.footer p { color: #475569; font-size: 10pt; margin: 0; text-align: center; }
+</style>
+</head>
+<body>
+<div class="accent-bar"></div>
+<div class="header">
+  <h1>What Goes <span class="orange">Where</span></h1>
+</div>
+<div class="table-area">
+  <div class="row row-header">
+    <div class="cell cell-label"><p>TASK</p></div>
+    <div class="cell cell-ff"><p>FF DESIGNER</p></div>
+    <div class="cell cell-cc"><p>CUSTOM CODE COMMAND</p></div>
+  </div>
+  <div class="row">
+    <div class="cell cell-label"><p>Screen layout</p></div>
+    <div class="cell"><p>Drag-and-drop widgets</p></div>
+    <div class="cell"><p>-</p></div>
+  </div>
+  <div class="row">
+    <div class="cell cell-label"><p>Navigation</p></div>
+    <div class="cell"><p>Visual page routing</p></div>
+    <div class="cell"><p>-</p></div>
+  </div>
+  <div class="row">
+    <div class="cell cell-label"><p>Theming / styling</p></div>
+    <div class="cell"><p>Theme editor + widgets</p></div>
+    <div class="cell"><p>-</p></div>
+  </div>
+  <div class="row">
+    <div class="cell cell-label"><p>API calls + parsing</p></div>
+    <div class="cell"><p>-</p></div>
+    <div class="cell"><p>Custom Action with retry, timeout</p></div>
+  </div>
+  <div class="row">
+    <div class="cell cell-label"><p>Offline caching</p></div>
+    <div class="cell"><p>-</p></div>
+    <div class="cell"><p>Custom Action with shared_preferences</p></div>
+  </div>
+  <div class="row">
+    <div class="cell cell-label"><p>Data transformation</p></div>
+    <div class="cell"><p>-</p></div>
+    <div class="cell"><p>Custom Function (pure Dart)</p></div>
+  </div>
+  <div class="row">
+    <div class="cell cell-label"><p>Button behavior</p></div>
+    <div class="cell"><p>Wires onPressed to action</p></div>
+    <div class="cell"><p>Generates the action code</p></div>
+  </div>
+</div>
+<div class="footer">
+  <p>Each tool does what it's best at. No overlap. No conflict.</p>
+</div>
+</body>
+</html>
