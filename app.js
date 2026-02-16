@@ -399,6 +399,59 @@ function hasStoredKey(provider) {
   return keys[provider] && keys[provider].length > 0;
 }
 
+
+function checkRequiredApiKeys(selectedModel) {
+  // Map models to their required API key providers
+  const MODEL_KEY_REQUIREMENTS = {
+    "gemini-3.0-pro": "gemini",
+    "gemini-3-pro-preview": "gemini",
+    "claude-4.6-opus": "anthropic",
+    "gpt-5.2-codex": "openai",
+    "openrouter-auto": "openrouter",
+    "openrouter-free": "openrouter"
+  }
+  
+  const requiredProvider = MODEL_KEY_REQUIREMENTS[selectedModel]
+  if (!requiredProvider) {
+    return { valid: false, message: "Unknown model selected" }
+  }
+  
+  if (!hasStoredKey(requiredProvider)) {
+    const PROVIDER_NAMES = {
+      gemini: "Gemini",
+      anthropic: "Anthropic (Claude)",
+      openai: "OpenAI",
+      openrouter: "OpenRouter"
+    }
+    return {
+      valid: false,
+      message: `${PROVIDER_NAMES[requiredProvider]} API key is required to use this model. Please configure your API keys in the settings.`,
+      provider: requiredProvider
+    }
+  }
+  
+  return { valid: true }
+}
+
+function updateRunPipelineButtonState() {
+  const btn = document.getElementById("btn-run-pipeline");
+  const modelSelect = document.getElementById("code-generator-model");
+  if (!btn || !modelSelect) return;
+  
+  const selectedModel = modelSelect.value;
+  const keyCheck = checkRequiredApiKeys(selectedModel);
+  
+  if (!keyCheck.valid) {
+    btn.disabled = true;
+    btn.classList.add("opacity-50", "cursor-not-allowed");
+    btn.title = keyCheck.message;
+  } else {
+    btn.disabled = false;
+    btn.classList.remove("opacity-50", "cursor-not-allowed");
+    btn.title = "";
+  }
+}
+
 function hasEnvKey(provider) {
   // Environment keys are not used by default
   return false;
@@ -421,6 +474,7 @@ async function initializeApiKeys() {
   flutterflowProjectId = await getApiKey("flutterflow_project_id");
   updateApiKeyStatusIndicators();
   updateDeployButtonVisibility();
+  updateRunPipelineButtonState();
 }
 
 // --- API KEY UI FUNCTIONS ---
@@ -949,7 +1003,7 @@ async function callClaude(prompt, systemInstruction) {
   // Use proxy to avoid CORS issues
   const url = "/api/anthropic/v1/messages";
   const payload = {
-    model: "claude-opus-4-5-20251101",
+    model: "claude-opus-4-6",
     max_tokens: 16384,
     system: systemInstruction,
     messages: [{ role: "user", content: prompt }],
@@ -990,8 +1044,9 @@ async function callClaude(prompt, systemInstruction) {
     const data = await response.json();
     return data.content?.[0]?.text;
   } catch (error) {
-    console.error("Claude call failed:", error);
-    throw error;
+    console.error("Claude call failed, falling back to Gemini:", error);
+    // Fallback to Gemini if Claude fails
+    return callGemini(prompt, systemInstruction, FALLBACK_MODEL);
   }
 }
 
@@ -1006,7 +1061,7 @@ async function callOpenAI(prompt, systemInstruction) {
   // Responses API uses 'input' with instructions, not messages array
   // Note: temperature is not supported with codex models
   const payload = {
-    model: "gpt-5.1-codex-max",
+    model: "gpt-5.2-codex",
     instructions: systemInstruction,
     input: prompt,
     max_output_tokens: 16384,
@@ -1053,8 +1108,9 @@ async function callOpenAI(prompt, systemInstruction) {
     const textContent = messageOutput?.content?.find(c => c.type === "output_text");
     return textContent?.text || "";
   } catch (error) {
-    console.error("OpenAI call failed:", error);
-    throw error;
+    console.error("OpenAI call failed, falling back to Gemini:", error);
+    // Fallback to Gemini if OpenAI fails
+    return callGemini(prompt, systemInstruction, FALLBACK_MODEL);
   }
 }
 
@@ -1892,9 +1948,6 @@ function prepareCodeForCommit(rawCode, options = {}) {
     header = `// Automatic FlutterFlow imports
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
-import 'index.dart';
-import '/custom_code/actions/index.dart';
-import '/flutter_flow/custom_functions.dart';
 import 'package:flutter/material.dart';
 // Begin custom widget code
 // DO NOT REMOVE OR MODIFY THE CODE ABOVE!
@@ -1904,8 +1957,6 @@ import 'package:flutter/material.dart';
     header = `// Automatic FlutterFlow imports
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
-import 'index.dart';
-import '/flutter_flow/custom_functions.dart';
 import 'package:flutter/material.dart';
 // Begin custom action code
 // DO NOT REMOVE OR MODIFY THE CODE ABOVE!
@@ -1923,7 +1974,6 @@ import 'package:timeago/timeago.dart' as timeago;
 import '/flutter_flow/lat_lng.dart';
 import '/flutter_flow/place.dart';
 import '/flutter_flow/uploaded_file.dart';
-import '/flutter_flow/custom_functions.dart';
 
 `;
   }
@@ -2819,13 +2869,13 @@ ${codeGeneratorSpecificInstructions}`;
   // Model-specific instruction adjustments
   const getModelSpecificInstruction = (baseInstruction, model) => {
     const modelTweaks = {
-      "claude-4.5-opus": `
+      "claude-4.6-opus": `
 ADDITIONAL GUIDANCE FOR THIS MODEL:
 - Be extremely precise with Dart syntax
 - Prefer explicit type annotations over inference
 - Use comprehensive null checks`,
 
-      "gpt-5.1-codex-max": `
+      "gpt-5.2-codex": `
 ADDITIONAL GUIDANCE FOR THIS MODEL:  
 - Focus on code correctness over verbosity
 - Ensure all edge cases from the spec are handled
@@ -2866,10 +2916,10 @@ Remember: Output ONLY the raw Dart code. No markdown, no explanations.`;
 
   try {
     switch (selectedModel) {
-      case "claude-4.5-opus":
+      case "claude-4.6-opus":
         result = await callClaude(formattedPrompt, systemInstruction);
         break;
-      case "gpt-5.1-codex-max":
+      case "gpt-5.2-codex":
         result = await callOpenAI(formattedPrompt, systemInstruction);
         break;
       case "openrouter-auto":
@@ -3389,8 +3439,8 @@ function copyCode(elementId) {
 function updateModelInfo(selectedModel) {
   const modelNames = {
     "gemini-3-pro-preview": "Gemini 3.0 Pro",
-    "claude-4.5-opus": "Claude 4.5 Opus",
-    "gpt-5.1-codex-max": "GPT-5.1-Codex-Max",
+    "claude-4.6-opus": "Claude 4.6 Opus",
+    "gpt-5.2-codex": "GPT-5.2-Codex",
     "openrouter-auto": "OpenRouter: Auto",
     "openrouter-free": "OpenRouter: Free Models",
   };
@@ -3513,27 +3563,16 @@ async function runThinkingPipeline() {
     return;
   }
 
-  // Check for image references in non-Gemini models
-  if (
-    selectedModel !== "gemini-3-pro-preview" &&
-    (userInput.toLowerCase().includes("screenshot") ||
-      userInput.toLowerCase().includes("image") ||
-      userInput.toLowerCase().includes("picture") ||
-      userInput.toLowerCase().includes(".png") ||
-      userInput.toLowerCase().includes(".jpg") ||
-      userInput.toLowerCase().includes(".jpeg") ||
-      userInput.toLowerCase().includes(".gif") ||
-      userInput.toLowerCase().includes("Screenshot"))
-  ) {
-    const proceed = confirm(
-      "⚠️ Your request mentions images.\n\n" +
-        `${selectedModel} doesn't support image input.\n\n` +
-        "Use Gemini 3.0 Pro for image-based requests,\n" +
-        "or remove image references and continue.\n\n" +
-        "Continue anyway?"
-    );
-    if (!proceed) return;
+  // Check for required API keys before running
+  const keyCheck = checkRequiredApiKeys(selectedModel);
+  if (!keyCheck.valid) {
+    alert(`${keyCheck.message}
+
+Click the settings icon (⚙️) in the top right to configure API keys.`);
+    return;
   }
+
+
 
   const btn = document.getElementById("btn-run-pipeline");
 
@@ -3664,8 +3703,8 @@ function retryWithDifferentModel() {
   const currentModel = document.getElementById("code-generator-model").value;
   const otherModels = [
     "gemini-3-pro-preview",
-    "claude-4.5-opus",
-    "gpt-5.1-codex-max",
+    "claude-4.6-opus",
+    "gpt-5.2-codex",
   ].filter((model) => model !== currentModel);
 
   const selectedModel = prompt(
@@ -4013,6 +4052,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     modelSelect.addEventListener("change", () => {
       const selectedModel = modelSelect.value;
       updateModelInfo(selectedModel);
+      updateRunPipelineButtonState();
       
       if (walkthroughStep === 3) {
         advanceWalkthrough();
@@ -4020,6 +4060,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
     });
   }
+  
+  // Initial button state check after API keys are loaded
+  updateRunPipelineButtonState();
   
   window.addEventListener('commitStateChange', (event) => {
     const { state } = event.detail;

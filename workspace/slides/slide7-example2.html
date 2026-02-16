@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+html { background: #0f172a; }
+body {
+  width: 720pt; height: 405pt; margin: 0; padding: 0;
+  font-family: Arial, sans-serif;
+  display: flex; flex-direction: column;
+  background: #0f172a;
+}
+.accent-bar { width: 100%; height: 4pt; background: #f97316; }
+.header { margin: 24pt 50pt 0 50pt; }
+.header h1 { color: #ffffff; font-size: 24pt; margin: 0; }
+.header .orange { color: #f97316; }
+.header p { color: #64748b; font-size: 11pt; margin: 6pt 0 0 0; }
+.body { margin: 16pt 50pt 0 50pt; flex: 1; display: flex; flex-direction: column; gap: 12pt; }
+.context-row { display: flex; gap: 12pt; }
+.ctx-card {
+  flex: 1; background: #1e293b; border-radius: 6pt; padding: 12pt;
+}
+.ctx-card h3 { color: #f97316; font-size: 10pt; margin: 0 0 6pt 0; }
+.ctx-card p { color: #cbd5e1; font-size: 9pt; margin: 0 0 4pt 0; }
+.prompt-section {
+  background: #1a1a2e; border: 1pt solid #334155;
+  border-radius: 6pt; padding: 14pt; flex: 1;
+}
+.prompt-label { color: #3b82f6; font-size: 10pt; margin: 0 0 8pt 0; font-weight: bold; }
+.prompt-section p { color: #94a3b8; font-size: 9pt; margin: 0 0 4pt 0; font-family: Courier New, monospace; }
+.result-row { display: flex; gap: 12pt; }
+.result-card {
+  flex: 1; background: #0d2818; border-left: 3pt solid #22c55e;
+  border-radius: 6pt; padding: 10pt;
+}
+.result-card p { color: #86efac; font-size: 9pt; margin: 0 0 3pt 0; }
+.result-card .dim { color: #4ade80; }
+</style>
+</head>
+<body>
+<div class="accent-bar"></div>
+<div class="header">
+  <h1>Example: <span class="orange">Offline Favorites Sync</span></h1>
+  <p>FF Designer built the list UI and heart toggles. You need offline fallback.</p>
+</div>
+<div class="body">
+  <div class="context-row">
+    <div class="ctx-card">
+      <h3>ALREADY IN FF DESIGNER</h3>
+      <p>Favorites list with pull-to-refresh</p>
+      <p>Heart-button toggle (Firestore write)</p>
+      <p>FavoriteSong data type in FF</p>
+    </div>
+    <div class="ctx-card">
+      <h3>WHAT'S MISSING</h3>
+      <p>Offline access when no network</p>
+      <p>Local cache of favorites</p>
+      <p>Graceful Firestore failure handling</p>
+    </div>
+  </div>
+  <div class="prompt-section">
+    <p class="prompt-label">YOUR PROMPT:</p>
+    <p>Create a Custom Action called SyncFavoritesToLocal that reads the current user's "favorites" subcollection from Firestore, serializes each doc into a FavoriteSong struct (songId String, title String, artist String, addedAt DateTime), stores the list in shared_preferences as JSON under "cached_favorites". Return the count as int. If Firestore is unreachable, load from cache instead.</p>
+  </div>
+  <div class="result-row">
+    <div class="result-card">
+      <p class="dim">Dissector tells you:</p>
+      <p>Create FavoriteSong struct in FF Data Types</p>
+    </div>
+    <div class="result-card">
+      <p class="dim">Dissector tells you:</p>
+      <p>Add dependency: shared_preferences ^2.2.0</p>
+    </div>
+    <div class="result-card">
+      <p class="dim">Then:</p>
+      <p>Deploy directly to your FF project</p>
+    </div>
+  </div>
+</div>
+</body>
+</html>
