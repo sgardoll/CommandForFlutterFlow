@@ -417,7 +417,7 @@ function checkRequiredApiKeys(selectedModel) {
   }
   
   if (!hasStoredKey(requiredProvider)) {
-    const providerNames = {
+    const PROVIDER_NAMES = {
       gemini: "Gemini",
       anthropic: "Anthropic (Claude)",
       openai: "OpenAI",
@@ -425,7 +425,7 @@ function checkRequiredApiKeys(selectedModel) {
     }
     return {
       valid: false,
-      message: `${providerNames[requiredProvider]} API key is required to use this model. Please configure your API keys in the settings.`,
+      message: `${PROVIDER_NAMES[requiredProvider]} API key is required to use this model. Please configure your API keys in the settings.`,
       provider: requiredProvider
     }
   }
