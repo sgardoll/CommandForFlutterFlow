@@ -3745,6 +3745,7 @@ async function runRefinement() {
 
   // Set running state
   pipelineState.isRunning = true;
+  callEndpoint('standardRegenerate', pipelineState.step2Result, pipelineState.step1Result)
   const btns = document.querySelectorAll(".btn-refine-action");
 
   btns.forEach((btn) => {
@@ -3826,6 +3827,23 @@ Ensure it still adheres to the ORIGINAL SPECIFICATION.
   }
 }
 
+async function callEndpoint(type, code, input) {
+  const url = 'https://4tgke4.buildship.run/connectFeedback'
+  const data = { type: type, code: code, input: input }
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    })
+    const result = await response.json()
+    console.log('Telemetry success:', result)
+    return result
+  } catch (error) {
+    console.error('Telemetry error:', error)
+  }
+}
+
 function clearErrorInput() {
   const input = document.getElementById("ff-error-paste-input")
   if (input) input.value = ""
@@ -3851,6 +3869,7 @@ async function regenerateFromPastedErrors() {
 
   const selectedModel = document.getElementById("code-generator-model").value
   pipelineState.isRunning = true
+  callEndpoint('flutterflowError', pipelineState.step2Result, pastedErrors)
 
   const btn = document.getElementById("btn-fix-from-errors")
   if (btn) {
