@@ -3179,6 +3179,35 @@ Always add a descriptive name: \`Function(String value)\`, \`Function(int index)
 - Use StatefulWidget ONLY for: AnimationController, gesture tracking, local transient UI state
 - State class naming convention: \`_ArtifactNameState\` (private, with underscore prefix)
 - Use \`with SingleTickerProviderStateMixin\` or \`TickerProviderStateMixin\` for animations
+- **⛔ MANDATORY dispose() for StatefulWidgets:** Every StatefulWidget's State class MUST override \`dispose()\` to clean up resources. This prevents memory leaks and is required for FlutterFlow compatibility.
+
+**Required dispose() pattern:**
+\`\`\`dart
+class _MyWidgetState extends State<MyWidget> with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  TextEditingController? _textController;
+  StreamSubscription? _subscription;
+  
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(...);
+  }
+  
+  @override
+  void dispose() {
+    _animationController.dispose();  // ✅ Always dispose controllers
+    _textController?.dispose();       // ✅ Null-safe dispose
+    _subscription?.cancel();          // ✅ Cancel subscriptions
+    super.dispose();                  // ✅ Always call super.dispose()
+  }
+}
+\`\`\`
+
+**Resources requiring dispose():**
+- AnimationController, TextEditingController, ScrollController, FocusNode
+- StreamSubscription, Timer
+- Any controller from external packages (signature_pad, etc.)
 
 ### Layout Safety (Custom Widgets)
 - Must render correctly when width and height are null
@@ -3958,11 +3987,19 @@ async function callEndpoint(type, code, input) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
     })
+    
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error(`callEndpoint failed: ${response.status} ${response.statusText}`, errorText)
+      return { success: false, status: response.status, error: errorText }
+    }
+    
     const result = await response.json()
     console.log('Telemetry success:', result)
     return result
   } catch (error) {
-    console.error('Telemetry error:', error)
+    console.error('callEndpoint failed:', error)
+    return { success: false, error: error.message }
   }
 }
 
@@ -4039,7 +4076,7 @@ Maintain the original specification and intent.`
     if (input) input.value = ""
   } catch (error) {
     console.error("Fix from errors failed:", error)
-    alert("Failed to fix errors: " + error.message)
+    alert(`Failed to fix errors: ${error.message}`)
   } finally {
     pipelineState.isRunning = false
     if (btn) {
