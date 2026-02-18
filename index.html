@@ -1327,5 +1327,27 @@
     </div>
 
     <script type="module" src="/app.js"></script>
+    <script>
+      // Check if app.js loaded successfully
+      window.addEventListener('error', function(e) {
+        if (e.target && e.target.tagName === 'SCRIPT' && e.target.src && e.target.src.includes('app.js')) {
+          console.error('Failed to load app.js module. This usually means:');
+          console.error('1. You opened index.html directly (file:// protocol) instead of using the dev server');
+          console.error('2. The Vite dev server is not running');
+          console.error('');
+          console.error('SOLUTION: Run "npm run dev" and open http://localhost:3000');
+          
+          // Show visible error to user
+          const errorDiv = document.createElement('div');
+          errorDiv.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#dc2626;color:white;padding:16px;z-index:10000;font-family:sans-serif;text-align:center;';
+          errorDiv.innerHTML = `
+            <strong>App Failed to Load</strong><br>
+            JavaScript module could not be loaded. Please run <code style="background:rgba(255,255,255,0.2);padding:2px 6px;border-radius:4px;">npm run dev</code> 
+            and open <a href="http://localhost:3000" style="color:#bfdbfe;text-decoration:underline;">http://localhost:3000</a>
+          `;
+          document.body.appendChild(errorDiv);
+        }
+      }, true);
+    </script>
   </body>
 </html>
