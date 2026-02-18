@@ -69,7 +69,8 @@ Only these parameter types work in FlutterFlow's Custom Code UI. **ALWAYS Use Si
 - **Lists:** List<String>, List<int>, List<double>, List<bool>, List<ProductStruct>
 - **FlutterFlow Structs:** \`SomeNameStruct\` (UpperCamelCase, must exist in FF Data Types)
 - **Special types:** DocumentReference, LatLng, FFPlace, FFUploadedFile, Uint8List (Bytes), dynamic (JSON)
-- **Action callbacks:** \`Future Function()?\` or \`Future Function(T)?\`
+- **Action callbacks (widget→FF, data OUT):** \`Future<dynamic> Function()?\` — ZERO parameters only. FlutterFlow always generates action stubs as \`() async {}\`. Declaring \`Future Function(Uint8List?)?\` or any non-zero-param callback for widget→FF communication causes a compile error ("Future<Null> Function() can't be assigned to Future<dynamic> Function(T)?"). For passing data out, write to FFAppState BEFORE calling the no-arg callback.
+- **Action callbacks (FF→widget, data IN):** \`Future<dynamic> Function(String)?\`, \`Future<dynamic> Function(int)?\`, \`Future<dynamic> Function(bool)?\` work ONLY when FlutterFlow passes a primitive from an Action Flow. NEVER use complex types (\`Uint8List\`, \`CustomClass\`, structs) as callback parameters.
 - **Widget Builder:** \`Widget Function(BuildContext)\`
 
 **FORBIDDEN COMPLEX TYPES:**
@@ -160,7 +161,8 @@ const FF_FORBIDDEN_PATTERNS = `## FORBIDDEN PATTERNS (Will cause build failures)
 
 ### RESERVED PARAMETER NAMES (Will cause Dart compilation errors)
 - NEVER name a parameter \`key\` — it conflicts with \`Widget.key\` which Flutter/FlutterFlow auto-injects via \`super.key\`. Using \`this.key\` creates a "Duplicated parameter name" error and a return type mismatch with \`Key?\`.
-- Use descriptive alternatives: \`keyLabel\`, \`keyValue\`, \`keyText\`, \`keyName\`, etc.
+- Use descriptive alternatives: \`keyLabel\`, \`keyValue\`, \`keyText\`, \`keyName\`, \`keyChar\`, \`keyCode\`, \`apiKey\`, \`dictKey\`, etc.
+- **Concept trap — most common mistake:** This error is especially likely when the widget concept naturally involves "key" — a KeyboardHintWidget displaying a key character, a dictionary lookup widget needing a key, an API-key input field, a map lookup by key. Even when "key" is the conceptually perfect name, it is still FORBIDDEN. Rename it: e.g., \`KeyboardHintWidget\` should use \`keyLabel\` or \`keyChar\`, never \`this.key\`.
 - Other reserved names to avoid as parameters: \`context\`, \`widget\`, \`state\`, \`mounted\`, \`setState\` — these conflict with Flutter framework internals.
 
 ### EXTERNAL PACKAGE API SAFETY
@@ -2947,7 +2949,7 @@ Analyze the user's request and output a JSON specification with this exact struc
   
   "antiPatterns": {
     "mustNotInclude": ["main()", "runApp()", "MaterialApp", "Scaffold", "import statements"],
-    "mustNotUse": ["FFAppState() direct access without parameter passing", "hardcoded Colors.*", "ValueChanged<T> callbacks", "parameter named 'key' (conflicts with Widget.key)", "storing Bytes/Uint8List/FFUploadedFile in FFAppState (not supported — use Page State or callbacks)"],
+    "mustNotUse": ["FFAppState() direct access without parameter passing", "hardcoded Colors.*", "ValueChanged<T> callbacks", "parameter named 'key' (conflicts with Widget.key)", "storing Bytes/Uint8List/FFUploadedFile in FFAppState (not supported — use Page State or callbacks)", "Future Function(Uint8List)? or any complex-type parameterized callback for widget→FF data flow — use Future<dynamic> Function()? (zero params) only"],
     "reasoning": ["Why each anti-pattern is forbidden in FlutterFlow context"]
   },
   
@@ -2984,7 +2986,7 @@ When artifactType is "CustomWidget":
 - implementationSpec.flutterFlowPatterns MUST include FlutterFlowTheme usage
 - If stateful, antiPatterns MUST mention proper disposal of controllers
 - antiPatterns.mustNotUse MUST include "navigation inside widget" and "database writes inside widget"
-- If the widget produces byte data (images, files, signatures, etc.): stateAccessPattern should be "none" or use callbacks. Bytes/Uint8List/FFUploadedFile CANNOT be stored in App State — only Page State supports Bytes. Prefer callback parameters to pass data back.
+- If the widget produces byte data (images, files, signatures, etc.): Bytes/Uint8List/FFUploadedFile CANNOT be stored in App State — only Page State supports Bytes. Use a no-arg callback \`Future<dynamic> Function()?\` to notify FlutterFlow, and write the byte data to a base64 String in FFAppState (or document that the user must store it in Page State). NEVER use \`Future Function(Uint8List)?\` as a callback — FlutterFlow generates \`() async {}\` stubs, causing a type mismatch compile error.
 
 ### RESERVED PARAMETER NAMES (applies to ALL artifact types)
 - NEVER use "key" as a parameter name (conflicts with Widget.key)
@@ -3071,8 +3073,15 @@ You understand that FlutterFlow is the host organism - your code must conform to
 
 ### Reserved Parameter Names (CRITICAL)
 - NEVER name a widget parameter \`key\` — it conflicts with \`Widget.key\` (injected via \`super.key\`) causing "Duplicated parameter name" compilation errors
-- Use alternatives: \`keyLabel\`, \`keyValue\`, \`keyText\`, \`keyName\`
+- Use alternatives: \`keyLabel\`, \`keyValue\`, \`keyText\`, \`keyName\`, \`keyChar\`, \`keyCode\`, \`apiKey\`
 - Also avoid: \`context\`, \`widget\`, \`state\`, \`mounted\` as parameter names
+- **Concept trap**: Widgets about keyboard keys, dictionary keys, API keys, map keys, etc. will feel natural to name a param \`key\`. Always rename: e.g., \`keyChar\`, \`keyLabel\`, \`apiKey\`. There are NO exceptions.
+
+### Callback Parameter Types (CRITICAL — compile error if violated)
+- For **widget→FF data flow** (widget notifies FlutterFlow of a result): ALWAYS use \`Future<dynamic> Function()?\` — zero parameters. FlutterFlow generates action stubs as \`() async {}\`. Any declared param type causes "Future<Null> Function() can't be assigned to Future<dynamic> Function(T)?" compile error.
+- NEVER write \`Future<dynamic> Function(Uint8List?)?\`, \`Future Function(Bytes)?\`, or any complex-type callback for widget→FF communication.
+- To pass data back: write the data to FFAppState (if it's an allowed App State type) BEFORE calling the no-arg callback, so the FlutterFlow Action Flow can read it.
+- For **FF→widget data flow** (FlutterFlow passes a value into a callback action): \`Future<dynamic> Function(String)?\`, \`Future<dynamic> Function(int)?\`, \`Future<dynamic> Function(bool)?\` are valid only for FF-primitive types.
 
 ### FFAppState Access Rules (CRITICAL)
 - NEVER invent or assume specific FFAppState variable names — you cannot know what exists in the user's project
@@ -3260,13 +3269,14 @@ Check for and flag:
 9. Generics, extensions, or function-typed params in Code Files (Parser Gap)
 10. **Reserved Parameter Name \`key\`**: Check if any widget parameter is named \`key\`. This conflicts with \`Widget.key\` (auto-injected via \`super.key\`), causing "Duplicated parameter name" and return type mismatch errors. **Fix:** Rename to \`keyLabel\`, \`keyValue\`, \`keyText\`, etc. Also flag parameters named \`context\`, \`widget\`, \`state\`, or \`mounted\`.
 11. **Bytes/FFUploadedFile stored in App State**: Check if the code writes Uint8List, Bytes, or FFUploadedFile to \`FFAppState()\`. App State does NOT support Bytes — only Page State does. **Fix:** Use a callback to pass bytes back to FlutterFlow (user stores in Page State), convert to base64 String for App State, or upload to storage and store the URL (ImagePath) in App State.
+12. **Non-primitive callback parameter type (widget→FF direction)**: If a widget callback has a non-primitive parameter type (e.g., \`Future<dynamic> Function(Uint8List?)?\`, \`Future Function(CustomClass)?\`), this causes a compile error. FlutterFlow always generates action stubs as \`() async {}\` — any declared parameter type causes "Future<Null> Function() can't be assigned to Future<dynamic> Function(T)?" type mismatch. **Fix:** Change to \`Future<dynamic> Function()?\` (zero params) and write the data to FFAppState before calling the callback.
 
 ### SEVERE WARNINGS (Score: -20 each)
 11. External package usage without noting user must add to FF Dependencies
 12. Unsafe \`!\` operator usage without null check
 13. Direct \`FFAppState()\` access without using \`FFAppState().update()\` for writes
 14. Hardcoded \`Colors.*\` instead of \`FlutterFlowTheme.of(context).*\`
-15. **Unsupported Action Parameter Type**: The FF UI only supports passing \`String\`, \`int\`, \`double\`, \`bool\`, or \`JSON\` to Actions. Signatures like \`Future Function(Uint8List)\` or \`Future Function(CustomClass)\` will fail in the UI. **Fix:** Use \`Future Function()?\` and store the complex data in AppState before triggering.
+15. ~~Promoted to Critical Failure~~ — see item 12 above (non-primitive callback parameter type).
 16. Missing \`dispose()\` for AnimationController, StreamSubscription, etc.
 17. Navigation or database writes embedded inside widget (should use Action callbacks)
 18. **Callback Signature Mismatch**: FF Actions are asynchronous. Use \`Future Function(T)?\` instead of \`VoidCallback\`, \`ValueChanged<T>\`, or \`void Function(T)\`.
