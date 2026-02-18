@@ -71,6 +71,19 @@ Only these parameter types work in FlutterFlow's Custom Code UI. **ALWAYS Use Si
 - **Special types:** DocumentReference, LatLng, FFPlace, FFUploadedFile, Uint8List (Bytes), dynamic (JSON)
 - **Action callbacks (widget→FF, data OUT):** \`Future<dynamic> Function()?\` — ZERO parameters only. FlutterFlow always generates action stubs as \`() async {}\`. Declaring \`Future Function(Uint8List?)?\` or any non-zero-param callback for widget→FF communication causes a compile error ("Future<Null> Function() can't be assigned to Future<dynamic> Function(T)?"). For passing data out, write to FFAppState BEFORE calling the no-arg callback.
 - **Action callbacks (FF→widget, data IN):** \`Future<dynamic> Function(String)?\`, \`Future<dynamic> Function(int)?\`, \`Future<dynamic> Function(bool)?\` work ONLY when FlutterFlow passes a primitive from an Action Flow. NEVER use complex types (\`Uint8List\`, \`CustomClass\`, structs) as callback parameters.
+- **⛔ CRITICAL: Named Callback Parameters Required:** When a callback HAS parameters (FF→widget direction), the parameter MUST have a name. FlutterFlow's parser rejects anonymous parameters.
+  
+  **❌ WRONG — Missing parameter name:**
+  \`\`\`dart
+  final Future<dynamic> Function(String)? onDrawingComplete;  // ❌ Parser error
+  \`\`\`
+  
+  **✅ CORRECT — Parameter has a name:**
+  \`\`\`dart
+  final Future<dynamic> Function(String drawing)? onDrawingComplete;  // ✅ Works
+  \`\`\`
+  
+  All callback parameters must be named: \`Function(String value)\`, \`Function(int index)\`, \`Function(bool isValid)\`, etc.
 - **Widget Builder:** \`Widget Function(BuildContext)\`
 
 **FORBIDDEN COMPLEX TYPES:**
@@ -159,11 +172,43 @@ const FF_FORBIDDEN_PATTERNS = `## FORBIDDEN PATTERNS (Will cause build failures)
 - Using complex parameter types (EdgeInsets, Duration, TextStyle) in Widgets/Actions.
 - Using generics or function-typed fields in Code Files.
 
-### RESERVED PARAMETER NAMES (Will cause Dart compilation errors)
-- NEVER name a parameter \`key\` — it conflicts with \`Widget.key\` which Flutter/FlutterFlow auto-injects via \`super.key\`. Using \`this.key\` creates a "Duplicated parameter name" error and a return type mismatch with \`Key?\`.
-- Use descriptive alternatives: \`keyLabel\`, \`keyValue\`, \`keyText\`, \`keyName\`, \`keyChar\`, \`keyCode\`, \`apiKey\`, \`dictKey\`, etc.
-- **Concept trap — most common mistake:** This error is especially likely when the widget concept naturally involves "key" — a KeyboardHintWidget displaying a key character, a dictionary lookup widget needing a key, an API-key input field, a map lookup by key. Even when "key" is the conceptually perfect name, it is still FORBIDDEN. Rename it: e.g., \`KeyboardHintWidget\` should use \`keyLabel\` or \`keyChar\`, never \`this.key\`.
-- Other reserved names to avoid as parameters: \`context\`, \`widget\`, \`state\`, \`mounted\`, \`setState\` — these conflict with Flutter framework internals.
+### ⛔ CRITICAL: RESERVED PARAMETER NAMES (INSTANT COMPILATION FAILURE)
+
+**NEVER name a widget parameter \`key\`. This is THE #1 CAUSE of mysterious build failures.**
+
+**Why it breaks:**
+- Flutter widgets inherit a \`Key? key\` property from \`Widget.key\`
+- FlutterFlow auto-injects \`super.key\` in widget constructors
+- Adding \`this.key\` creates TWO parameters named \`key\` → "Duplicated parameter name" error
+- Your custom \`String? key\` conflicts with Flutter's \`Key? key\` → type mismatch error
+
+**WRONG — WILL NOT COMPILE:**
+\`\`\`dart
+class KeyboardHintWidget extends StatelessWidget {
+  final String? key;   // ❌ CONFLICTS with Widget.key
+  final String? label;
+  const KeyboardHintWidget({super.key, this.key, this.label}); // ❌ DUPLICATED
+}
+\`\`\`
+
+**CORRECT — RENAME THE PARAMETER:**
+\`\`\`dart
+class KeyboardHintWidget extends StatelessWidget {
+  final String? keyLabel;  // ✅ Renamed from 'key' to 'keyLabel'
+  final String? label;
+  const KeyboardHintWidget({super.key, this.keyLabel, this.label}); // ✅ Works
+}
+\`\`\`
+
+**Alternative names for \`key\` parameter:**
+- \`keyLabel\`, \`keyValue\`, \`keyText\`, \`keyName\`, \`keyChar\`, \`keyCode\`
+- \`apiKey\`, \`dictKey\`, \`mapKey\`, \`cacheKey\`, \`storageKey\`
+- Or describe the purpose: \`buttonLabel\`, \`shortcutKey\`, \`accessKey\`
+
+**⚠️ CONCEPT TRAP (most common mistake):**
+When your widget's concept IS "a key" (keyboard key, API key, dictionary key, map key), you will feel tempted to name the parameter \`key\`. **DO NOT DO IT.** The semantic fit is perfect, but it will break compilation. Always rename: a \`KeyboardHintWidget\` uses \`keyLabel\` or \`keyChar\`, never \`key\`.
+
+**Other reserved parameter names:** \`context\`, \`widget\`, \`state\`, \`mounted\`, \`setState\` — these conflict with Flutter framework internals.
 
 ### EXTERNAL PACKAGE API SAFETY
 - NEVER assume mutable setters exist on controller or configuration objects from external packages.
@@ -3071,17 +3116,58 @@ You understand that FlutterFlow is the host organism - your code must conform to
 - When updating controller properties in \`didUpdateWidget()\`: ALWAYS dispose and re-create the controller — do NOT attempt to set properties directly (setters may not exist)
 - NEVER hallucinate package APIs — if unsure whether a method/setter exists, use the safer pattern (dispose + re-create)
 
-### Reserved Parameter Names (CRITICAL)
-- NEVER name a widget parameter \`key\` — it conflicts with \`Widget.key\` (injected via \`super.key\`) causing "Duplicated parameter name" compilation errors
-- Use alternatives: \`keyLabel\`, \`keyValue\`, \`keyText\`, \`keyName\`, \`keyChar\`, \`keyCode\`, \`apiKey\`
-- Also avoid: \`context\`, \`widget\`, \`state\`, \`mounted\` as parameter names
-- **Concept trap**: Widgets about keyboard keys, dictionary keys, API keys, map keys, etc. will feel natural to name a param \`key\`. Always rename: e.g., \`keyChar\`, \`keyLabel\`, \`apiKey\`. There are NO exceptions.
+### ⛔ Reserved Parameter Names (INSTANT COMPILATION FAILURE — MOST COMMON BUG)
+
+**THE #1 BUG IN FLUTTERFLOW CODE GENERATION: Naming a widget parameter \`key\`**
+
+This ALWAYS causes two errors:
+1. "Duplicated parameter name 'key'" — because \`super.key\` and \`this.key\` are both present
+2. "The return type 'String?' does not match 'Key?'" — your \`String? key\` conflicts with Flutter's \`Key? key\`
+
+**❌ WRONG — WILL FAIL:**
+\`\`\`dart
+class KeyboardHintWidget extends StatelessWidget {
+  final String? key;   // ❌ FORBIDDEN - conflicts with Widget.key
+  const KeyboardHintWidget({super.key, this.key}); // ❌ Duplicated parameter
+}
+\`\`\`
+
+**✅ CORRECT — ALWAYS RENAME:**
+\`\`\`dart
+class KeyboardHintWidget extends StatelessWidget {
+  final String? keyLabel;  // ✅ Renamed!
+  const KeyboardHintWidget({super.key, this.keyLabel}); // ✅ Works
+}
+\`\`\`
+
+**Valid alternatives for \`key\`:** \`keyLabel\`, \`keyValue\`, \`keyText\`, \`keyChar\`, \`keyCode\`, \`apiKey\`, \`dictKey\`, \`mapKey\`, \`buttonLabel\`
+
+**⚠️ CONCEPT TRAP:** When your widget concept IS a "key" (keyboard key, API key, map key), you WILL feel \`key\` is the perfect name. IT IS NOT. Rename it. There are ZERO exceptions.
+
+**Also avoid:** \`context\`, \`widget\`, \`state\`, \`mounted\` as parameter names — these conflict with Flutter internals.
 
 ### Callback Parameter Types (CRITICAL — compile error if violated)
 - For **widget→FF data flow** (widget notifies FlutterFlow of a result): ALWAYS use \`Future<dynamic> Function()?\` — zero parameters. FlutterFlow generates action stubs as \`() async {}\`. Any declared param type causes "Future<Null> Function() can't be assigned to Future<dynamic> Function(T)?" compile error.
 - NEVER write \`Future<dynamic> Function(Uint8List?)?\`, \`Future Function(Bytes)?\`, or any complex-type callback for widget→FF communication.
 - To pass data back: write the data to FFAppState (if it's an allowed App State type) BEFORE calling the no-arg callback, so the FlutterFlow Action Flow can read it.
 - For **FF→widget data flow** (FlutterFlow passes a value into a callback action): \`Future<dynamic> Function(String)?\`, \`Future<dynamic> Function(int)?\`, \`Future<dynamic> Function(bool)?\` are valid only for FF-primitive types.
+
+**⛔ NAMED CALLBACK PARAMETERS (FlutterFlow Parser Requirement):**
+When a callback HAS parameters (FF→widget direction), the parameter MUST have a name. FlutterFlow's parser rejects anonymous parameters with error: *"Widget has a parameter with action parameter that is missing a name."*
+
+**❌ WRONG — Anonymous parameter (parser will reject):**
+\`\`\`dart
+final Future<dynamic> Function(String)? onDrawingComplete;  // ❌ Missing name
+final Future<dynamic> Function(int)? onPageChanged;         // ❌ Missing name
+\`\`\`
+
+**✅ CORRECT — Named parameters:**
+\`\`\`dart
+final Future<dynamic> Function(String drawing)? onDrawingComplete;  // ✅ Has name
+final Future<dynamic> Function(int pageIndex)? onPageChanged;       // ✅ Has name
+\`\`\`
+
+Always add a descriptive name: \`Function(String value)\`, \`Function(int index)\`, \`Function(bool isValid)\`, \`Function(String result)\`, etc.
 
 ### FFAppState Access Rules (CRITICAL)
 - NEVER invent or assume specific FFAppState variable names — you cannot know what exists in the user's project
@@ -3267,9 +3353,35 @@ Check for and flag:
 7. Custom Dart classes for data (e.g., \`class User {}\`) - Should use FF Structs or create a separate custom code file
 8. Missing \`width\`/\`height\` parameters for Custom Widgets
 9. Generics, extensions, or function-typed params in Code Files (Parser Gap)
-10. **Reserved Parameter Name \`key\`**: Check if any widget parameter is named \`key\`. This conflicts with \`Widget.key\` (auto-injected via \`super.key\`), causing "Duplicated parameter name" and return type mismatch errors. **Fix:** Rename to \`keyLabel\`, \`keyValue\`, \`keyText\`, etc. Also flag parameters named \`context\`, \`widget\`, \`state\`, or \`mounted\`.
+10. **⛔ RESERVED PARAMETER NAME \`key\` — #1 BUG**: Check if ANY widget parameter is named \`key\`. This is THE MOST COMMON compilation error. Look for patterns like \`final String? key;\` or \`this.key\` in widget constructors. It conflicts with \`Widget.key\` (auto-injected via \`super.key\`), causing:
+    - "Duplicated parameter name 'key'"
+    - "The return type 'String?' does not match 'Key?'"
+    
+    **Example error to detect:**
+    \`\`\`dart
+    // ❌ WRONG - will fail
+    class KeyboardHintWidget extends StatelessWidget {
+      final String? key;  // ← DETECT THIS
+      const KeyboardHintWidget({super.key, this.key}); // ← DETECT this.key
+    }
+    \`\`\`
+    
+    **Fix:** Rename to \`keyLabel\`, \`keyValue\`, \`keyText\`, \`keyChar\`, \`keyCode\`, \`apiKey\`, etc. Also flag: \`context\`, \`widget\`, \`state\`, \`mounted\`.
 11. **Bytes/FFUploadedFile stored in App State**: Check if the code writes Uint8List, Bytes, or FFUploadedFile to \`FFAppState()\`. App State does NOT support Bytes — only Page State does. **Fix:** Use a callback to pass bytes back to FlutterFlow (user stores in Page State), convert to base64 String for App State, or upload to storage and store the URL (ImagePath) in App State.
 12. **Non-primitive callback parameter type (widget→FF direction)**: If a widget callback has a non-primitive parameter type (e.g., \`Future<dynamic> Function(Uint8List?)?\`, \`Future Function(CustomClass)?\`), this causes a compile error. FlutterFlow always generates action stubs as \`() async {}\` — any declared parameter type causes "Future<Null> Function() can't be assigned to Future<dynamic> Function(T)?" type mismatch. **Fix:** Change to \`Future<dynamic> Function()?\` (zero params) and write the data to FFAppState before calling the callback.
+13. **⛔ Unnamed callback parameter (FlutterFlow parser error)**: Check if any callback with parameters has an anonymous (unnamed) parameter. FlutterFlow's parser requires all callback parameters to have names, otherwise throws: *"Widget has a parameter with action parameter that is missing a name."*
+    
+    **Example error to detect:**
+    \`\`\`dart
+    // ❌ WRONG - anonymous parameter
+    final Future<dynamic> Function(String)? onDrawingComplete;
+    
+    // ✅ CORRECT - named parameter  
+    final Future<dynamic> Function(String drawing)? onDrawingComplete;
+    \`\`\`
+    
+    **Pattern to find:** \`Function(String)?\`, \`Function(int)?\`, \`Function(bool)?\` without a parameter name after the type.
+    **Fix:** Add a descriptive name: \`Function(String drawing)\`, \`Function(int index)\`, \`Function(bool isValid)\`.
 
 ### SEVERE WARNINGS (Score: -20 each)
 11. External package usage without noting user must add to FF Dependencies
