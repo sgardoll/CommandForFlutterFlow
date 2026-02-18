@@ -4,7 +4,7 @@
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="MIT License"/>
 </p>
 
-<h1 align="center">FlutterFlow Custom Code Command</h1>
+<h1 align="center">Custom Code Connect for FlutterFlow</h1>
 
 <p align="center">
   <strong>Break through FlutterFlow's complexity ceiling.</strong><br/>
