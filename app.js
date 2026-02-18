@@ -55,8 +55,9 @@ const FF_ARTIFACT_TYPES = `## THE FOUR ARTIFACT SURFACES
 - **Capabilities:** Create custom data types, use properties in UI.
 - **Limitations:** No generics, no function-typed fields. Must re-parse in FF after changes.`;
 
-const FF_TYPE_SYSTEM = `## FLUTTERFLOW TYPE SYSTEM (Parameters)
+const FF_TYPE_SYSTEM = `## FLUTTERFLOW TYPE SYSTEM (Parameters & State)
 
+### Custom Code Parameter Types
 Only these parameter types work in FlutterFlow's Custom Code UI. **ALWAYS Use Simple Types.**
 
 - **Primitives:** String, bool, int, double, Color (nullable), DateTime
@@ -71,15 +72,57 @@ Only these parameter types work in FlutterFlow's Custom Code UI. **ALWAYS Use Si
 - ❌ Duration (use int milliseconds)
 - ❌ TextStyle (break into properties)
 
+### App State Variable Types (CRITICAL — different from parameter types)
+App State variables (global, persistent across pages) support ONLY:
+- Integer, Double, String, Boolean, Color
+- ImagePath, VideoPath, AudioPath
+- DocumentReference, DateTime, JSON, LatLng
+- Data Type (FF Structs), Enum, CustomClass, CustomEnum
+- Lists of any of the above
+
+**App State does NOT support Bytes/Uint8List/FFUploadedFile.** This is a common pitfall — code that stores raw byte data (image bytes, file bytes, signature data) directly in FFAppState will fail to compile.
+
+### Page State Variable Types
+Page State variables (local to a single page) support everything App State does, PLUS:
+- ✅ Bytes (Uint8List) — available ONLY in Page State, not App State
+
+### Implications for Code Generation
+- When the user needs to store byte data: use a callback to pass bytes back to FlutterFlow (user can store in Page State), or convert to base64 String for App State storage, or upload to storage and store the resulting URL as ImagePath.
+- NEVER generate code that writes FFUploadedFile or Uint8List to FFAppState — it will not compile.
+
 **IMPORTANT:** Custom Dart classes for data exchange are now allowed via "Code Files", but Structs are still preferred for parameters visible in the UI builder.`;
 
 const FF_STATE_PATTERNS = `## STATE & DATA: FFAppState Patterns
 
 FlutterFlow's generated \`FFAppState\` is a **global singleton that extends ChangeNotifier**.
 
+**CRITICAL WARNING FOR CODE GENERATION:** The variable names below (myVar, localValue) are EXAMPLES ONLY. Generated code must NEVER assume any specific FFAppState variables exist in the user's project. If a variable is referenced, it MUST be documented as a required user action ("Create App State variable X of type Y in FlutterFlow").
+
+### App State vs Page State: Allowed Types
+
+**App State variables** (global, persist across pages) support ONLY these types:
+- Integer, Double, String, Boolean, Color
+- ImagePath, VideoPath, AudioPath
+- DocumentReference, DateTime, JSON, LatLng
+- Data Type (custom FF Structs), Enum
+- CustomClass, CustomEnum
+- Lists of any of the above
+
+**App State does NOT support:**
+- ❌ Bytes / Uint8List / FFUploadedFile — these CANNOT be stored in App State
+- ❌ Arbitrary Dart objects or custom classes not registered as FF Data Types
+
+**Page State variables** (local to a single page) support everything App State does, PLUS:
+- ✅ Bytes (Uint8List) — available in Page State only
+
+**CRITICAL IMPLICATION:** Code that tries to store raw byte data (e.g., image bytes, file bytes, signature PNG data) in FFAppState will fail. For byte data:
+1. Use a callback parameter to pass bytes back to FlutterFlow, and let the user store it in Page State or upload it.
+2. If persistence across pages is needed, convert bytes to a base64 String and store that in App State instead.
+3. Alternatively, upload the bytes to storage and store the resulting URL (ImagePath) in App State.
+
 ### Reading state (non-reactive):
 \`\`\`dart
-final v = FFAppState().myVar;
+final v = FFAppState().myVar; // 'myVar' must exist in the user's FF project
 \`\`\`
 
 ### Writing state (reactive across app):
@@ -89,10 +132,11 @@ FFAppState().update(() => FFAppState().myVar = newValue);
 This triggers \`notifyListeners()\` and updates all subscribed pages.
 
 ### Returning values from Custom Widgets:
-FlutterFlow doesn't directly "pull" values out of widgets. Two patterns:
-1. **Callbacks:** Use \`Future<dynamic> Function()?\` action parameters
-2. **AppState workaround:** Store result in FFAppState when callback typing is fragile:
+FlutterFlow doesn't directly "pull" values out of widgets. Two patterns (in order of preference):
+1. **Callbacks (PREFERRED):** Use \`Future<dynamic> Function()?\` action parameters — lets the user wire the data flow in FlutterFlow UI without needing specific app state variables.
+2. **AppState workaround (LAST RESORT):** Store result in FFAppState when callback typing is fragile. NOTE: The variable MUST already exist in the user's project, and the value MUST be one of the allowed App State types listed above:
 \`\`\`dart
+// REQUIRED: Create App State variable 'localValue' (String) in FlutterFlow first
 FFAppState().update(() {
   FFAppState().localValue = 'setvalue';
 });
@@ -107,7 +151,39 @@ const FF_FORBIDDEN_PATTERNS = `## FORBIDDEN PATTERNS (Will cause build failures)
 - Importing packages without adding them to Project Dependencies (in UI).
 - Adding custom imports to Custom Functions (strictly forbidden).
 - Using complex parameter types (EdgeInsets, Duration, TextStyle) in Widgets/Actions.
-- Using generics or function-typed fields in Code Files.`;
+- Using generics or function-typed fields in Code Files.
+
+### RESERVED PARAMETER NAMES (Will cause Dart compilation errors)
+- NEVER name a parameter \`key\` — it conflicts with \`Widget.key\` which Flutter/FlutterFlow auto-injects via \`super.key\`. Using \`this.key\` creates a "Duplicated parameter name" error and a return type mismatch with \`Key?\`.
+- Use descriptive alternatives: \`keyLabel\`, \`keyValue\`, \`keyText\`, \`keyName\`, etc.
+- Other reserved names to avoid as parameters: \`context\`, \`widget\`, \`state\`, \`mounted\`, \`setState\` — these conflict with Flutter framework internals.
+
+### EXTERNAL PACKAGE API SAFETY
+- NEVER assume mutable setters exist on controller or configuration objects from external packages.
+- Package APIs change between versions — if you are not 100% certain a setter exists, do NOT use it.
+- When you need to change controller properties after construction (e.g., in \`didUpdateWidget()\`): dispose the old controller and re-create it with new values. Do NOT attempt to mutate properties directly.
+- Example (CORRECT):
+  \`\`\`dart
+  void didUpdateWidget(MyWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.penColor != oldWidget.penColor) {
+      _controller.dispose();
+      _initializeController(); // Re-create with new values
+    }
+  }
+  \`\`\`
+- Example (WRONG — may not compile if setter doesn't exist):
+  \`\`\`dart
+  _controller.penColor = widget.penColor; // Setter may not exist!
+  \`\`\`
+
+### FFAPPSTATE VARIABLE RULES
+- NEVER reference specific FFAppState variable names (e.g., \`FFAppState().uploadedSignature\`, \`FFAppState().myCustomVar\`). You cannot know what variables exist in the user's project.
+- Instead of writing to FFAppState directly: use callback parameters (\`Future Function()?\`) to communicate data back to FlutterFlow, letting the user wire it to their own app state in the FlutterFlow UI.
+- If storing data in FFAppState is absolutely necessary for the pattern to work, you MUST:
+  1. Add a clear code comment: \`// REQUIRED: Create an App State variable named 'yourVarName' of type X in FlutterFlow\`
+  2. Document this in the output as a required user action
+  3. Prefer the callback pattern over direct FFAppState access whenever possible`;
 
 const FF_REQUIRED_PATTERNS = `## REQUIRED PATTERNS (For FlutterFlow compatibility)
 
@@ -2869,7 +2945,7 @@ Analyze the user's request and output a JSON specification with this exact struc
   
   "antiPatterns": {
     "mustNotInclude": ["main()", "runApp()", "MaterialApp", "Scaffold", "import statements"],
-    "mustNotUse": ["FFAppState() direct access without parameter passing", "hardcoded Colors.*", "ValueChanged<T> callbacks"],
+    "mustNotUse": ["FFAppState() direct access without parameter passing", "hardcoded Colors.*", "ValueChanged<T> callbacks", "parameter named 'key' (conflicts with Widget.key)", "storing Bytes/Uint8List/FFUploadedFile in FFAppState (not supported — use Page State or callbacks)"],
     "reasoning": ["Why each anti-pattern is forbidden in FlutterFlow context"]
   },
   
@@ -2899,12 +2975,25 @@ When artifactType is "CustomAction":
 
 When artifactType is "CustomWidget":
 - parameters MUST include width (double?, not required) and height (double?, not required) FIRST
+- NEVER name a parameter "key" — it conflicts with Widget.key (auto-injected via super.key). Use "keyLabel", "keyValue", "keyText", etc. Also avoid "context", "widget", "state", "mounted" as parameter names.
 - constraints.layoutSafety MUST address null width/height handling
 - constraints.layoutSafety MUST mention overflow prevention
 - constraints.layoutSafety MUST mention using LayoutBuilder if size-dependent rendering
 - implementationSpec.flutterFlowPatterns MUST include FlutterFlowTheme usage
 - If stateful, antiPatterns MUST mention proper disposal of controllers
 - antiPatterns.mustNotUse MUST include "navigation inside widget" and "database writes inside widget"
+- If the widget produces byte data (images, files, signatures, etc.): stateAccessPattern should be "none" or use callbacks. Bytes/Uint8List/FFUploadedFile CANNOT be stored in App State — only Page State supports Bytes. Prefer callback parameters to pass data back.
+
+### RESERVED PARAMETER NAMES (applies to ALL artifact types)
+- NEVER use "key" as a parameter name (conflicts with Widget.key)
+- NEVER use "context", "widget", "state", "mounted" as parameter names (conflict with Flutter framework)
+- These MUST be flagged in antiPatterns.mustNotUse if encountered
+
+### APP STATE TYPE RESTRICTIONS (applies when stateAccessPattern is "reactive")
+App State supports ONLY: Integer, Double, String, Boolean, Color, ImagePath, VideoPath, AudioPath, DocumentReference, DateTime, JSON, LatLng, Data Type (Structs), Enum, CustomClass, CustomEnum.
+App State does NOT support: Bytes (Uint8List), FFUploadedFile, or arbitrary Dart objects.
+Page State supports all of the above PLUS Bytes (Uint8List).
+If the artifact needs to store byte data, specify callbacks as the preferred pattern and note the Page State limitation.
 
 When artifactType is "CodeFile":
 - constraints.parserSafety MUST include "No generics", "No extensions", "No function-typed params"
@@ -2971,6 +3060,22 @@ You understand that FlutterFlow is the host organism - your code must conform to
 - All packages must be FlutterFlow-compatible and available on pub.dev
 - Allowed Dart SDK imports: dart:math, dart:convert, dart:async, dart:collection, dart:ui
 - Remember: user must manually add dependencies in FlutterFlow's Project Dependencies
+
+### External Package API Safety (CRITICAL)
+- NEVER assume mutable setters exist on controller/configuration objects from external packages
+- Package APIs vary between versions — only use constructor parameters you are certain about
+- When updating controller properties in \`didUpdateWidget()\`: ALWAYS dispose and re-create the controller — do NOT attempt to set properties directly (setters may not exist)
+- NEVER hallucinate package APIs — if unsure whether a method/setter exists, use the safer pattern (dispose + re-create)
+
+### Reserved Parameter Names (CRITICAL)
+- NEVER name a widget parameter \`key\` — it conflicts with \`Widget.key\` (injected via \`super.key\`) causing "Duplicated parameter name" compilation errors
+- Use alternatives: \`keyLabel\`, \`keyValue\`, \`keyText\`, \`keyName\`
+- Also avoid: \`context\`, \`widget\`, \`state\`, \`mounted\` as parameter names
+
+### FFAppState Access Rules (CRITICAL)
+- NEVER invent or assume specific FFAppState variable names — you cannot know what exists in the user's project
+- Prefer callback parameters (\`Future Function()?\`) over direct FFAppState writes
+- If FFAppState access is unavoidable, add a comment: \`// REQUIRED: Create App State variable 'name' (type) in FlutterFlow\`
 
 ### Widget Structure Rules
 - Prefer StatelessWidget when no internal state is needed
@@ -3151,25 +3256,29 @@ Check for and flag:
 7. Custom Dart classes for data (e.g., \`class User {}\`) - Should use FF Structs or create a separate custom code file
 8. Missing \`width\`/\`height\` parameters for Custom Widgets
 9. Generics, extensions, or function-typed params in Code Files (Parser Gap)
+10. **Reserved Parameter Name \`key\`**: Check if any widget parameter is named \`key\`. This conflicts with \`Widget.key\` (auto-injected via \`super.key\`), causing "Duplicated parameter name" and return type mismatch errors. **Fix:** Rename to \`keyLabel\`, \`keyValue\`, \`keyText\`, etc. Also flag parameters named \`context\`, \`widget\`, \`state\`, or \`mounted\`.
+11. **Bytes/FFUploadedFile stored in App State**: Check if the code writes Uint8List, Bytes, or FFUploadedFile to \`FFAppState()\`. App State does NOT support Bytes — only Page State does. **Fix:** Use a callback to pass bytes back to FlutterFlow (user stores in Page State), convert to base64 String for App State, or upload to storage and store the URL (ImagePath) in App State.
 
 ### SEVERE WARNINGS (Score: -20 each)
-10. External package usage without noting user must add to FF Dependencies
-11. Unsafe \`!\` operator usage without null check
-12. Direct \`FFAppState()\` access without using \`FFAppState().update()\` for writes
-13. Hardcoded \`Colors.*\` instead of \`FlutterFlowTheme.of(context).*\`
-14. **Unsupported Action Parameter Type**: The FF UI only supports passing \`String\`, \`int\`, \`double\`, \`bool\`, or \`JSON\` to Actions. Signatures like \`Future Function(Uint8List)\` or \`Future Function(CustomClass)\` will fail in the UI. **Fix:** Use \`Future Function()?\` and store the complex data in AppState before triggering.
-15. Missing \`dispose()\` for AnimationController, StreamSubscription, etc.
-16. Navigation or database writes embedded inside widget (should use Action callbacks)
-17. **Callback Signature Mismatch**: FF Actions are asynchronous. Use \`Future Function(T)?\` instead of \`VoidCallback\`, \`ValueChanged<T>\`, or \`void Function(T)\`.
+11. External package usage without noting user must add to FF Dependencies
+12. Unsafe \`!\` operator usage without null check
+13. Direct \`FFAppState()\` access without using \`FFAppState().update()\` for writes
+14. Hardcoded \`Colors.*\` instead of \`FlutterFlowTheme.of(context).*\`
+15. **Unsupported Action Parameter Type**: The FF UI only supports passing \`String\`, \`int\`, \`double\`, \`bool\`, or \`JSON\` to Actions. Signatures like \`Future Function(Uint8List)\` or \`Future Function(CustomClass)\` will fail in the UI. **Fix:** Use \`Future Function()?\` and store the complex data in AppState before triggering.
+16. Missing \`dispose()\` for AnimationController, StreamSubscription, etc.
+17. Navigation or database writes embedded inside widget (should use Action callbacks)
+18. **Callback Signature Mismatch**: FF Actions are asynchronous. Use \`Future Function(T)?\` instead of \`VoidCallback\`, \`ValueChanged<T>\`, or \`void Function(T)\`.
+19. **Assumed FFAppState Variables**: Check if the code references specific FFAppState variable names (e.g., \`FFAppState().uploadedSignature\`, \`FFAppState().someCustomVar\`). These will cause "setter not defined" errors if the user hasn't created the variable in FlutterFlow. **Fix:** Replace with callback parameters, or add explicit comments documenting the required App State variables the user must create.
+20. **Direct Property Mutation on External Controllers**: Check if the code directly sets properties on external package controller objects (e.g., \`_controller.penColor = value\`). Many packages use immutable controllers where properties are set only via the constructor. **Fix:** Dispose and re-create the controller with new values instead of mutating properties.
 
 ### WARNINGS (Score: -10 each)
-18. Deprecated Flutter APIs (e.g., \`WillPopScope\` instead of \`PopScope\`)
-19. Potential package hallucinations (non-existent or outdated package APIs)
-20. No null handling for nullable parameters
-21. No \`LayoutBuilder\` for size-dependent widget rendering
-22. Potential overflow situations (unbounded sizes)
-23. Using \`setState\` in Custom Action (should only be in Widgets)
-24. Name mismatch risk (class/function name might not match FF UI expectation)
+21. Deprecated Flutter APIs (e.g., \`WillPopScope\` instead of \`PopScope\`)
+22. Potential package hallucinations (non-existent or outdated package APIs) — look for setter/method calls on package objects that might not exist in the specified version
+23. No null handling for nullable parameters
+24. No \`LayoutBuilder\` for size-dependent widget rendering
+25. Potential overflow situations (unbounded sizes)
+26. Using \`setState\` in Custom Action (should only be in Widgets)
+27. Name mismatch risk (class/function name might not match FF UI expectation)
 
 ### GOOD PRACTICES (Score: +5 each)
 - Uses \`FlutterFlowTheme.of(context)\` for colors
