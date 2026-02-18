@@ -5,6 +5,11 @@ const envAnthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY || "";
 const envOpenaiApiKey = import.meta.env.VITE_OPENAI_API_KEY || "";
 const envOpenRouterApiKey = import.meta.env.VITE_OPENROUTER_API_KEY || "";
 
+const IS_DEV = import.meta.env.DEV
+const GEMINI_BASE_URL = IS_DEV ? '/api/gemini' : 'https://generativelanguage.googleapis.com'
+const ANTHROPIC_BASE_URL = IS_DEV ? '/api/anthropic' : 'https://api.anthropic.com'
+const OPENAI_BASE_URL = IS_DEV ? '/api/openai' : 'https://api.openai.com'
+
 // Model Configuration
 const PROMPT_ARCHITECT_MODEL = "gemini-3-pro-preview";
 const CODE_DISSECTOR_MODEL = "gemini-3-pro-preview";
@@ -1070,8 +1075,7 @@ async function callGemini(
   systemInstruction,
   modelId = PROMPT_ARCHITECT_MODEL,
 ) {
-  // Use same-origin proxy to avoid CORS issues
-  const url = `/api/gemini/v1beta/models/${modelId}:generateContent`;
+  const url = `${GEMINI_BASE_URL}/v1beta/models/${modelId}:generateContent`;
   const payload = {
     contents: [{ parts: [{ text: prompt }] }],
     systemInstruction: { parts: [{ text: systemInstruction }] },
@@ -1113,8 +1117,7 @@ async function callClaude(prompt, systemInstruction) {
     throw new Error("Anthropic API key not found");
   }
 
-  // Use proxy to avoid CORS issues
-  const url = "/api/anthropic/v1/messages";
+  const url = `${ANTHROPIC_BASE_URL}/v1/messages`;
   const payload = {
     model: "claude-opus-4-6",
     max_tokens: 16384,
@@ -1168,8 +1171,7 @@ async function callOpenAI(prompt, systemInstruction) {
     throw new Error("OpenAI API key not found");
   }
 
-  // GPT-5-Codex models require the Responses API, not Chat Completions
-  const url = "/api/openai/v1/responses";
+  const url = `${OPENAI_BASE_URL}/v1/responses`;
 
   // Responses API uses 'input' with instructions, not messages array
   // Note: temperature is not supported with codex models
@@ -3824,6 +3826,91 @@ Ensure it still adheres to the ORIGINAL SPECIFICATION.
   }
 }
 
+function clearErrorInput() {
+  const input = document.getElementById("ff-error-paste-input")
+  if (input) input.value = ""
+}
+
+async function regenerateFromPastedErrors() {
+  const input = document.getElementById("ff-error-paste-input")
+  const pastedErrors = input?.value?.trim()
+
+  if (!pastedErrors) {
+    input?.focus()
+    input?.classList.add("ring-2", "ring-red-400", "border-red-300")
+    setTimeout(() => input?.classList.remove("ring-2", "ring-red-400", "border-red-300"), 2000)
+    return
+  }
+
+  if (!pipelineState.step2Result) {
+    alert("No generated code found. Please run the full pipeline first.")
+    return
+  }
+
+  if (pipelineState.isRunning) return
+
+  const selectedModel = document.getElementById("code-generator-model").value
+  pipelineState.isRunning = true
+
+  const btn = document.getElementById("btn-fix-from-errors")
+  if (btn) {
+    btn.disabled = true
+    btn.innerHTML = `<svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+    </svg> Fixing…`
+  }
+
+  try {
+    const refinementPrompt = `CRITICAL: This is a REGENERATION task to fix FlutterFlow/Dart build errors.
+
+ORIGINAL SPECIFICATION:
+${pipelineState.step1Result}
+
+CURRENT CODE (which produced the errors below):
+${pipelineState.step2Result}
+
+FLUTTERFLOW / DART BUILD ERRORS TO FIX:
+${pastedErrors}
+
+Carefully analyse each error. Fix ALL of them in the regenerated code without introducing new issues.
+Maintain the original specification and intent.`
+
+    selectWorkflowStep(2)
+    showStepLoading(2, true)
+
+    pipelineState.step2Result = await runCodeGenerator(refinementPrompt, selectedModel)
+
+    const step2Output = document.getElementById("step2-output")
+    const cleanStep2 = extractCodeFromMarkdown(pipelineState.step2Result)
+    step2Output.innerHTML = highlightCode(cleanStep2)
+    step2Output.dataset.raw = cleanStep2
+    showStepLoading(2, false)
+
+    selectWorkflowStep(3)
+    showStepLoading(3, true)
+
+    pipelineState.step3Result = await runCodeDissector(pipelineState.step2Result)
+
+    const auditOutput = document.getElementById("step3-output")
+    auditOutput.innerHTML = renderMarkdownAudit(pipelineState.step3Result)
+    showStepLoading(3, false)
+
+    if (input) input.value = ""
+  } catch (error) {
+    console.error("Fix from errors failed:", error)
+    alert("Failed to fix errors: " + error.message)
+  } finally {
+    pipelineState.isRunning = false
+    if (btn) {
+      btn.disabled = false
+      btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
+      </svg> Fix Errors &amp; Regenerate`
+    }
+    updateDeployButtonVisibility()
+  }
+}
+
 // --- MAIN PIPELINE ---
 
 async function runThinkingPipeline() {
@@ -4698,5 +4785,7 @@ window.closeCommitSuccessModal = closeCommitSuccessModal;
 window.toggleCodePreview = toggleCodePreview;
 window.confirmCommitToFlutterFlow = confirmCommitToFlutterFlow;
 window.runRefinement = runRefinement;
+window.regenerateFromPastedErrors = regenerateFromPastedErrors;
+window.clearErrorInput = clearErrorInput;
 window.setFlutterFlowEndpoint = setFlutterFlowEndpoint;
 window.getFlutterFlowEndpoint = getFlutterFlowEndpoint;
