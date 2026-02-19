@@ -5,6 +5,11 @@ const envAnthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY || "";
 const envOpenaiApiKey = import.meta.env.VITE_OPENAI_API_KEY || "";
 const envOpenRouterApiKey = import.meta.env.VITE_OPENROUTER_API_KEY || "";
 
+const IS_DEV = import.meta.env.DEV
+const GEMINI_BASE_URL = IS_DEV ? '/api/gemini' : 'https://generativelanguage.googleapis.com'
+const ANTHROPIC_BASE_URL = IS_DEV ? '/api/anthropic' : 'https://api.anthropic.com'
+const OPENAI_BASE_URL = IS_DEV ? '/api/openai' : 'https://api.openai.com'
+
 // Model Configuration
 const PROMPT_ARCHITECT_MODEL = "gemini-3-pro-preview";
 const CODE_DISSECTOR_MODEL = "gemini-3-pro-preview";
@@ -64,7 +69,21 @@ Only these parameter types work in FlutterFlow's Custom Code UI. **ALWAYS Use Si
 - **Lists:** List<String>, List<int>, List<double>, List<bool>, List<ProductStruct>
 - **FlutterFlow Structs:** \`SomeNameStruct\` (UpperCamelCase, must exist in FF Data Types)
 - **Special types:** DocumentReference, LatLng, FFPlace, FFUploadedFile, Uint8List (Bytes), dynamic (JSON)
-- **Action callbacks:** \`Future Function()?\` or \`Future Function(T)?\`
+- **Action callbacks (widget→FF, data OUT):** \`Future<dynamic> Function()?\` — ZERO parameters only. FlutterFlow always generates action stubs as \`() async {}\`. Declaring \`Future Function(Uint8List?)?\` or any non-zero-param callback for widget→FF communication causes a compile error ("Future<Null> Function() can't be assigned to Future<dynamic> Function(T)?"). For passing data out, write to FFAppState BEFORE calling the no-arg callback.
+- **Action callbacks (FF→widget, data IN):** \`Future<dynamic> Function(String)?\`, \`Future<dynamic> Function(int)?\`, \`Future<dynamic> Function(bool)?\` work ONLY when FlutterFlow passes a primitive from an Action Flow. NEVER use complex types (\`Uint8List\`, \`CustomClass\`, structs) as callback parameters.
+- **⛔ CRITICAL: Named Callback Parameters Required:** When a callback HAS parameters (FF→widget direction), the parameter MUST have a name. FlutterFlow's parser rejects anonymous parameters.
+  
+  **❌ WRONG — Missing parameter name:**
+  \`\`\`dart
+  final Future<dynamic> Function(String)? onDrawingComplete;  // ❌ Parser error
+  \`\`\`
+  
+  **✅ CORRECT — Parameter has a name:**
+  \`\`\`dart
+  final Future<dynamic> Function(String drawing)? onDrawingComplete;  // ✅ Works
+  \`\`\`
+  
+  All callback parameters must be named: \`Function(String value)\`, \`Function(int index)\`, \`Function(bool isValid)\`, etc.
 - **Widget Builder:** \`Widget Function(BuildContext)\`
 
 **FORBIDDEN COMPLEX TYPES:**
@@ -153,10 +172,43 @@ const FF_FORBIDDEN_PATTERNS = `## FORBIDDEN PATTERNS (Will cause build failures)
 - Using complex parameter types (EdgeInsets, Duration, TextStyle) in Widgets/Actions.
 - Using generics or function-typed fields in Code Files.
 
-### RESERVED PARAMETER NAMES (Will cause Dart compilation errors)
-- NEVER name a parameter \`key\` — it conflicts with \`Widget.key\` which Flutter/FlutterFlow auto-injects via \`super.key\`. Using \`this.key\` creates a "Duplicated parameter name" error and a return type mismatch with \`Key?\`.
-- Use descriptive alternatives: \`keyLabel\`, \`keyValue\`, \`keyText\`, \`keyName\`, etc.
-- Other reserved names to avoid as parameters: \`context\`, \`widget\`, \`state\`, \`mounted\`, \`setState\` — these conflict with Flutter framework internals.
+### ⛔ CRITICAL: RESERVED PARAMETER NAMES (INSTANT COMPILATION FAILURE)
+
+**NEVER name a widget parameter \`key\`. This is THE #1 CAUSE of mysterious build failures.**
+
+**Why it breaks:**
+- Flutter widgets inherit a \`Key? key\` property from \`Widget.key\`
+- FlutterFlow auto-injects \`super.key\` in widget constructors
+- Adding \`this.key\` creates TWO parameters named \`key\` → "Duplicated parameter name" error
+- Your custom \`String? key\` conflicts with Flutter's \`Key? key\` → type mismatch error
+
+**WRONG — WILL NOT COMPILE:**
+\`\`\`dart
+class KeyboardHintWidget extends StatelessWidget {
+  final String? key;   // ❌ CONFLICTS with Widget.key
+  final String? label;
+  const KeyboardHintWidget({super.key, this.key, this.label}); // ❌ DUPLICATED
+}
+\`\`\`
+
+**CORRECT — RENAME THE PARAMETER:**
+\`\`\`dart
+class KeyboardHintWidget extends StatelessWidget {
+  final String? keyLabel;  // ✅ Renamed from 'key' to 'keyLabel'
+  final String? label;
+  const KeyboardHintWidget({super.key, this.keyLabel, this.label}); // ✅ Works
+}
+\`\`\`
+
+**Alternative names for \`key\` parameter:**
+- \`keyLabel\`, \`keyValue\`, \`keyText\`, \`keyName\`, \`keyChar\`, \`keyCode\`
+- \`apiKey\`, \`dictKey\`, \`mapKey\`, \`cacheKey\`, \`storageKey\`
+- Or describe the purpose: \`buttonLabel\`, \`shortcutKey\`, \`accessKey\`
+
+**⚠️ CONCEPT TRAP (most common mistake):**
+When your widget's concept IS "a key" (keyboard key, API key, dictionary key, map key), you will feel tempted to name the parameter \`key\`. **DO NOT DO IT.** The semantic fit is perfect, but it will break compilation. Always rename: a \`KeyboardHintWidget\` uses \`keyLabel\` or \`keyChar\`, never \`key\`.
+
+**Other reserved parameter names:** \`context\`, \`widget\`, \`state\`, \`mounted\`, \`setState\` — these conflict with Flutter framework internals.
 
 ### EXTERNAL PACKAGE API SAFETY
 - NEVER assume mutable setters exist on controller or configuration objects from external packages.
@@ -1070,8 +1122,7 @@ async function callGemini(
   systemInstruction,
   modelId = PROMPT_ARCHITECT_MODEL,
 ) {
-  // Use same-origin proxy to avoid CORS issues
-  const url = `/api/gemini/v1beta/models/${modelId}:generateContent`;
+  const url = `${GEMINI_BASE_URL}/v1beta/models/${modelId}:generateContent`;
   const payload = {
     contents: [{ parts: [{ text: prompt }] }],
     systemInstruction: { parts: [{ text: systemInstruction }] },
@@ -1113,8 +1164,7 @@ async function callClaude(prompt, systemInstruction) {
     throw new Error("Anthropic API key not found");
   }
 
-  // Use proxy to avoid CORS issues
-  const url = "/api/anthropic/v1/messages";
+  const url = `${ANTHROPIC_BASE_URL}/v1/messages`;
   const payload = {
     model: "claude-opus-4-6",
     max_tokens: 16384,
@@ -1168,8 +1218,7 @@ async function callOpenAI(prompt, systemInstruction) {
     throw new Error("OpenAI API key not found");
   }
 
-  // GPT-5-Codex models require the Responses API, not Chat Completions
-  const url = "/api/openai/v1/responses";
+  const url = `${OPENAI_BASE_URL}/v1/responses`;
 
   // Responses API uses 'input' with instructions, not messages array
   // Note: temperature is not supported with codex models
@@ -2945,7 +2994,7 @@ Analyze the user's request and output a JSON specification with this exact struc
   
   "antiPatterns": {
     "mustNotInclude": ["main()", "runApp()", "MaterialApp", "Scaffold", "import statements"],
-    "mustNotUse": ["FFAppState() direct access without parameter passing", "hardcoded Colors.*", "ValueChanged<T> callbacks", "parameter named 'key' (conflicts with Widget.key)", "storing Bytes/Uint8List/FFUploadedFile in FFAppState (not supported — use Page State or callbacks)"],
+    "mustNotUse": ["FFAppState() direct access without parameter passing", "hardcoded Colors.*", "ValueChanged<T> callbacks", "parameter named 'key' (conflicts with Widget.key)", "storing Bytes/Uint8List/FFUploadedFile in FFAppState (not supported — use Page State or callbacks)", "Future Function(Uint8List)? or any complex-type parameterized callback for widget→FF data flow — use Future<dynamic> Function()? (zero params) only"],
     "reasoning": ["Why each anti-pattern is forbidden in FlutterFlow context"]
   },
   
@@ -2982,7 +3031,7 @@ When artifactType is "CustomWidget":
 - implementationSpec.flutterFlowPatterns MUST include FlutterFlowTheme usage
 - If stateful, antiPatterns MUST mention proper disposal of controllers
 - antiPatterns.mustNotUse MUST include "navigation inside widget" and "database writes inside widget"
-- If the widget produces byte data (images, files, signatures, etc.): stateAccessPattern should be "none" or use callbacks. Bytes/Uint8List/FFUploadedFile CANNOT be stored in App State — only Page State supports Bytes. Prefer callback parameters to pass data back.
+- If the widget produces byte data (images, files, signatures, etc.): Bytes/Uint8List/FFUploadedFile CANNOT be stored in App State — only Page State supports Bytes. Use a no-arg callback \`Future<dynamic> Function()?\` to notify FlutterFlow, and write the byte data to a base64 String in FFAppState (or document that the user must store it in Page State). NEVER use \`Future Function(Uint8List)?\` as a callback — FlutterFlow generates \`() async {}\` stubs, causing a type mismatch compile error.
 
 ### RESERVED PARAMETER NAMES (applies to ALL artifact types)
 - NEVER use "key" as a parameter name (conflicts with Widget.key)
@@ -3067,10 +3116,58 @@ You understand that FlutterFlow is the host organism - your code must conform to
 - When updating controller properties in \`didUpdateWidget()\`: ALWAYS dispose and re-create the controller — do NOT attempt to set properties directly (setters may not exist)
 - NEVER hallucinate package APIs — if unsure whether a method/setter exists, use the safer pattern (dispose + re-create)
 
-### Reserved Parameter Names (CRITICAL)
-- NEVER name a widget parameter \`key\` — it conflicts with \`Widget.key\` (injected via \`super.key\`) causing "Duplicated parameter name" compilation errors
-- Use alternatives: \`keyLabel\`, \`keyValue\`, \`keyText\`, \`keyName\`
-- Also avoid: \`context\`, \`widget\`, \`state\`, \`mounted\` as parameter names
+### ⛔ Reserved Parameter Names (INSTANT COMPILATION FAILURE — MOST COMMON BUG)
+
+**THE #1 BUG IN FLUTTERFLOW CODE GENERATION: Naming a widget parameter \`key\`**
+
+This ALWAYS causes two errors:
+1. "Duplicated parameter name 'key'" — because \`super.key\` and \`this.key\` are both present
+2. "The return type 'String?' does not match 'Key?'" — your \`String? key\` conflicts with Flutter's \`Key? key\`
+
+**❌ WRONG — WILL FAIL:**
+\`\`\`dart
+class KeyboardHintWidget extends StatelessWidget {
+  final String? key;   // ❌ FORBIDDEN - conflicts with Widget.key
+  const KeyboardHintWidget({super.key, this.key}); // ❌ Duplicated parameter
+}
+\`\`\`
+
+**✅ CORRECT — ALWAYS RENAME:**
+\`\`\`dart
+class KeyboardHintWidget extends StatelessWidget {
+  final String? keyLabel;  // ✅ Renamed!
+  const KeyboardHintWidget({super.key, this.keyLabel}); // ✅ Works
+}
+\`\`\`
+
+**Valid alternatives for \`key\`:** \`keyLabel\`, \`keyValue\`, \`keyText\`, \`keyChar\`, \`keyCode\`, \`apiKey\`, \`dictKey\`, \`mapKey\`, \`buttonLabel\`
+
+**⚠️ CONCEPT TRAP:** When your widget concept IS a "key" (keyboard key, API key, map key), you WILL feel \`key\` is the perfect name. IT IS NOT. Rename it. There are ZERO exceptions.
+
+**Also avoid:** \`context\`, \`widget\`, \`state\`, \`mounted\` as parameter names — these conflict with Flutter internals.
+
+### Callback Parameter Types (CRITICAL — compile error if violated)
+- For **widget→FF data flow** (widget notifies FlutterFlow of a result): ALWAYS use \`Future<dynamic> Function()?\` — zero parameters. FlutterFlow generates action stubs as \`() async {}\`. Any declared param type causes "Future<Null> Function() can't be assigned to Future<dynamic> Function(T)?" compile error.
+- NEVER write \`Future<dynamic> Function(Uint8List?)?\`, \`Future Function(Bytes)?\`, or any complex-type callback for widget→FF communication.
+- To pass data back: write the data to FFAppState (if it's an allowed App State type) BEFORE calling the no-arg callback, so the FlutterFlow Action Flow can read it.
+- For **FF→widget data flow** (FlutterFlow passes a value into a callback action): \`Future<dynamic> Function(String)?\`, \`Future<dynamic> Function(int)?\`, \`Future<dynamic> Function(bool)?\` are valid only for FF-primitive types.
+
+**⛔ NAMED CALLBACK PARAMETERS (FlutterFlow Parser Requirement):**
+When a callback HAS parameters (FF→widget direction), the parameter MUST have a name. FlutterFlow's parser rejects anonymous parameters with error: *"Widget has a parameter with action parameter that is missing a name."*
+
+**❌ WRONG — Anonymous parameter (parser will reject):**
+\`\`\`dart
+final Future<dynamic> Function(String)? onDrawingComplete;  // ❌ Missing name
+final Future<dynamic> Function(int)? onPageChanged;         // ❌ Missing name
+\`\`\`
+
+**✅ CORRECT — Named parameters:**
+\`\`\`dart
+final Future<dynamic> Function(String drawing)? onDrawingComplete;  // ✅ Has name
+final Future<dynamic> Function(int pageIndex)? onPageChanged;       // ✅ Has name
+\`\`\`
+
+Always add a descriptive name: \`Function(String value)\`, \`Function(int index)\`, \`Function(bool isValid)\`, \`Function(String result)\`, etc.
 
 ### FFAppState Access Rules (CRITICAL)
 - NEVER invent or assume specific FFAppState variable names — you cannot know what exists in the user's project
@@ -3082,6 +3179,35 @@ You understand that FlutterFlow is the host organism - your code must conform to
 - Use StatefulWidget ONLY for: AnimationController, gesture tracking, local transient UI state
 - State class naming convention: \`_ArtifactNameState\` (private, with underscore prefix)
 - Use \`with SingleTickerProviderStateMixin\` or \`TickerProviderStateMixin\` for animations
+- **⛔ MANDATORY dispose() for StatefulWidgets:** Every StatefulWidget's State class MUST override \`dispose()\` to clean up resources. This prevents memory leaks and is required for FlutterFlow compatibility.
+
+**Required dispose() pattern:**
+\`\`\`dart
+class _MyWidgetState extends State<MyWidget> with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  TextEditingController? _textController;
+  StreamSubscription? _subscription;
+  
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(...);
+  }
+  
+  @override
+  void dispose() {
+    _animationController.dispose();  // ✅ Always dispose controllers
+    _textController?.dispose();       // ✅ Null-safe dispose
+    _subscription?.cancel();          // ✅ Cancel subscriptions
+    super.dispose();                  // ✅ Always call super.dispose()
+  }
+}
+\`\`\`
+
+**Resources requiring dispose():**
+- AnimationController, TextEditingController, ScrollController, FocusNode
+- StreamSubscription, Timer
+- Any controller from external packages (signature_pad, etc.)
 
 ### Layout Safety (Custom Widgets)
 - Must render correctly when width and height are null
@@ -3256,15 +3382,42 @@ Check for and flag:
 7. Custom Dart classes for data (e.g., \`class User {}\`) - Should use FF Structs or create a separate custom code file
 8. Missing \`width\`/\`height\` parameters for Custom Widgets
 9. Generics, extensions, or function-typed params in Code Files (Parser Gap)
-10. **Reserved Parameter Name \`key\`**: Check if any widget parameter is named \`key\`. This conflicts with \`Widget.key\` (auto-injected via \`super.key\`), causing "Duplicated parameter name" and return type mismatch errors. **Fix:** Rename to \`keyLabel\`, \`keyValue\`, \`keyText\`, etc. Also flag parameters named \`context\`, \`widget\`, \`state\`, or \`mounted\`.
+10. **⛔ RESERVED PARAMETER NAME \`key\` — #1 BUG**: Check if ANY widget parameter is named \`key\`. This is THE MOST COMMON compilation error. Look for patterns like \`final String? key;\` or \`this.key\` in widget constructors. It conflicts with \`Widget.key\` (auto-injected via \`super.key\`), causing:
+    - "Duplicated parameter name 'key'"
+    - "The return type 'String?' does not match 'Key?'"
+    
+    **Example error to detect:**
+    \`\`\`dart
+    // ❌ WRONG - will fail
+    class KeyboardHintWidget extends StatelessWidget {
+      final String? key;  // ← DETECT THIS
+      const KeyboardHintWidget({super.key, this.key}); // ← DETECT this.key
+    }
+    \`\`\`
+    
+    **Fix:** Rename to \`keyLabel\`, \`keyValue\`, \`keyText\`, \`keyChar\`, \`keyCode\`, \`apiKey\`, etc. Also flag: \`context\`, \`widget\`, \`state\`, \`mounted\`.
 11. **Bytes/FFUploadedFile stored in App State**: Check if the code writes Uint8List, Bytes, or FFUploadedFile to \`FFAppState()\`. App State does NOT support Bytes — only Page State does. **Fix:** Use a callback to pass bytes back to FlutterFlow (user stores in Page State), convert to base64 String for App State, or upload to storage and store the URL (ImagePath) in App State.
+12. **Non-primitive callback parameter type (widget→FF direction)**: If a widget callback has a non-primitive parameter type (e.g., \`Future<dynamic> Function(Uint8List?)?\`, \`Future Function(CustomClass)?\`), this causes a compile error. FlutterFlow always generates action stubs as \`() async {}\` — any declared parameter type causes "Future<Null> Function() can't be assigned to Future<dynamic> Function(T)?" type mismatch. **Fix:** Change to \`Future<dynamic> Function()?\` (zero params) and write the data to FFAppState before calling the callback.
+13. **⛔ Unnamed callback parameter (FlutterFlow parser error)**: Check if any callback with parameters has an anonymous (unnamed) parameter. FlutterFlow's parser requires all callback parameters to have names, otherwise throws: *"Widget has a parameter with action parameter that is missing a name."*
+    
+    **Example error to detect:**
+    \`\`\`dart
+    // ❌ WRONG - anonymous parameter
+    final Future<dynamic> Function(String)? onDrawingComplete;
+    
+    // ✅ CORRECT - named parameter  
+    final Future<dynamic> Function(String drawing)? onDrawingComplete;
+    \`\`\`
+    
+    **Pattern to find:** \`Function(String)?\`, \`Function(int)?\`, \`Function(bool)?\` without a parameter name after the type.
+    **Fix:** Add a descriptive name: \`Function(String drawing)\`, \`Function(int index)\`, \`Function(bool isValid)\`.
 
 ### SEVERE WARNINGS (Score: -20 each)
 11. External package usage without noting user must add to FF Dependencies
 12. Unsafe \`!\` operator usage without null check
 13. Direct \`FFAppState()\` access without using \`FFAppState().update()\` for writes
 14. Hardcoded \`Colors.*\` instead of \`FlutterFlowTheme.of(context).*\`
-15. **Unsupported Action Parameter Type**: The FF UI only supports passing \`String\`, \`int\`, \`double\`, \`bool\`, or \`JSON\` to Actions. Signatures like \`Future Function(Uint8List)\` or \`Future Function(CustomClass)\` will fail in the UI. **Fix:** Use \`Future Function()?\` and store the complex data in AppState before triggering.
+15. ~~Promoted to Critical Failure~~ — see item 12 above (non-primitive callback parameter type).
 16. Missing \`dispose()\` for AnimationController, StreamSubscription, etc.
 17. Navigation or database writes embedded inside widget (should use Action callbacks)
 18. **Callback Signature Mismatch**: FF Actions are asynchronous. Use \`Future Function(T)?\` instead of \`VoidCallback\`, \`ValueChanged<T>\`, or \`void Function(T)\`.
@@ -3743,6 +3896,7 @@ async function runRefinement() {
 
   // Set running state
   pipelineState.isRunning = true;
+  callEndpoint('standardRegenerate', pipelineState.step2Result, pipelineState.step1Result)
   const btns = document.querySelectorAll(".btn-refine-action");
 
   btns.forEach((btn) => {
@@ -3821,6 +3975,117 @@ Ensure it still adheres to the ORIGINAL SPECIFICATION.
         ${btnText}`;
     });
     updateDeployButtonVisibility();
+  }
+}
+
+async function callEndpoint(type, code, input) {
+  const url = 'https://4tgke4.buildship.run/connectFeedback'
+  const data = { type: type, code: code, input: input }
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    })
+    
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error(`callEndpoint failed: ${response.status} ${response.statusText}`, errorText)
+      return { success: false, status: response.status, error: errorText }
+    }
+    
+    const result = await response.json()
+    console.log('Telemetry success:', result)
+    return result
+  } catch (error) {
+    console.error('callEndpoint failed:', error)
+    return { success: false, error: error.message }
+  }
+}
+
+function clearErrorInput() {
+  const input = document.getElementById("ff-error-paste-input")
+  if (input) input.value = ""
+}
+
+async function regenerateFromPastedErrors() {
+  const input = document.getElementById("ff-error-paste-input")
+  const pastedErrors = input?.value?.trim()
+
+  if (!pastedErrors) {
+    input?.focus()
+    input?.classList.add("ring-2", "ring-red-400", "border-red-300")
+    setTimeout(() => input?.classList.remove("ring-2", "ring-red-400", "border-red-300"), 2000)
+    return
+  }
+
+  if (!pipelineState.step2Result) {
+    alert("No generated code found. Please run the full pipeline first.")
+    return
+  }
+
+  if (pipelineState.isRunning) return
+
+  const selectedModel = document.getElementById("code-generator-model").value
+  pipelineState.isRunning = true
+  callEndpoint('flutterflowError', pipelineState.step2Result, pastedErrors)
+
+  const btn = document.getElementById("btn-fix-from-errors")
+  if (btn) {
+    btn.disabled = true
+    btn.innerHTML = `<svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+    </svg> Fixing…`
+  }
+
+  try {
+    const refinementPrompt = `CRITICAL: This is a REGENERATION task to fix FlutterFlow/Dart build errors.
+
+ORIGINAL SPECIFICATION:
+${pipelineState.step1Result}
+
+CURRENT CODE (which produced the errors below):
+${pipelineState.step2Result}
+
+FLUTTERFLOW / DART BUILD ERRORS TO FIX:
+${pastedErrors}
+
+Carefully analyse each error. Fix ALL of them in the regenerated code without introducing new issues.
+Maintain the original specification and intent.`
+
+    selectWorkflowStep(2)
+    showStepLoading(2, true)
+
+    pipelineState.step2Result = await runCodeGenerator(refinementPrompt, selectedModel)
+
+    const step2Output = document.getElementById("step2-output")
+    const cleanStep2 = extractCodeFromMarkdown(pipelineState.step2Result)
+    step2Output.innerHTML = highlightCode(cleanStep2)
+    step2Output.dataset.raw = cleanStep2
+    showStepLoading(2, false)
+
+    selectWorkflowStep(3)
+    showStepLoading(3, true)
+
+    pipelineState.step3Result = await runCodeDissector(pipelineState.step2Result)
+
+    const auditOutput = document.getElementById("step3-output")
+    auditOutput.innerHTML = renderMarkdownAudit(pipelineState.step3Result)
+    showStepLoading(3, false)
+
+    if (input) input.value = ""
+  } catch (error) {
+    console.error("Fix from errors failed:", error)
+    alert(`Failed to fix errors: ${error.message}`)
+  } finally {
+    pipelineState.isRunning = false
+    if (btn) {
+      btn.disabled = false
+      btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
+      </svg> Fix Errors &amp; Regenerate`
+    }
+    updateDeployButtonVisibility()
   }
 }
 
@@ -4698,5 +4963,7 @@ window.closeCommitSuccessModal = closeCommitSuccessModal;
 window.toggleCodePreview = toggleCodePreview;
 window.confirmCommitToFlutterFlow = confirmCommitToFlutterFlow;
 window.runRefinement = runRefinement;
+window.regenerateFromPastedErrors = regenerateFromPastedErrors;
+window.clearErrorInput = clearErrorInput;
 window.setFlutterFlowEndpoint = setFlutterFlowEndpoint;
 window.getFlutterFlowEndpoint = getFlutterFlowEndpoint;

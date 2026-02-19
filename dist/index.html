@@ -403,7 +403,7 @@
         text-align: center;
       }
     </style>
-    <script type="module" crossorigin src="/assets/index-C1CwqaLH.js"></script>
+    <script type="module" crossorigin src="/assets/index-EBsKFacZ.js"></script>
   </head>
   <body>
     <div class="flex">
@@ -571,6 +571,21 @@
             Deploy to FlutterFlow
           </button>
         </div>
+
+        <!-- Feedback Link -->
+        <div class="mt-auto p-4 border-t border-gray-200">
+          <a
+            href="https://github.com/sgardoll/CustomCodeConnectForFlutterFlow/issues/new?template=code_feedback.md"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="flex items-center gap-2 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6H9.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"/>
+            </svg>
+            Report this code
+          </a>
+        </div>
       </aside>
 
       <!-- Main Content -->
@@ -671,9 +686,45 @@
                   </button>
                 </div>
                 <div id="step3-output" class="text-sm text-gray-700"></div>
-                
+
+                <div id="ff-error-input-section" class="mt-6 border-t border-gray-200 pt-5">
+                  <div class="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                    <div class="flex items-center gap-2 mb-1">
+                      <svg class="w-4 h-4 flex-shrink-0 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.538-1.333-3.308 0L3.732 16c-.77 1.333.192 3 1.732 3z"/>
+                      </svg>
+                      <h4 class="text-sm font-semibold text-amber-800">Got build errors from FlutterFlow?</h4>
+                    </div>
+                    <p class="text-xs text-amber-700 mb-3 ml-6">Paste the raw Dart compiler output below — the AI will analyse every error and regenerate fixed code.</p>
+                    <textarea
+                      id="ff-error-paste-input"
+                      class="w-full h-40 resize-y rounded-md border border-amber-200 bg-white p-3 font-mono text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition"
+                      placeholder="Paste FlutterFlow / Dart build errors here…&#10;&#10;e.g.&#10;lib/custom_code/widgets/signature_pad.dart:70:19: Error: The setter &#39;penColor&#39; isn&#39;t defined for the type &#39;SignatureController&#39;.&#10;lib/components/keyboard_hint_widget.dart:13:46: Error: Duplicated parameter name &#39;key&#39;."
+                      spellcheck="false"
+                    ></textarea>
+                    <div class="flex items-center justify-between mt-3">
+                      <button
+                        onclick="clearErrorInput()"
+                        class="text-xs text-amber-600 hover:text-amber-800 underline underline-offset-2 transition-colors"
+                      >
+                        Clear
+                      </button>
+                      <button
+                        id="btn-fix-from-errors"
+                        onclick="regenerateFromPastedErrors()"
+                        class="btn-primary bg-amber-600 hover:bg-amber-700 w-auto"
+                      >
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
+                        </svg>
+                        Fix Errors &amp; Regenerate
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
                 <!-- Refinement Actions -->
-                <div id="refinement-actions" class="mt-6 border-t border-gray-200 pt-4 flex justify-end">
+                <div id="refinement-actions" class="mt-4 pt-4 flex justify-end">
                   <button 
                     id="btn-refine" 
                     class="btn-primary bg-indigo-600 hover:bg-indigo-700 w-auto btn-refine-action"
