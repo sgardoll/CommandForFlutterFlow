@@ -3896,7 +3896,12 @@ async function runRefinement() {
 
   // Set running state
   pipelineState.isRunning = true;
-  callEndpoint('standardRegenerate', pipelineState.step2Result, pipelineState.step1Result)
+  
+  const telemetryCheckbox = document.getElementById("telemetry-opt-in");
+  if (telemetryCheckbox?.checked) {
+    callEndpoint('standardRegenerate', pipelineState.step2Result, pipelineState.step1Result)
+  }
+  
   const btns = document.querySelectorAll(".btn-refine-action");
 
   btns.forEach((btn) => {
@@ -4028,7 +4033,11 @@ async function regenerateFromPastedErrors() {
 
   const selectedModel = document.getElementById("code-generator-model").value
   pipelineState.isRunning = true
-  callEndpoint('flutterflowError', pipelineState.step2Result, pastedErrors)
+  
+  const telemetryCheckbox = document.getElementById("telemetry-opt-in");
+  if (telemetryCheckbox?.checked) {
+    callEndpoint('flutterflowError', pipelineState.step2Result, pastedErrors)
+  }
 
   const btn = document.getElementById("btn-fix-from-errors")
   if (btn) {
