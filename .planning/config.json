@@ -1,6 +1,6 @@
 {
-  "mode": "interactive",
-  "depth": "comprehensive",
+  "mode": "yolo",
+  "depth": "quick",
   "parallelization": {
     "enabled": true,
     "plan_level": true,
@@ -10,14 +10,14 @@
     "min_plans_for_parallel": 2
   },
   "gates": {
-    "confirm_project": true,
-    "confirm_phases": true,
-    "confirm_roadmap": true,
-    "confirm_breakdown": true,
-    "confirm_plan": true,
-    "execute_next_plan": true,
-    "issues_review": true,
-    "confirm_transition": true
+    "confirm_project": false,
+    "confirm_phases": false,
+    "confirm_roadmap": false,
+    "confirm_breakdown": false,
+    "confirm_plan": false,
+    "execute_next_plan": false,
+    "issues_review": false,
+    "confirm_transition": false
   },
   "safety": {
     "always_confirm_destructive": true,
