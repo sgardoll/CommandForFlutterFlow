@@ -69,9 +69,15 @@ Only these parameter types work in FlutterFlow's Custom Code UI. **ALWAYS Use Si
 - **Lists:** List<String>, List<int>, List<double>, List<bool>, List<ProductStruct>
 - **FlutterFlow Structs:** \`SomeNameStruct\` (UpperCamelCase, must exist in FF Data Types)
 - **Special types:** DocumentReference, LatLng, FFPlace, FFUploadedFile, Uint8List (Bytes), dynamic (JSON)
-- **Action callbacks (widget→FF, data OUT):** \`Future<dynamic> Function()?\` — ZERO parameters only. FlutterFlow always generates action stubs as \`() async {}\`. Declaring \`Future Function(Uint8List?)?\` or any non-zero-param callback for widget→FF communication causes a compile error ("Future<Null> Function() can't be assigned to Future<dynamic> Function(T)?"). For passing data out, write to FFAppState BEFORE calling the no-arg callback.
-- **Action callbacks (FF→widget, data IN):** \`Future<dynamic> Function(String)?\`, \`Future<dynamic> Function(int)?\`, \`Future<dynamic> Function(bool)?\` work ONLY when FlutterFlow passes a primitive from an Action Flow. NEVER use complex types (\`Uint8List\`, \`CustomClass\`, structs) as callback parameters.
-- **⛔ CRITICAL: Named Callback Parameters Required:** When a callback HAS parameters (FF→widget direction), the parameter MUST have a name. FlutterFlow's parser rejects anonymous parameters.
+- **Action callbacks (widget→FF, data OUT — PREFERRED data return pattern):** Use \`Future Function(ParamType paramName, ...)?\` to pass data from the widget/action back to FlutterFlow. This is the **primary** way to surface data from custom code. Parameters MUST be standard FlutterFlow data types and MUST have names. Example:
+  \`\`\`dart
+  final Future Function(
+      FFUploadedFile? bytes, dynamic jsonObject, String? string)?
+      onValueChanged;
+  \`\`\`
+  Supported param types: \`String\`, \`int\`, \`double\`, \`bool\`, \`Color\`, \`DateTime\`, \`LatLng\`, \`FFPlace\`, \`FFUploadedFile\`, \`dynamic\` (JSON), \`DocumentReference\`, FlutterFlow Structs.
+- **Action callbacks (FF→widget, data IN):** Same syntax — \`Future<dynamic> Function(String value)?\` etc. FlutterFlow passes a value from an Action Flow into the widget callback. Same type rules apply.
+- **⛔ CRITICAL: Named Callback Parameters Required:** All callback parameters MUST have a name (both directions). FlutterFlow's parser rejects anonymous parameters.
   
   **❌ WRONG — Missing parameter name:**
   \`\`\`dart
@@ -152,7 +158,7 @@ This triggers \`notifyListeners()\` and updates all subscribed pages.
 
 ### Returning values from Custom Widgets:
 FlutterFlow doesn't directly "pull" values out of widgets. Two patterns (in order of preference):
-1. **Callbacks (PREFERRED):** Use \`Future<dynamic> Function()?\` action parameters — lets the user wire the data flow in FlutterFlow UI without needing specific app state variables.
+1. **Callbacks (PREFERRED):** Use action callback parameters with standard FF data types — lets the user wire the data flow in FlutterFlow UI without needing specific app state variables. Callbacks can carry data directly as named parameters: \`Future Function(FFUploadedFile? bytes, dynamic jsonObject, String? result)? onValueChanged\`. This is the primary mechanism for surfacing data from custom widgets/actions.
 2. **AppState workaround (LAST RESORT):** Store result in FFAppState when callback typing is fragile. NOTE: The variable MUST already exist in the user's project, and the value MUST be one of the allowed App State types listed above:
 \`\`\`dart
 // REQUIRED: Create App State variable 'localValue' (String) in FlutterFlow first
@@ -2994,7 +3000,7 @@ Analyze the user's request and output a JSON specification with this exact struc
   
   "antiPatterns": {
     "mustNotInclude": ["main()", "runApp()", "MaterialApp", "Scaffold", "import statements"],
-    "mustNotUse": ["FFAppState() direct access without parameter passing", "hardcoded Colors.*", "ValueChanged<T> callbacks", "parameter named 'key' (conflicts with Widget.key)", "storing Bytes/Uint8List/FFUploadedFile in FFAppState (not supported — use Page State or callbacks)", "Future Function(Uint8List)? or any complex-type parameterized callback for widget→FF data flow — use Future<dynamic> Function()? (zero params) only"],
+    "mustNotUse": ["FFAppState() direct access without parameter passing", "hardcoded Colors.*", "ValueChanged<T> callbacks", "parameter named 'key' (conflicts with Widget.key)", "storing Bytes/Uint8List/FFUploadedFile in FFAppState (not supported — use Page State or callbacks)", "anonymous (unnamed) callback parameters — FlutterFlow parser requires all callback params to have names"],
     "reasoning": ["Why each anti-pattern is forbidden in FlutterFlow context"]
   },
   
@@ -3031,7 +3037,7 @@ When artifactType is "CustomWidget":
 - implementationSpec.flutterFlowPatterns MUST include FlutterFlowTheme usage
 - If stateful, antiPatterns MUST mention proper disposal of controllers
 - antiPatterns.mustNotUse MUST include "navigation inside widget" and "database writes inside widget"
-- If the widget produces byte data (images, files, signatures, etc.): Bytes/Uint8List/FFUploadedFile CANNOT be stored in App State — only Page State supports Bytes. Use a no-arg callback \`Future<dynamic> Function()?\` to notify FlutterFlow, and write the byte data to a base64 String in FFAppState (or document that the user must store it in Page State). NEVER use \`Future Function(Uint8List)?\` as a callback — FlutterFlow generates \`() async {}\` stubs, causing a type mismatch compile error.
+- If the widget produces byte data (images, files, signatures, etc.): Bytes/Uint8List/FFUploadedFile CANNOT be stored in App State — only Page State supports Bytes. The PREFERRED approach is to pass the data directly as a callback parameter: \`Future Function(FFUploadedFile? file)? onFileReady\` — this is the primary pattern for surfacing byte data from custom code. Multiple params are supported: \`Future Function(FFUploadedFile? bytes, String? filename)? onComplete\`. The user then wires the Action in FlutterFlow and stores the file in Page State.
 
 ### RESERVED PARAMETER NAMES (applies to ALL artifact types)
 - NEVER use "key" as a parameter name (conflicts with Widget.key)
@@ -3146,11 +3152,36 @@ class KeyboardHintWidget extends StatelessWidget {
 
 **Also avoid:** \`context\`, \`widget\`, \`state\`, \`mounted\` as parameter names — these conflict with Flutter internals.
 
-### Callback Parameter Types (CRITICAL — compile error if violated)
-- For **widget→FF data flow** (widget notifies FlutterFlow of a result): ALWAYS use \`Future<dynamic> Function()?\` — zero parameters. FlutterFlow generates action stubs as \`() async {}\`. Any declared param type causes "Future<Null> Function() can't be assigned to Future<dynamic> Function(T)?" compile error.
-- NEVER write \`Future<dynamic> Function(Uint8List?)?\`, \`Future Function(Bytes)?\`, or any complex-type callback for widget→FF communication.
-- To pass data back: write the data to FFAppState (if it's an allowed App State type) BEFORE calling the no-arg callback, so the FlutterFlow Action Flow can read it.
-- For **FF→widget data flow** (FlutterFlow passes a value into a callback action): \`Future<dynamic> Function(String)?\`, \`Future<dynamic> Function(int)?\`, \`Future<dynamic> Function(bool)?\` are valid only for FF-primitive types.
+### Callback Parameter Types (CRITICAL — primary data return mechanism)
+Callbacks are the **primary way** to pass data from custom widgets/actions back to FlutterFlow. Callbacks CAN carry typed parameters — as long as they are standard FlutterFlow data types and every parameter has a name.
+
+**Multi-param callback example (canonical pattern):**
+\`\`\`dart
+final Future Function(
+    FFUploadedFile? bytes, dynamic jsonObject, String? string)?
+    onValueChanged;
+\`\`\`
+
+**Supported callback parameter types:**
+\`String\`, \`int\`, \`double\`, \`bool\`, \`Color\`, \`DateTime\`, \`LatLng\`, \`FFPlace\`, \`FFUploadedFile\`, \`dynamic\` (JSON object), \`DocumentReference\`, FlutterFlow Struct types (e.g. \`SomeNameStruct\`)
+
+**Rules:**
+- Every parameter MUST have a name — FlutterFlow's parser rejects anonymous params
+- Parameter types MUST be standard FF data types — no raw \`Uint8List\`, \`CustomClass\`, \`Offset\`, etc.
+- Both directions (widget→FF and FF→widget) use the same syntax
+
+**❌ WRONG — using non-FF type or anonymous param:**
+\`\`\`dart
+final Future<dynamic> Function(Uint8List?)? onDone;   // ❌ raw Uint8List, no name
+final Future<dynamic> Function(String)? onResult;     // ❌ missing parameter name
+\`\`\`
+
+**✅ CORRECT:**
+\`\`\`dart
+final Future Function(FFUploadedFile? file)? onDone;              // ✅ FF type, named
+final Future Function(String result)? onResult;                   // ✅ named
+final Future Function(FFUploadedFile? bytes, dynamic json, String? label)? onValueChanged; // ✅ multi-param
+\`\`\`
 
 **⛔ NAMED CALLBACK PARAMETERS (FlutterFlow Parser Requirement):**
 When a callback HAS parameters (FF→widget direction), the parameter MUST have a name. FlutterFlow's parser rejects anonymous parameters with error: *"Widget has a parameter with action parameter that is missing a name."*
@@ -3171,7 +3202,7 @@ Always add a descriptive name: \`Function(String value)\`, \`Function(int index)
 
 ### FFAppState Access Rules (CRITICAL)
 - NEVER invent or assume specific FFAppState variable names — you cannot know what exists in the user's project
-- Prefer callback parameters (\`Future Function()?\`) over direct FFAppState writes
+- Prefer callback parameters with typed named params over direct FFAppState writes
 - If FFAppState access is unavoidable, add a comment: \`// REQUIRED: Create App State variable 'name' (type) in FlutterFlow\`
 
 ### Widget Structure Rules
@@ -3397,7 +3428,7 @@ Check for and flag:
     
     **Fix:** Rename to \`keyLabel\`, \`keyValue\`, \`keyText\`, \`keyChar\`, \`keyCode\`, \`apiKey\`, etc. Also flag: \`context\`, \`widget\`, \`state\`, \`mounted\`.
 11. **Bytes/FFUploadedFile stored in App State**: Check if the code writes Uint8List, Bytes, or FFUploadedFile to \`FFAppState()\`. App State does NOT support Bytes — only Page State does. **Fix:** Use a callback to pass bytes back to FlutterFlow (user stores in Page State), convert to base64 String for App State, or upload to storage and store the URL (ImagePath) in App State.
-12. **Non-primitive callback parameter type (widget→FF direction)**: If a widget callback has a non-primitive parameter type (e.g., \`Future<dynamic> Function(Uint8List?)?\`, \`Future Function(CustomClass)?\`), this causes a compile error. FlutterFlow always generates action stubs as \`() async {}\` — any declared parameter type causes "Future<Null> Function() can't be assigned to Future<dynamic> Function(T)?" type mismatch. **Fix:** Change to \`Future<dynamic> Function()?\` (zero params) and write the data to FFAppState before calling the callback.
+12. **Invalid callback parameter type**: Callbacks CAN carry typed, named parameters — this is the primary data-return pattern. However, parameter types MUST be standard FlutterFlow data types: \`String\`, \`int\`, \`double\`, \`bool\`, \`Color\`, \`DateTime\`, \`LatLng\`, \`FFPlace\`, \`FFUploadedFile\`, \`dynamic\` (JSON), \`DocumentReference\`, or FF Struct types. **Flag if:** a callback uses raw Dart types that FF doesn't understand (e.g., \`Uint8List\`, \`Offset\`, \`CustomClass\`, arbitrary Dart objects). **Fix:** Replace with the equivalent FF type (e.g., \`Uint8List\` → \`FFUploadedFile?\`) or convert to a supported type before passing.
 13. **⛔ Unnamed callback parameter (FlutterFlow parser error)**: Check if any callback with parameters has an anonymous (unnamed) parameter. FlutterFlow's parser requires all callback parameters to have names, otherwise throws: *"Widget has a parameter with action parameter that is missing a name."*
     
     **Example error to detect:**
