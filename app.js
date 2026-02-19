@@ -11,8 +11,8 @@ const ANTHROPIC_BASE_URL = IS_DEV ? '/api/anthropic' : 'https://api.anthropic.co
 const OPENAI_BASE_URL = IS_DEV ? '/api/openai' : 'https://api.openai.com'
 
 // Model Configuration
-const PROMPT_ARCHITECT_MODEL = "gemini-3-pro-preview";
-const CODE_DISSECTOR_MODEL = "gemini-3-pro-preview";
+const PROMPT_ARCHITECT_MODEL = "gemini-3.1-pro-preview";
+const CODE_DISSECTOR_MODEL = "gemini-3.1-pro-preview";
 const FALLBACK_MODEL = "gemini-3-flash-preview";
 
 // --- SHARED FLUTTERFLOW CONSTRAINTS TEMPLATE ---
@@ -539,8 +539,7 @@ function hasStoredKey(provider) {
 function checkRequiredApiKeys(selectedModel) {
   // Map models to their required API key providers
   const MODEL_KEY_REQUIREMENTS = {
-    "gemini-3.0-pro": "gemini",
-    "gemini-3-pro-preview": "gemini",
+    "gemini-3.1-pro-preview": "gemini",
     "claude-4.6-opus": "anthropic",
     "gpt-5.2-codex": "openai",
     "openrouter-auto": "openrouter",
@@ -3304,14 +3303,14 @@ ADDITIONAL GUIDANCE FOR FREE MODELS:
 - Keep implementations simple and standard
 - Avoid experimental features unless necessary`,
 
-      "gemini-3-pro-preview": `
+      "gemini-3.1-pro-preview": `
 ADDITIONAL GUIDANCE FOR THIS MODEL:
 - Strictly follow the JSON specification structure
 - Do not add features not specified in the requirements
 - Keep the implementation focused and minimal`,
     };
 
-    const tweak = modelTweaks[model] || modelTweaks["gemini-3-pro-preview"];
+    const tweak = modelTweaks[model] || modelTweaks["gemini-3.1-pro-preview"];
     return baseInstruction + "\n\n---\n" + tweak;
   };
 
@@ -3349,12 +3348,12 @@ Remember: Output ONLY the raw Dart code. No markdown, no explanations.`;
           "openrouter-free",
         );
         break;
-      case "gemini-3-pro-preview":
+      case "gemini-3.1-pro-preview":
       default:
         result = await callGemini(
           formattedPrompt,
           systemInstruction,
-          "gemini-3-pro-preview",
+          "gemini-3.1-pro-preview",
         );
         break;
     }
@@ -3901,7 +3900,7 @@ function copyCode(elementId) {
 
 function updateModelInfo(selectedModel) {
   const modelNames = {
-    "gemini-3-pro-preview": "Gemini 3.0 Pro",
+    "gemini-3.1-pro-preview": "Gemini 3.1 Pro",
     "claude-4.6-opus": "Claude 4.6 Opus",
     "gpt-5.2-codex": "GPT-5.2-Codex",
     "openrouter-auto": "OpenRouter: Auto",
@@ -4274,7 +4273,7 @@ function retryWithDifferentModel() {
   // Show model selection dialog
   const currentModel = document.getElementById("code-generator-model").value;
   const otherModels = [
-    "gemini-3-pro-preview",
+    "gemini-3.1-pro-preview",
     "claude-4.6-opus",
     "gpt-5.2-codex",
   ].filter((model) => model !== currentModel);
