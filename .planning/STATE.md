@@ -46,6 +46,7 @@ Recent decisions affecting current work:
 - BYOK locked to Power Developer tier — prevents free riders
 - Architecture change allowed — Stripe webhooks require backend
 - GST-inclusive consumer pricing — Australian consumer law
+- **BuildShip for backend** — Visual workflow builder for serverless endpoints (2026-02-20)
 
 ### Deferred Issues
 
