@@ -12,7 +12,7 @@ const OPENAI_BASE_URL = IS_DEV ? '/api/openai' : 'https://api.openai.com'
 
 // --- AUTH / SUBSCRIPTION CONFIG ---
 const BUILDSHIP_BASE_URL = 'https://4tgke4.buildship.run'
-const STRIPE_PUBLISHABLE_KEY = 'pk_live_51R8y3MKszA2slvDX8402H2tJtQkNanGCSeAz8YA5hZ8mmiwAR9ztvhGHvzh2KX1KMZt4vvt6wlh1MUtw8C9kbpkJ00NFSVe4GL'
+const STRIPE_PUBLISHABLE_KEY = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || 'pk_live_51R8y3MKszA2slvDX8402H2tJtQkNanGCSeAz8YA5hZ8mmiwAR9ztvhGHvzh2KX1KMZt4vvt6wlh1MUtw8C9kbpkJ00NFSVe4GL'
 const STRIPE_PRICE_IDS = {
   professional: 'price_1T2ldCKszA2slvDXatdeCpbI',
   power: 'price_1T2le9KszA2slvDXR4mPvw7M'
@@ -1659,14 +1659,28 @@ async function parsePushCodeResponse(response) {
   }
 
   if (!response.ok) {
-    // API returned error status
+    // FlutterFlow 400s return file-keyed error maps: {"File.dart": [{"errorMessage": "...", "isCritical": true}]}
+    // Standard errors return: {"message": "..."}
+    let errorMessage = jsonResult.message || `HTTP ${response.status}`
+    let errorMap = new Map()
+
+    if (jsonResult.errors) {
+      errorMap = new Map(Object.entries(jsonResult.errors))
+    } else if (!jsonResult.message && typeof jsonResult === 'object') {
+      // Detect file-keyed error format (keys ending in .dart with array values)
+      const fileKeys = Object.keys(jsonResult).filter(k => k.endsWith('.dart') && Array.isArray(jsonResult[k]))
+      if (fileKeys.length > 0) {
+        errorMap = new Map(Object.entries(jsonResult))
+        const allErrors = fileKeys.flatMap(k => jsonResult[k].map(e => `${k}: ${e.errorMessage}`))
+        errorMessage = allErrors.join('\n') || `HTTP ${response.status}`
+      }
+    }
+
     return {
       success: false,
       responseCode: response.status,
-      errorMessage: jsonResult.message || `HTTP ${response.status}`,
-      errorMap: jsonResult.errors
-        ? new Map(Object.entries(jsonResult.errors))
-        : new Map(),
+      errorMessage,
+      errorMap,
     };
   }
 
@@ -2909,7 +2923,7 @@ async function executeCommit(code, options = {}) {
 
     // Step 10: Handle result
     if (result.success) {
-      const metadata = buildCommitMetadata(codeInfo, pipelineResult);
+      const metadata = { ...buildCommitMetadata(codeInfo, pipelineResult), projectId };
 
       commitState.setSuccess({
         ...metadata,
@@ -3098,6 +3112,7 @@ ${architectSpecificInstructions}`;
 
 Remember: Output ONLY valid JSON matching the specified structure.`;
 
+  console.log(`[Pipeline] Step 1 - Prompt Architect using model: ${PROMPT_ARCHITECT_MODEL}`)
   try {
     const result = await callGemini(
       prompt,
@@ -3355,6 +3370,7 @@ ${masterPrompt}
 
 Remember: Output ONLY the raw Dart code. No markdown, no explanations.`;
 
+  console.log(`[Pipeline] Step 2 - Code Generator using model: ${selectedModel}`)
   try {
     switch (selectedModel) {
       case "claude-4.6-opus":
@@ -3575,6 +3591,7 @@ ${code}
 
 Check against ALL FlutterFlow constraints. Be thorough and specific.`;
 
+  console.log(`[Pipeline] Step 3 - Code Review using model: ${CODE_DISSECTOR_MODEL}`)
   try {
     const result = await callGemini(
       prompt,
@@ -3930,19 +3947,23 @@ function copyCode(elementId) {
 function updateModelInfo(selectedModel) {
   const modelNames = {
     "gemini-3.1-pro-preview": "Gemini 3.1 Pro",
+    "gemini-3-flash-preview": "Gemini 3.0 Flash",
     "claude-4.6-opus": "Claude 4.6 Opus",
     "gpt-5.2-codex": "GPT-5.2-Codex",
     "openrouter-auto": "OpenRouter: Auto",
     "openrouter-free": "OpenRouter: Free Models",
-  };
-
-  // Update sidebar model label for Code Generator
-  const modelLabel = document.getElementById("step2-model-label");
-  if (modelLabel) {
-    modelLabel.textContent = modelNames[selectedModel] || selectedModel;
   }
 
-  console.log(`Using model: ${modelNames[selectedModel] || selectedModel}`);
+  // Update sidebar model label for Code Generator
+  const effectiveModel = getEffectiveModel(selectedModel)
+  const modelLabel = document.getElementById("step2-model-label")
+  if (modelLabel) {
+    const displayName = modelNames[effectiveModel] || effectiveModel
+    const suffix = effectiveModel !== selectedModel ? ' (Free)' : ''
+    modelLabel.textContent = displayName + suffix
+  }
+
+  console.log(`Using model: ${modelNames[effectiveModel] || effectiveModel}`)
 }
 
 async function runRefinement() {
@@ -4014,7 +4035,7 @@ Ensure it still adheres to the ORIGINAL SPECIFICATION.
     showStepLoading(3, false);
   } catch (error) {
     console.error("Refinement failed:", error);
-    showToast("Refinement failed: " + error.message, "error");
+    showToast(`Refinement failed: ${error.message}`, "error");
 
     // If it failed, we might want to stay on the step where it failed or go back to 3
     // For now, let's just re-enable the button if we are still on step 3 or visible
@@ -4038,7 +4059,7 @@ Ensure it still adheres to the ORIGINAL SPECIFICATION.
 }
 
 async function callEndpoint(type, code, input) {
-  const url = 'https://4tgke4.buildship.run/connectFeedback'
+  const url = `${BUILDSHIP_BASE_URL}/connectFeedback`
   const data = { type: type, code: code, input: input }
   try {
     const response = await fetch(url, {
@@ -4523,7 +4544,7 @@ Please regenerate the code to fix these errors while maintaining the original sp
     showStepLoading(3, false);
   } catch (error) {
     console.error("Regeneration failed:", error);
-    showToast("Regeneration failed: " + error.message, "error");
+    showToast(`Regeneration failed: ${error.message}`, "error");
   } finally {
     pipelineState.isRunning = false;
 
@@ -4605,26 +4626,36 @@ function highlightCode(code, language = "dart") {
 // --- AUTH FUNCTIONS ---
 
 async function sendMagicLink(email) {
-  const res = await fetch(`${BUILDSHIP_BASE_URL}/auth/send-magic-link`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email })
-  })
-  if (!res.ok) throw new Error('Failed to send magic link')
-  return res.json()
+  try {
+    const res = await fetch(`${BUILDSHIP_BASE_URL}/auth/send-magic-link`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    })
+    if (!res.ok) throw new Error(`Failed to send magic link: HTTP ${res.status}`)
+    return res.json()
+  } catch (err) {
+    console.error('sendMagicLink failed:', { email, message: err.message, stack: err.stack })
+    throw err
+  }
 }
 
 async function verifyMagicLink(token) {
-  const res = await fetch(`${BUILDSHIP_BASE_URL}/auth/verify-magic-link`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token })
-  })
-  const data = await res.json()
-  if (data.error || !data.email || !data.sessionToken) {
-    throw new Error(data.error || 'Invalid or expired link')
+  try {
+    const res = await fetch(`${BUILDSHIP_BASE_URL}/auth/verify-magic-link`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token })
+    })
+    const data = await res.json()
+    if (data.error || !data.email || !data.sessionToken) {
+      throw new Error(data.error || 'Invalid or expired link')
+    }
+    return data
+  } catch (err) {
+    console.error('verifyMagicLink failed:', { message: err.message, stack: err.stack })
+    throw err
   }
-  return data
 }
 
 async function refreshSession(sessionToken) {
@@ -4661,6 +4692,7 @@ function clearSession() {
   authState.sessionToken = null
   authState.isVerified = false
   subscriptionState = { tier: 'free', status: 'none', periodEnd: null }
+  localStorage.removeItem('ccc_subscription')
 }
 
 function getStoredSession() {
@@ -4835,6 +4867,9 @@ function updateModelSelectorGating() {
   } else {
     if (notice) notice.remove()
   }
+
+  // Sync sidebar model label with effective model
+  updateModelInfo(select.value)
 }
 
 function updateUsageDisplay() {
@@ -4916,7 +4951,7 @@ async function startCheckout(tierId) {
     return
   }
 
-  const btn = document.getElementById('checkout-btn-' + tierId)
+  const btn = document.getElementById(`checkout-btn-${tierId}`)
   if (btn) { btn.disabled = true; btn.textContent = 'Redirecting…' }
 
   try {
@@ -5301,7 +5336,7 @@ function showCommitSuccessModal(result) {
   const projectId = result.metadata?.projectId || "";
   const artifactType = result.metadata?.artifactType || "";
   const elapsed = result.elapsedTime ? `${(result.elapsedTime / 1000).toFixed(1)}s` : "";
-  const size = result.metadata?.fileSize ? `${(result.metadata.fileSize / 1024).toFixed(1)} KB` : "";
+  const size = result.metadata?.codeSize ? `${(result.metadata.codeSize / 1024).toFixed(1)} KB` : "";
 
   set("success-message", result.message || "Code committed successfully!");
   set("success-project-id", projectId);
