@@ -822,18 +822,20 @@ function updateKeyStatus(provider, statusElementId) {
 }
 
 function updateDeployButtonVisibility() {
-  const deploySection = document.getElementById("deploy-section");
-  if (!deploySection) return;
-
   const flutterFlowConfigured =
     hasStoredKey("flutterflow") && hasStoredKey("flutterflow_project_id");
   const hasGeneratedCode =
     pipelineState.step2Result && pipelineState.step2Result.length > 0;
 
+  const deployBtn = document.getElementById("btn-deploy-to-ff");
+  const runBtn = document.getElementById("btn-run-pipeline");
+
   if (flutterFlowConfigured && hasGeneratedCode) {
-    deploySection.classList.remove("hidden");
+    if (deployBtn) deployBtn.classList.remove("hidden");
+    if (runBtn) runBtn.classList.add("hidden");
   } else {
-    deploySection.classList.add("hidden");
+    if (deployBtn) deployBtn.classList.add("hidden");
+    if (runBtn) runBtn.classList.remove("hidden");
   }
 }
 
@@ -5136,41 +5138,35 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 // --- WELCOME VIDEO FUNCTIONS ---
 function initializeWelcomeVideo() {
-  // Always show the welcome video - remove sessionStorage check
-
-  // YouTube iframe doesn't support play() method - it autoplays via URL params
-  // Just ensure the video container is visible
-  const welcomeVideo = document.getElementById("welcome-video");
-  if (welcomeVideo) {
-    welcomeVideo.classList.remove("hidden");
+  const previewContainer = document.getElementById("preview-frame-container");
+  if (previewContainer) {
+    previewContainer.style.display = "";
   }
 }
 
 function handleWelcomeVideoEnd() {
-  // For YouTube iframe, add click/keyboard listeners to dismiss video
-  const iframe = document.getElementById("welcome-video-player");
-  if (iframe) {
-    // Add click listener to dismiss video
-    iframe.addEventListener("click", dismissWelcomeVideo);
+  const video = document.getElementById("welcome-video-player");
+  if (video) {
+    video.addEventListener("click", dismissWelcomeVideo);
     document.addEventListener("keydown", dismissWelcomeVideo);
   }
 }
 
 function dismissWelcomeVideo() {
-  const welcomeVideo = document.getElementById("welcome-video");
+  const previewContainer = document.getElementById("preview-frame-container");
+  const stageContainer = document.getElementById("main-stage-container");
   const readyState = document.getElementById("ready-state");
 
-  if (welcomeVideo) welcomeVideo.classList.add("hidden");
+  if (previewContainer) previewContainer.style.display = "none";
+  if (stageContainer) stageContainer.classList.add("visible");
   if (readyState) readyState.classList.remove("hidden");
 
-  // Clean up event listeners
   const video = document.getElementById("welcome-video-player");
   if (video) {
     video.removeEventListener("click", dismissWelcomeVideo);
   }
   document.removeEventListener("keydown", dismissWelcomeVideo);
 
-  // Show walkthrough after video is dismissed
   showWalkthroughIfNeeded();
 }
 
