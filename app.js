@@ -4643,16 +4643,12 @@ async function refreshSession(sessionToken) {
 }
 
 function saveSession(email, sessionToken) {
-  localStorage.setItem('ccc_email', email)
-  localStorage.setItem('ccc_session', sessionToken)
   authState.email = email
   authState.sessionToken = sessionToken
   authState.isVerified = true
 }
 
 function clearSession() {
-  localStorage.removeItem('ccc_email')
-  localStorage.removeItem('ccc_session')
   authState.email = null
   authState.sessionToken = null
   authState.isVerified = false
@@ -4661,8 +4657,8 @@ function clearSession() {
 
 function getStoredSession() {
   return {
-    email: localStorage.getItem('ccc_email'),
-    sessionToken: localStorage.getItem('ccc_session')
+    email: authState.email,
+    sessionToken: authState.sessionToken
   }
 }
 
@@ -4859,7 +4855,9 @@ async function fetchSubscription() {
         subscriptionState = data
         return
       }
-    } catch (_) {}
+    } catch (err) {
+      console.warn('Failed to parse ccc_subscription cache:', err, '| raw value:', cached)
+    }
   }
 
   try {
