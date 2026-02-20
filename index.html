@@ -9,229 +9,327 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/dart.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300&family=DM+Mono:wght@400;500&family=Outfit:wght@200;300;400;500;600&display=swap" rel="stylesheet">
     <style>
-      @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
-      @import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap");
+      :root {
+        --sidebar-w: 340px;
+        --navy: #131820;
+        --navy-hover: #1e2530;
+        --label: #7c8493;
+        --sublabel: #9aa0ad;
+        --border: #ecedf2;
+        --input-bg: #f5f6f9;
+        --input-border: #e2e4ea;
+        --main-bg: #eceef3;
+        --accent: #3b82f6;
+        --badge-bg: #eef0f5;
+        --badge-text: #9aa0ad;
+      }
 
-      * { box-sizing: border-box; }
-      
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+
       body {
-        font-family: "Inter", sans-serif;
-        background: #f8f9fa;
-        color: #1a1a1a;
-      }
-
-      .code-font { font-family: "JetBrains Mono", monospace; }
-
-      /* Sidebar */
-      .sidebar {
-        width: 300px;
-        min-width: 300px;
-        background: #fff;
-        border-right: 1px solid #e5e7eb;
+        font-family: "DM Sans", -apple-system, sans-serif;
+        background: var(--main-bg);
+        color: #131820;
         height: 100vh;
-        overflow-y: auto;
+        overflow: hidden;
       }
 
-      /* Main content area */
-      .main-content {
-        flex: 1;
-        background: #f3f4f6;
-        min-height: 100vh;
-        padding: 24px;
+      .code-font { font-family: "DM Mono", monospace; }
+
+      .app-shell {
+        display: flex;
+        height: 100vh;
       }
 
-      .main-stage {
+      /* ── Sidebar ───────────────────────────────────────── */
+      .sidebar {
+        width: var(--sidebar-w);
+        min-width: var(--sidebar-w);
         background: #fff;
-        border-radius: 12px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        min-height: calc(100vh - 48px);
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        position: relative;
+        z-index: 2;
       }
 
-      /* Collapsible sections */
-      .section-header {
+      .sidebar-scroll {
+        flex: 1;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding-bottom: 76px;
+      }
+
+      .sidebar-scroll::-webkit-scrollbar { width: 3px; }
+      .sidebar-scroll::-webkit-scrollbar-track { background: transparent; }
+      .sidebar-scroll::-webkit-scrollbar-thumb { background: #ddd; border-radius: 2px; }
+
+      .sidebar-header {
+        padding: 20px 24px 16px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .sidebar-brand-super {
+        font-family: "Outfit", sans-serif;
+        font-size: 10px;
+        font-weight: 400;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: #b0b5c0;
+        margin-bottom: 6px;
+      }
+
+      .sidebar-brand-main {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .sidebar-brand-icon {
+        width: 36px;
+        height: 36px;
+        background: var(--navy);
+        border-radius: 9px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+
+      .sidebar-brand-icon svg {
+        width: 18px;
+        height: 18px;
+        color: #fff;
+      }
+
+      .sidebar-brand-text {
+        font-family: "Outfit", sans-serif;
+        font-size: 17px;
+        font-weight: 500;
+        color: var(--navy);
+        letter-spacing: -0.02em;
+        line-height: 1.2;
+      }
+
+      .sidebar-brand-text span {
+        color: var(--accent);
+        font-weight: 600;
+      }
+
+      .sb-section {
+        padding: 22px 24px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .sb-section-head {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 16px 20px;
+        margin-bottom: 16px;
+      }
+
+      .sb-section-title {
+        font-size: 13px;
+        font-weight: 600;
+        color: #131820;
+        letter-spacing: -0.01em;
+      }
+
+      .sb-section-badge {
+        font-size: 10px;
+        font-weight: 500;
+        color: var(--badge-text);
+        background: var(--badge-bg);
+        padding: 3px 9px;
+        border-radius: 10px;
+        letter-spacing: 0.02em;
+      }
+
+      .sb-sublabel {
+        display: block;
+        font-size: 9.5px;
+        font-weight: 500;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--sublabel);
+        margin-bottom: 8px;
+      }
+
+      textarea {
+        background: var(--input-bg);
+        border: 1px solid var(--input-border);
+        border-radius: 10px;
+        resize: none;
+        font-size: 13px;
+        line-height: 1.6;
+        color: #131820;
+        font-family: "DM Sans", sans-serif;
+        width: 100%;
+        box-sizing: border-box;
+        padding: 20px 22px !important;
+        transition: border-color 0.15s, box-shadow 0.15s;
+      }
+      textarea:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+      }
+      textarea::placeholder { color: #b5b9c4; }
+
+      select {
+        background: var(--input-bg);
+        border: 1px solid var(--input-border);
+        color: #131820;
+        padding: 12px 40px 12px 16px !important;
+        border-radius: 10px;
+        font-size: 13px;
         cursor: pointer;
-        user-select: none;
-        transition: background 0.15s;
+        width: 100%;
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%239aa0ad'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 14px center;
+        background-size: 15px;
+        font-family: "DM Sans", sans-serif;
+        transition: border-color 0.15s, box-shadow 0.15s;
+      }
+      select:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
       }
 
-      .section-header:hover {
-        background: #f9fafb;
+      .settings-btn {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 14px;
+        background: var(--input-bg);
+        border: 1px solid var(--input-border);
+        border-radius: 10px;
+        color: #4a5060;
+        font-size: 13px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background 0.15s, border-color 0.15s;
+        width: 100%;
+        font-family: "DM Sans", sans-serif;
+      }
+      .settings-btn:hover {
+        background: #eef0f4;
+        border-color: #d5d8df;
       }
 
-      .section-content {
-        max-height: 0;
-        overflow: hidden;
-        transition: max-height 0.3s ease;
-      }
+      /* ── Key status dots ───────────────────────────────── */
+      .key-status { display: flex; align-items: center; gap: 5px; font-size: 11px; margin-top: 5px; }
+      .key-status-dot { width: 7px; height: 7px; border-radius: 50%; }
+      .key-status-dot.configured { background: #22c55e; }
+      .key-status-dot.env { background: #3b82f6; }
+      .key-status-dot.missing { background: #d1d5db; }
 
-      .section-content.open {
-        max-height: 2000px;
-      }
+      /* ── Collapsible ───────────────────────────────────── */
+      .section-content { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; }
+      .section-content.open { max-height: 2000px; }
 
-      /* Workflow status items */
+      /* ── Workflow items ────────────────────────────────── */
       .workflow-item {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 12px 20px;
-        border-left: 4px solid transparent;
-        transition: all 0.2s ease;
+        padding: 8px 12px;
+        border-radius: 9px;
+        margin-bottom: 3px;
+        border-left: 3px solid transparent;
+        transition: all 0.15s;
         cursor: pointer;
       }
-
-      .workflow-item:hover {
-        background: #f9fafb;
-      }
+      .workflow-item:hover { background: #f7f8fa; }
 
       .workflow-item.active {
         border-left-color: #3b82f6 !important;
-        background: #dbeafe !important;
+        background: #eef3ff !important;
       }
-
-      .workflow-item.active .workflow-label {
-        color: #1d4ed8 !important;
-        font-weight: 600 !important;
-      }
-
-      .workflow-item.active .workflow-icon svg {
-        color: #3b82f6 !important;
-        stroke: #3b82f6 !important;
-      }
+      .workflow-item.active .workflow-label { color: #1e40af !important; font-weight: 600 !important; }
+      .workflow-item.active .workflow-icon svg { color: #3b82f6 !important; stroke: #3b82f6 !important; }
 
       .workflow-item.completed {
         border-left-color: #22c55e !important;
-        background: #dcfce7 !important;
+        background: #f0fdf4 !important;
       }
-
-      .workflow-item.completed .workflow-label {
-        color: #166534 !important;
-        font-weight: 500 !important;
-      }
-
-      .workflow-item.completed .workflow-icon svg {
-        color: #22c55e !important;
-        stroke: #22c55e !important;
-      }
+      .workflow-item.completed .workflow-label { color: #166534 !important; font-weight: 500 !important; }
+      .workflow-item.completed .workflow-icon svg { color: #22c55e !important; stroke: #22c55e !important; }
 
       .workflow-item.error {
         border-left-color: #ef4444 !important;
-        background: #fee2e2 !important;
+        background: #fef2f2 !important;
+      }
+      .workflow-item.error .workflow-label { color: #dc2626 !important; }
+      .workflow-item.error .workflow-icon svg { color: #ef4444 !important; stroke: #ef4444 !important; }
+
+      .workflow-item .workflow-icon svg { color: #c5c9d2; stroke: #c5c9d2; }
+      .workflow-item .workflow-label { color: #4a5060; font-size: 13px; }
+      .workflow-item .status-icon svg { color: #c5c9d2; stroke: #c5c9d2; }
+
+      .status-icon { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; }
+      .status-icon.running { animation: spin 1s linear infinite; }
+      .status-icon.running svg { color: #3b82f6 !important; stroke: #3b82f6 !important; }
+      .status-icon.completed svg { color: #22c55e !important; stroke: #22c55e !important; }
+      .status-icon.error svg { color: #ef4444 !important; stroke: #ef4444 !important; }
+
+      @keyframes spin { to { transform: rotate(360deg); } }
+
+      /* ── Sticky footer ─────────────────────────────────── */
+      .sidebar-footer {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        padding: 16px 24px 16px;
+        background: linear-gradient(to top, #fff 80%, rgba(255,255,255,0));
+        z-index: 5;
       }
 
-      .workflow-item.error .workflow-label {
-        color: #dc2626 !important;
-        font-weight: 500 !important;
-      }
-
-      .workflow-item.error .workflow-icon svg {
-        color: #ef4444 !important;
-        stroke: #ef4444 !important;
-      }
-
-      /* Status icons */
-      .status-icon {
-        width: 24px;
-        height: 24px;
+      .btn-action {
         display: flex;
         align-items: center;
         justify-content: center;
-        color: #9ca3af;
-      }
-
-      .status-icon.running {
-        animation: spin 1s linear infinite;
-      }
-
-      .status-icon.running svg {
-        color: #3b82f6 !important;
-        stroke: #3b82f6 !important;
-      }
-
-      .status-icon.completed svg {
-        color: #22c55e !important;
-        stroke: #22c55e !important;
-      }
-
-      .status-icon.error svg {
-        color: #ef4444 !important;
-        stroke: #ef4444 !important;
-      }
-
-      /* Default workflow item styles */
-      .workflow-item .workflow-icon svg {
-        color: #9ca3af;
-        stroke: #9ca3af;
-      }
-
-      .workflow-item .workflow-label {
-        color: #374151;
-      }
-
-      .workflow-item .status-icon svg {
-        color: #9ca3af;
-        stroke: #9ca3af;
-      }
-
-      @keyframes spin {
-        to { transform: rotate(360deg); }
-      }
-
-      /* Textarea */
-      textarea {
-        background: #fff;
-        border: 1px solid #e5e7eb;
-        border-radius: 8px;
-        resize: none;
-        transition: border-color 0.15s, box-shadow 0.15s;
-        font-size: 14px;
-        line-height: 1.5;
-      }
-      
-      textarea:focus {
-        outline: none;
-        border-color: #3b82f6;
-        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-      }
-
-      textarea::placeholder {
-        color: #9ca3af;
-      }
-
-      /* Select */
-      select {
-        background: #fff;
-        border: 1px solid #e5e7eb;
-        color: #1a1a1a;
-        padding: 10px 12px;
-        border-radius: 8px;
-        font-size: 14px;
-        cursor: pointer;
+        gap: 9px;
         width: 100%;
-        appearance: none;
-        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236b7280'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E");
-        background-repeat: no-repeat;
-        background-position: right 12px center;
-        background-size: 16px;
-        padding-right: 40px;
+        padding: 13px 20px;
+        border-radius: 10px;
+        border: none;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 600;
+        font-family: "DM Sans", sans-serif;
+        transition: background 0.15s, transform 0.1s;
+        letter-spacing: -0.01em;
       }
-      
-      select:focus {
-        outline: none;
-        border-color: #3b82f6;
-        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-      }
+      .btn-action:active { transform: scale(0.985); }
+      .btn-action:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 
-      /* Primary button */
+      .btn-run {
+        background: var(--navy);
+        color: #fff;
+      }
+      .btn-run:hover:not(:disabled) { background: var(--navy-hover); }
+
+      .btn-deploy {
+        background: #f97316;
+        color: #fff;
+      }
+      .btn-deploy:hover:not(:disabled) { background: #ea580c; }
+
+      /* Legacy btn-primary for stage content buttons */
       .btn-primary {
-        background: var(--btn-bg, #3b82f6);
+        background: #3b82f6;
         color: white;
         font-weight: 600;
-        padding: 12px 24px;
+        padding: 10px 18px;
         border-radius: 8px;
         border: none;
         cursor: pointer;
@@ -239,35 +337,133 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 8px;
+        gap: 7px;
         width: 100%;
-        font-size: 15px;
+        font-size: 13px;
+        font-family: "DM Sans", sans-serif;
       }
-      
-      .btn-primary:hover { background: var(--btn-bg-hover, #2563eb); }
-      .btn-primary:disabled { 
-        opacity: 0.6; 
-        cursor: not-allowed;
-        background: var(--btn-bg, #3b82f6);
+      .btn-primary:hover { background: #2563eb; }
+      .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+      /* ── Feedback link ─────────────────────────────────── */
+      .feedback-link {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        font-size: 11px;
+        color: #b5b9c4;
+        text-decoration: none;
+        padding: 14px 24px;
+        border-top: 1px solid var(--border);
+        transition: color 0.15s;
+      }
+      .feedback-link:hover { color: #7c8493; }
+
+      /* ── Main content ──────────────────────────────────── */
+      .main-content {
+        flex: 1;
+        background: var(--main-bg);
+        height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 36px;
+        position: relative;
+        overflow: hidden;
       }
 
-      /* Code block with copy button */
+      /* ── Preview frame ─────────────────────────────────── */
+      .preview-frame-wrapper {
+        position: relative;
+        width: 100%;
+        max-width: 780px;
+        aspect-ratio: 4 / 3;
+      }
+
+      .preview-frame-wrapper::before {
+        content: '';
+        position: absolute;
+        inset: -32px;
+        background: radial-gradient(ellipse at center, rgba(180,190,220,0.35) 0%, rgba(180,190,220,0.08) 55%, transparent 80%);
+        border-radius: 36px;
+        z-index: 0;
+        pointer-events: none;
+      }
+
+      .preview-frame {
+        position: relative;
+        z-index: 1;
+        width: 100%;
+        height: 100%;
+        border-radius: 10px;
+        background: #fff;
+        border: 8px solid #fff;
+        box-shadow:
+          0 1px 2px rgba(0,0,0,0.04),
+          0 4px 16px rgba(0,0,0,0.06),
+          0 12px 48px rgba(0,0,0,0.06);
+        overflow: hidden;
+      }
+
+      .preview-frame video,
+      .preview-frame iframe {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+
+      /* ── Main stage (output overlay) ───────────────────── */
+      .main-stage {
+        background: #fff;
+        border-radius: 14px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 6px 24px rgba(0,0,0,0.05);
+        position: absolute;
+        inset: 28px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.25s;
+      }
+      .main-stage.visible {
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      .main-stage-header {
+        padding: 16px 24px;
+        border-bottom: 1px solid var(--border);
+      }
+      .main-stage-header h2 {
+        font-size: 14px;
+        font-weight: 600;
+        color: #131820;
+      }
+
+      .main-stage-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: 24px;
+      }
+
+      /* ── Code block ────────────────────────────────────── */
       .code-container {
         position: relative;
-        background: #1e1e1e;
-        border: 1px solid #333;
-        border-radius: 8px;
+        background: #1a1b26;
+        border: 1px solid #2a2b3a;
+        border-radius: 9px;
         margin-top: 12px;
         overflow: hidden;
       }
-      
       .code-container pre {
         margin: 0;
         padding: 16px;
-        padding-top: 48px;
+        padding-top: 44px;
         overflow: auto;
         max-height: 600px;
-        font-size: 13px;
+        font-size: 12.5px;
         line-height: 1.6;
         white-space: pre-wrap;
         word-wrap: break-word;
@@ -278,183 +474,41 @@
         position: absolute;
         top: 8px;
         right: 8px;
-        background: #333;
-        border: 1px solid #444;
-        color: #a1a1aa;
-        padding: 6px 12px;
-        border-radius: 6px;
-        font-size: 12px;
+        background: #2a2b3a;
+        border: 1px solid #3a3b4a;
+        color: #8a8b9a;
+        padding: 5px 10px;
+        border-radius: 5px;
+        font-size: 11px;
         font-weight: 500;
         cursor: pointer;
         transition: all 0.15s;
         display: flex;
         align-items: center;
-        gap: 6px;
+        gap: 5px;
+        font-family: "DM Sans", sans-serif;
       }
-      
-      .copy-btn:hover {
-        background: #444;
-        color: #fff;
-      }
-      
-      .copy-btn.copied {
-        background: #22c55e;
-        border-color: #22c55e;
-        color: #fff;
-      }
+      .copy-btn:hover { background: #3a3b4a; color: #fff; }
+      .copy-btn.copied { background: #065f46; border-color: #065f46; color: #a7f3d0; }
 
-      /* Ready state icon */
       .ready-icon {
-        width: 80px;
-        height: 80px;
-        border: 2px solid #e5e7eb;
+        width: 72px;
+        height: 72px;
+        border: 1.5px solid #e5e7eb;
         border-radius: 50%;
         display: flex;
         align-items: center;
         justify-content: center;
-        margin: 0 auto 24px;
+        margin: 0 auto 20px;
       }
 
-      .ready-icon svg {
-        width: 32px;
-        height: 32px;
-        color: #d1d5db;
-      }
-
-      /* Syntax highlighting */
-      .hljs { background: transparent !important; }
-      .hljs-keyword { color: #c084fc !important; }
-      .hljs-string { color: #86efac !important; }
-      .hljs-number { color: #fbbf24 !important; }
-      .hljs-comment { color: #6b7280 !important; font-style: italic; }
-      .hljs-type, .hljs-built_in { color: #a78bfa !important; }
-      .hljs-class .hljs-title { color: #34d399 !important; }
-
-      /* Audit result styling */
-      .audit-section { margin-bottom: 16px; }
-      .audit-section h3 { font-size: 14px; font-weight: 600; margin-bottom: 8px; }
-      .audit-item { padding: 8px 12px; background: #f3f4f6; border-radius: 6px; margin-bottom: 6px; font-size: 13px; }
-
-      /* Spinner for loading */
       .spinner {
-        width: 24px;
-        height: 24px;
+        width: 22px;
+        height: 22px;
         border: 2px solid #e5e7eb;
         border-top-color: #3b82f6;
         border-radius: 50%;
         animation: spin 0.8s linear infinite;
-      }
-
-      /* Modal styles */
-      .modal-overlay {
-        position: fixed;
-        inset: 0;
-        background: rgba(0, 0, 0, 0.5);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 1000;
-        opacity: 0;
-        visibility: hidden;
-        transition: opacity 0.2s, visibility 0.2s;
-      }
-
-      .modal-overlay.open {
-        opacity: 1;
-        visibility: visible;
-      }
-
-      .modal-content {
-        background: #fff;
-        border-radius: 12px;
-        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-        width: 100%;
-        max-width: 560px;
-        max-height: 90vh;
-        overflow-y: auto;
-        transform: scale(0.95);
-        transition: transform 0.2s;
-      }
-
-      .modal-overlay.open .modal-content {
-        transform: scale(1);
-      }
-
-      /* API Key input styles */
-      .api-key-input {
-        background: #fff;
-        border: 1px solid #e5e7eb;
-        border-radius: 8px;
-        padding: 10px 12px;
-        font-size: 14px;
-        font-family: "JetBrains Mono", monospace;
-        width: 100%;
-        transition: border-color 0.15s, box-shadow 0.15s;
-      }
-
-      .api-key-input:focus {
-        outline: none;
-        border-color: #3b82f6;
-        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-      }
-
-      .api-key-input::placeholder {
-        color: #9ca3af;
-        font-family: "Inter", sans-serif;
-      }
-
-      /* Key status indicators */
-      .key-status {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        font-size: 12px;
-        margin-top: 6px;
-      }
-
-      .key-status-dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-      }
-
-      .key-status-dot.configured {
-        background: #22c55e;
-      }
-
-      .key-status-dot.env {
-        background: #3b82f6;
-      }
-
-      .key-status-dot.missing {
-        background: #9ca3af;
-      }
-
-      /* Settings button */
-      .settings-btn {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 10px 16px;
-        background: transparent;
-        border: 1px solid #e5e7eb;
-        border-radius: 8px;
-        color: #374151;
-        font-size: 14px;
-        font-weight: 500;
-        cursor: pointer;
-        transition: all 0.15s;
-        width: 100%;
-      }
-
-      .settings-btn:hover {
-        background: #f9fafb;
-        border-color: #d1d5db;
-      }
-
-      /* Active stage content */
-      .stage-content {
-        padding: 24px;
       }
 
       .stage-loading {
@@ -465,243 +519,308 @@
         padding: 48px;
         text-align: center;
       }
+
+      .audit-section { margin-bottom: 16px; }
+      .audit-section h3 { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+      .audit-item { padding: 8px 12px; background: #f5f6f9; border-radius: 6px; margin-bottom: 6px; font-size: 12.5px; }
+
+      .hljs { background: transparent !important; }
+      .hljs-keyword { color: #c084fc !important; }
+      .hljs-string { color: #86efac !important; }
+      .hljs-number { color: #fbbf24 !important; }
+      .hljs-comment { color: #6b7280 !important; font-style: italic; }
+      .hljs-type, .hljs-built_in { color: #a78bfa !important; }
+      .hljs-class .hljs-title { color: #34d399 !important; }
+
+      /* ── Modals ────────────────────────────────────────── */
+      .modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.45);
+        backdrop-filter: blur(3px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.2s, visibility 0.2s;
+        padding: 24px;
+      }
+      .modal-overlay.open { opacity: 1; visibility: visible; }
+
+      .modal-content {
+        background: #fff;
+        border-radius: 14px;
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(0,0,0,0.04);
+        width: 100%;
+        max-width: 560px;
+        max-height: calc(100vh - 48px);
+        overflow-y: auto;
+        transform: scale(0.97) translateY(6px);
+        transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      .modal-overlay.open .modal-content {
+        transform: scale(1) translateY(0);
+      }
+
+      .modal-close {
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 5px;
+        border-radius: 6px;
+        color: #b5b9c4;
+        transition: background 0.15s, color 0.15s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .modal-close:hover { background: #f5f6f9; color: #4a5060; }
+
+      /* ── API Key inputs (modal) ────────────────────────── */
+      .api-key-input {
+        background: var(--input-bg);
+        border: 1px solid var(--input-border);
+        border-radius: 10px;
+        padding: 12px 14px;
+        font-size: 13px;
+        font-family: "DM Mono", monospace;
+        width: 100%;
+        transition: border-color 0.15s, box-shadow 0.15s;
+        color: #131820;
+      }
+      .api-key-input:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+      }
+      .api-key-input::placeholder {
+        color: #b5b9c4;
+        font-family: "DM Sans", sans-serif;
+      }
+
+      #usage-counter { font-size: 11px; color: var(--sublabel); }
+      #subscription-tier-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 2px 9px;
+        border-radius: 10px;
+        font-size: 11px;
+        font-weight: 500;
+        background: #f0f1f5;
+        color: #7c8493;
+      }
     </style>
   </head>
   <body>
-    <div class="flex">
-      <!-- Sidebar -->
+    <div class="app-shell">
+
       <aside class="sidebar">
-        <!-- Header -->
-        <div class="border-b border-gray-200">
-          <img
-            src="/sidebar-header-blue.png"
-            alt="FlutterFlow Custom Code Connect"
-            class="w-full h-auto block"
-          />
-        </div>
-
-        <!-- API Keys Settings -->
-        <div class="p-5 border-b border-gray-200">
-          <button class="settings-btn" onclick="openApiKeysModal()">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
-            </svg>
-            <span>API Keys</span>
-            <div id="api-keys-status" class="ml-auto flex gap-1">
-              <div class="key-status-dot missing" title="Gemini"></div>
-              <div class="key-status-dot missing" title="Claude"></div>
-              <div class="key-status-dot missing" title="OpenAI"></div>
-              <div class="key-status-dot missing" title="FlutterFlow"></div>
-              <div class="key-status-dot missing" title="OpenRouter"></div>
-            </div>
-          </button>
-        </div>
-
-        <!-- Design Prompt Canvas -->
-        <div class="p-5 border-b border-gray-200">
-          <div class="flex items-center gap-2 mb-3">
-            <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"/>
-            </svg>
-            <span class="font-medium text-gray-900">Design Prompt Canvas</span>
-          </div>
-          <textarea
-            id="pipeline-input"
-            class="w-full h-32 p-3 text-gray-700"
-            placeholder="Describe your UI component here... (e.g., A responsive card with an image, title, and description, on a subtle gradient background)"
-          ></textarea>
-        </div>
-
-        <!-- Code Generation Options -->
-        <div class="border-b border-gray-200">
-          <div class="section-header" onclick="toggleSection('code-options')">
-            <div class="flex items-center gap-2">
-              <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/>
+        <div class="sidebar-header">
+          <div class="sidebar-brand-super">FlutterFlow</div>
+          <div class="sidebar-brand-main">
+            <div class="sidebar-brand-icon">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5"/>
               </svg>
-              <span class="font-medium text-gray-900">Code Generation Options</span>
             </div>
-            <svg id="code-options-chevron" class="w-5 h-5 text-gray-400 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-            </svg>
-          </div>
-          <div id="code-options-content" class="section-content open">
-            <div class="px-5 pb-5">
-              <label class="block text-sm text-gray-600 mb-2">Model Selector</label>
-              <select id="code-generator-model">
-                <option value="gemini-3.1-pro-preview" selected>Gemini 3.1 Pro</option>
-                <option value="claude-4.6-opus">Claude 4.6 Opus</option>
-                <option value="gpt-5.3-codex">GPT-5.3-Codex</option>
-                <option value="openrouter-auto">OpenRouter: Auto Router</option>
-                <option value="openrouter-free">OpenRouter: Free Models</option>
-              </select>
-            </div>
+            <div class="sidebar-brand-text">Custom Code <span>Connect</span></div>
           </div>
         </div>
 
-        <!-- Run Pipeline Button -->
-        <div class="p-5 border-b border-gray-200">
-          <button id="btn-run-pipeline" class="btn-primary" onclick="runThinkingPipeline()">
-            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M8 5v14l11-7z"/>
-            </svg>
-            Run Pipeline
-          </button>
-        </div>
+        <div class="sidebar-scroll">
 
-        <!-- Workflow Status -->
-        <div>
-          <div class="section-header" onclick="toggleSection('workflow-status')">
-            <div class="flex items-center gap-2">
-              <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+          <!-- 1. API Keys -->
+          <div class="sb-section">
+            <div class="sb-section-head">
+              <span class="sb-section-title">API Keys</span>
+              <span class="sb-section-badge">01</span>
+            </div>
+            <button class="settings-btn" onclick="openApiKeysModal()">
+              <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
               </svg>
-              <span class="font-medium text-gray-900">Workflow Status</span>
-            </div>
-            <svg id="workflow-status-chevron" class="w-5 h-5 text-gray-400 transition-transform rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-            </svg>
+              <span>Configure Keys</span>
+              <div id="api-keys-status" class="ml-auto flex gap-1">
+                <div class="key-status-dot missing" title="Gemini"></div>
+                <div class="key-status-dot missing" title="Claude"></div>
+                <div class="key-status-dot missing" title="OpenAI"></div>
+                <div class="key-status-dot missing" title="FlutterFlow"></div>
+                <div class="key-status-dot missing" title="OpenRouter"></div>
+              </div>
+            </button>
+
           </div>
-          <div id="workflow-status-content" class="section-content open">
-            <!-- Prompt Architect -->
+
+          <!-- 2. Prompt FlutterFlow Custom Code -->
+          <div class="sb-section">
+            <div class="sb-section-head">
+              <span class="sb-section-title">Prompt FlutterFlow Custom Code</span>
+              <span class="sb-section-badge">02</span>
+            </div>
+            <textarea
+              id="pipeline-input"
+              rows="6"
+              placeholder="Describe your custom widget or action...&#10;&#10;e.g. A circular progress gauge with gradient stroke and animated percentage text."
+            ></textarea>
+          </div>
+
+          <!-- 3. Code Generation Model -->
+          <div class="sb-section">
+            <div class="sb-section-head">
+              <span class="sb-section-title">Code Generation Model</span>
+              <span class="sb-section-badge">03</span>
+            </div>
+            <span class="sb-sublabel">Model Selector</span>
+            <select id="code-generator-model">
+              <option value="gemini-3.1-pro-preview" selected>Gemini 3.1 Pro</option>
+              <option value="claude-4.6-opus">Claude 4.6 Opus</option>
+              <option value="gpt-5.2-codex">GPT-5.2-Codex</option>
+              <option value="openrouter-auto">OpenRouter: Auto Router</option>
+              <option value="openrouter-free">OpenRouter: Free Models</option>
+            </select>
+          </div>
+
+          <!-- 4. Workflow -->
+          <div class="sb-section" style="border-bottom:none; padding-top:16px; padding-bottom:16px;">
+            <div class="sb-section-head" style="margin-bottom:10px;">
+              <span class="sb-section-title">Workflow</span>
+              <span class="sb-section-badge">04</span>
+            </div>
+
             <div id="step1-item" class="workflow-item" onclick="selectWorkflowStep(1)">
-              <div class="flex flex-col gap-1 workflow-icon">
-                <div class="flex items-center gap-3">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div class="flex flex-col gap-0.5 workflow-icon">
+                <div class="flex items-center gap-2.5">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                   </svg>
-                  <span class="text-sm workflow-label">Prompt Architect</span>
+                  <span class="workflow-label">Prompt Architect</span>
                 </div>
-                <span class="text-xs text-gray-500 ml-7">Gemini 3.0 Pro</span>
+                <span class="text-xs text-gray-300" style="margin-left:22px;">Gemini 3.0 Pro</span>
               </div>
               <div id="step1-status" class="status-icon">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
                 </svg>
               </div>
             </div>
 
-            <!-- Code Generator -->
             <div id="step2-item" class="workflow-item" onclick="selectWorkflowStep(2)">
-              <div class="flex flex-col gap-1 workflow-icon">
-                <div class="flex items-center gap-3">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div class="flex flex-col gap-0.5 workflow-icon">
+                <div class="flex items-center gap-2.5">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
                   </svg>
-                  <span class="text-sm workflow-label">Code Generator</span>
+                  <span class="workflow-label">Code Generator</span>
                 </div>
-                <span id="step2-model-label" class="text-xs text-gray-500 ml-7">Gemini 3.0 Pro</span>
+                <span id="step2-model-label" class="text-xs text-gray-300" style="margin-left:22px;">Gemini 3.0 Pro</span>
               </div>
               <div id="step2-status" class="status-icon">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
                 </svg>
               </div>
             </div>
 
-            <!-- Code Review -->
             <div id="step3-item" class="workflow-item" onclick="selectWorkflowStep(3)">
-              <div class="flex flex-col gap-1 workflow-icon">
-                <div class="flex items-center gap-3">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div class="flex flex-col gap-0.5 workflow-icon">
+                <div class="flex items-center gap-2.5">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
                   </svg>
-                  <span class="text-sm workflow-label">Code Review</span>
+                  <span class="workflow-label">Code Review</span>
                 </div>
-                <span class="text-xs text-gray-500 ml-7">Gemini 3.0 Pro</span>
+                <span class="text-xs text-gray-300" style="margin-left:22px;">Gemini 3.0 Pro</span>
               </div>
               <div id="step3-status" class="status-icon">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
                 </svg>
               </div>
             </div>
           </div>
+
+          <a href="https://github.com/sgardoll/CustomCodeConnectForFlutterFlow/issues/new?template=code_feedback.md" target="_blank" rel="noopener noreferrer" class="feedback-link">
+            <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6H9.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"/>
+            </svg>
+            Report generated code
+          </a>
         </div>
 
-        <!-- Deploy to FlutterFlow Button -->
-        <div id="deploy-section" class="p-5 border-t border-gray-200 hidden">
-          <button 
-            id="btn-deploy-to-ff" 
-            class="btn-primary"
-            style="--btn-bg:#f97316;--btn-bg-hover:#ea580c;"
-            onclick="initiateCommitToFlutterFlow()"
-          >
+        <div class="sidebar-footer">
+          <button id="btn-run-pipeline" class="btn-action btn-run" onclick="runThinkingPipeline()">
+            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            Run Pipeline
+          </button>
+          <button id="btn-deploy-to-ff" class="btn-action btn-deploy hidden" onclick="initiateCommitToFlutterFlow()">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
             </svg>
             Deploy to FlutterFlow
           </button>
-        </div>
-
-        <!-- Feedback Link -->
-        <div class="mt-auto p-4 border-t border-gray-200">
-          <a
-            href="https://github.com/sgardoll/CustomCodeConnectForFlutterFlow/issues/new?template=code_feedback.md"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="flex items-center gap-2 text-xs text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6H9.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"/>
-            </svg>
-            Report this code
-          </a>
+          <div id="auth-signedout" style="margin-top: 10px;">
+            <button class="flex items-center justify-center gap-2 text-xs text-gray-400 hover:text-gray-600 transition-colors w-full" style="background:none; border:none; cursor:pointer; font-family:inherit; padding:0;" id="auth-signin-btn" onclick="openSignInModal()">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+              </svg>
+              Sign in for usage tracking
+            </button>
+          </div>
+          <div id="auth-signedin" class="hidden" style="margin-top: 10px;">
+            <div style="display:flex; align-items:center; justify-content:space-between;">
+              <span id="auth-user-email" style="font-size:11px; color:#8a8f9c; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></span>
+              <button onclick="handleSignOut()" style="font-size:11px; color:#8a8f9c; background:none; border:none; cursor:pointer; font-family:inherit; white-space:nowrap; padding:0;">Sign out</button>
+            </div>
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-top:4px;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span id="subscription-tier-badge">Free</span>
+                <span id="usage-counter" style="font-size:11px; color:#8a8f9c;">0 / 50 runs this month</span>
+              </div>
+              <button id="manage-billing-btn" onclick="openCustomerPortal()" class="hidden" style="font-size:11px; color:#3b82f6; background:none; border:none; cursor:pointer; font-family:inherit; padding:0;">Manage</button>
+            </div>
+            <div id="upgrade-prompt" class="hidden" style="margin-top:6px;">
+              <button onclick="openPricingModal()" style="width:100%; text-align:center; font-size:11px; background:#3b82f6; color:white; padding:6px 12px; border-radius:6px; border:none; cursor:pointer; font-family:inherit; font-weight:500;">Upgrade plan</button>
+            </div>
+          </div>
         </div>
       </aside>
 
-      <!-- Main Content -->
-      <main class="main-content relative">
-        <!-- Welcome Video (shown on first load) -->
-        <div id="welcome-video" class="absolute inset-0 bg-black flex items-center justify-center z-10">
-          <video
-            id="welcome-video-player"
-            class="w-full h-full object-cover"
-            autoplay
-            muted
-            loop
-            playsinline
-          >
-            <source src="/CCC.mp4" type="video/mp4" />
-          </video>
+      <main class="main-content">
+        <div id="preview-frame-container" class="preview-frame-wrapper">
+          <div class="preview-frame">
+            <video id="welcome-video-player" autoplay muted loop playsinline>
+              <source src="/CCC.mp4" type="video/mp4" />
+            </video>
+          </div>
         </div>
 
-        <div class="main-stage relative">
-
-          <!-- Stage Header -->
-          <div class="px-6 py-4 border-b border-gray-200">
-            <h2 id="stage-title" class="font-semibold text-gray-900">Active Workflow Stage</h2>
+        <div class="main-stage" id="main-stage-container">
+          <div class="main-stage-header">
+            <h2 id="stage-title">Active Workflow Stage</h2>
           </div>
+          <div class="main-stage-body" id="main-stage">
 
-          <!-- Stage Content -->
-          <div id="main-stage" class="p-6 relative">
-
-
-            <!-- Ready State (default) -->
-            <div id="ready-state" class="hidden flex flex-col items-center justify-center py-32">
+            <div id="ready-state" class="hidden flex flex-col items-center justify-center" style="padding:80px 0;">
               <div class="ready-icon">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-7 h-7 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
                 </svg>
               </div>
-              <h3 class="text-lg font-semibold text-gray-900 mb-2">Ready to Generate</h3>
-              <p class="text-gray-500 text-center max-w-md">
-                Enter a prompt in the sidebar and click "Run Pipeline" to start the generation process. Details and progress will appear here.
-              </p>
+              <h3 class="text-base font-semibold text-gray-800 mb-2">Ready to Generate</h3>
+              <p class="text-sm text-gray-400 text-center max-w-sm">Enter a prompt and click "Run Pipeline" to start.</p>
             </div>
 
-            <!-- Step 1 Content (hidden by default) -->
             <div id="step1-content" class="hidden">
               <div id="step1-loading" class="stage-loading hidden">
                 <div class="spinner mb-4"></div>
-                <p class="text-gray-600">Analyzing your request...</p>
+                <p class="text-sm text-gray-500">Analyzing your request...</p>
               </div>
               <div id="step1-result" class="hidden">
                 <div class="code-container">
                   <button class="copy-btn" onclick="copyCode('step1-output')">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
-                    </svg>
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
                     Copy
                   </button>
                   <pre id="step1-output" class="code-font text-gray-300"></pre>
@@ -709,18 +828,15 @@
               </div>
             </div>
 
-            <!-- Step 2 Content (hidden by default) -->
             <div id="step2-content" class="hidden">
               <div id="step2-loading" class="stage-loading hidden">
                 <div class="spinner mb-4"></div>
-                <p class="text-gray-600">Generating code...</p>
+                <p class="text-sm text-gray-500">Generating code...</p>
               </div>
               <div id="step2-result" class="hidden">
                 <div class="code-container">
                   <button class="copy-btn" onclick="copyCode('step2-output')">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
-                    </svg>
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
                     Copy
                   </button>
                   <pre id="step2-output" class="code-font text-gray-300"></pre>
@@ -728,28 +844,21 @@
               </div>
             </div>
 
-            <!-- Step 3 Content (hidden by default) -->
             <div id="step3-content" class="hidden">
               <div id="step3-loading" class="stage-loading hidden">
                 <div class="spinner mb-4"></div>
-                <p class="text-gray-600">Auditing code...</p>
+                <p class="text-sm text-gray-500">Auditing code...</p>
               </div>
               <div id="step3-result" class="hidden">
                 <div class="flex justify-end mb-4">
-                  <button 
-                    id="btn-refine-top"
-                    class="btn-primary bg-indigo-600 hover:bg-indigo-700 w-auto btn-refine-action"
-                    onclick="runRefinement()"
-                  >
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-                    </svg>
+                  <button id="btn-refine-top" class="btn-primary btn-refine-action" style="width:auto;background:#4f46e5;" onclick="runRefinement()">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                     Refine & Regenerate Code
                   </button>
                 </div>
                 <div id="step3-output" class="text-sm text-gray-700"></div>
 
-                <div id="ff-error-input-section" class="mt-6 border-t border-gray-200 pt-5">
+                <div id="ff-error-input-section" class="mt-6 border-t border-gray-100 pt-5">
                   <div class="rounded-lg border border-amber-200 bg-amber-50 p-4">
                     <div class="flex items-center gap-2 mb-1">
                       <svg class="w-4 h-4 flex-shrink-0 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -760,46 +869,30 @@
                     <p class="text-xs text-amber-700 mb-3 ml-6">Paste the raw Dart compiler output below — the AI will analyse every error and regenerate fixed code.</p>
                     <textarea
                       id="ff-error-paste-input"
-                      class="w-full h-40 resize-y rounded-md border border-amber-200 bg-white p-3 font-mono text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition"
-                      placeholder="Paste FlutterFlow / Dart build errors here…&#10;&#10;e.g.&#10;lib/custom_code/widgets/signature_pad.dart:70:19: Error: The setter &#39;penColor&#39; isn&#39;t defined for the type &#39;SignatureController&#39;.&#10;lib/components/keyboard_hint_widget.dart:13:46: Error: Duplicated parameter name &#39;key&#39;."
+                      rows="5"
+                      style="background:#fffbf0; border-color:#fcd34d; color:#78350f;"
+                      placeholder="Paste FlutterFlow / Dart build errors here..."
                       spellcheck="false"
                     ></textarea>
                     <div class="flex items-center justify-between mt-3">
-                      <button
-                        onclick="clearErrorInput()"
-                        class="text-xs text-amber-600 hover:text-amber-800 underline underline-offset-2 transition-colors"
-                      >
-                        Clear
-                      </button>
-                      <button
-                        id="btn-fix-from-errors"
-                        onclick="regenerateFromPastedErrors()"
-                        class="btn-primary bg-amber-600 hover:bg-amber-700 w-auto"
-                      >
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
-                        </svg>
+                      <button onclick="clearErrorInput()" class="text-xs text-amber-600 hover:text-amber-800 underline underline-offset-2 transition-colors">Clear</button>
+                      <button id="btn-fix-from-errors" onclick="regenerateFromPastedErrors()" class="btn-primary" style="width:auto;background:#d97706;font-size:12px;padding:8px 14px;">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
                         Fix Errors &amp; Regenerate
                       </button>
                     </div>
                   </div>
                 </div>
 
-                <!-- Refinement Actions -->
                 <div id="refinement-actions" class="mt-4 pt-4 flex justify-end">
-                  <button 
-                    id="btn-refine" 
-                    class="btn-primary bg-indigo-600 hover:bg-indigo-700 w-auto btn-refine-action"
-                    onclick="runRefinement()"
-                  >
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-                    </svg>
+                  <button id="btn-refine" class="btn-primary btn-refine-action" style="width:auto;background:#4f46e5;" onclick="runRefinement()">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                     Refine & Regenerate Code
                   </button>
                 </div>
               </div>
             </div>
+
           </div>
         </div>
       </main>
@@ -808,475 +901,233 @@
     <!-- API Keys Modal -->
     <div id="api-keys-modal" class="modal-overlay" onclick="closeApiKeysModal(event)">
       <div class="modal-content" onclick="event.stopPropagation()">
-        <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-          <h2 class="font-semibold text-lg text-gray-900">API Keys</h2>
-          <button onclick="closeApiKeysModal()" class="p-1 hover:bg-gray-100 rounded-lg transition-colors">
-            <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-            </svg>
+        <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h2 class="font-semibold text-base text-gray-900">API Keys</h2>
+          <button onclick="closeApiKeysModal()" class="modal-close">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
+        <div class="p-6 space-y-5">
+          <p class="text-sm text-gray-400">Configure your API keys. Keys are encrypted and stored locally in your browser.</p>
 
-        <div class="p-6 space-y-6">
-          <p class="text-sm text-gray-600">
-            Configure your API keys to use different AI models. Keys are encrypted and stored locally in your browser.
-          </p>
-
-          <!-- Gemini API Key -->
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">
+            <label class="block text-sm font-medium text-gray-600 mb-1.5">
               <span class="flex items-center gap-2">
-                <svg class="w-4 h-4 text-blue-500" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-                </svg>
+                <svg class="w-4 h-4 text-blue-500" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
                 Google Gemini API Key
               </span>
             </label>
             <div class="relative">
-              <input 
-                type="password" 
-                id="gemini-api-key-input" 
-                class="api-key-input pr-10" 
-                placeholder="Enter your Gemini API key"
-              />
-              <button 
-                onclick="toggleKeyVisibility('gemini-api-key-input')" 
-                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
-                <svg class="w-4 h-4 eye-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-                </svg>
+              <input type="password" id="gemini-api-key-input" class="api-key-input pr-10" placeholder="Enter your Gemini API key"/>
+              <button onclick="toggleKeyVisibility('gemini-api-key-input')" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                <svg class="w-4 h-4 eye-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
               </button>
             </div>
-            <div id="gemini-key-status" class="key-status">
-              <div class="key-status-dot missing"></div>
-              <span class="text-gray-500">Not configured</span>
-            </div>
+            <div id="gemini-key-status" class="key-status"><div class="key-status-dot missing"></div><span class="text-gray-400">Not configured</span></div>
           </div>
 
-          <!-- Anthropic API Key -->
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">
+            <label class="block text-sm font-medium text-gray-600 mb-1.5">
               <span class="flex items-center gap-2">
-                <svg class="w-4 h-4 text-orange-500" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
-                </svg>
+                <svg class="w-4 h-4 text-orange-500" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
                 Anthropic Claude API Key
               </span>
             </label>
             <div class="relative">
-              <input 
-                type="password" 
-                id="anthropic-api-key-input" 
-                class="api-key-input pr-10" 
-                placeholder="Enter your Claude API key"
-              />
-              <button 
-                onclick="toggleKeyVisibility('anthropic-api-key-input')" 
-                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
-                <svg class="w-4 h-4 eye-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-                </svg>
+              <input type="password" id="anthropic-api-key-input" class="api-key-input pr-10" placeholder="Enter your Claude API key"/>
+              <button onclick="toggleKeyVisibility('anthropic-api-key-input')" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                <svg class="w-4 h-4 eye-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
               </button>
             </div>
-            <div id="anthropic-key-status" class="key-status">
-              <div class="key-status-dot missing"></div>
-              <span class="text-gray-500">Not configured</span>
-            </div>
+            <div id="anthropic-key-status" class="key-status"><div class="key-status-dot missing"></div><span class="text-gray-400">Not configured</span></div>
           </div>
 
-          <!-- OpenAI API Key -->
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">
+            <label class="block text-sm font-medium text-gray-600 mb-1.5">
               <span class="flex items-center gap-2">
-                <svg class="w-4 h-4 text-green-500" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.8956zm16.5963 3.8558L13.1038 8.364l2.0201-1.1638a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.4091-.6813zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z"/>
-                </svg>
+                <svg class="w-4 h-4 text-green-500" viewBox="0 0 24 24" fill="currentColor"><path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.8956zm16.5963 3.8558L13.1038 8.364l2.0201-1.1638a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.4091-.6813zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z"/></svg>
                 OpenAI API Key
               </span>
             </label>
             <div class="relative">
-              <input 
-                type="password" 
-                id="openai-api-key-input" 
-                class="api-key-input pr-10" 
-                placeholder="Enter your OpenAI API key"
-              />
-              <button 
-                onclick="toggleKeyVisibility('openai-api-key-input')" 
-                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
-                <svg class="w-4 h-4 eye-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-                </svg>
+              <input type="password" id="openai-api-key-input" class="api-key-input pr-10" placeholder="Enter your OpenAI API key"/>
+              <button onclick="toggleKeyVisibility('openai-api-key-input')" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                <svg class="w-4 h-4 eye-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
               </button>
             </div>
-            <div id="openai-key-status" class="key-status">
-              <div class="key-status-dot missing"></div>
-              <span class="text-gray-500">Not configured</span>
-            </div>
+            <div id="openai-key-status" class="key-status"><div class="key-status-dot missing"></div><span class="text-gray-400">Not configured</span></div>
           </div>
 
-          <!-- OpenRouter API Key -->
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">
+            <label class="block text-sm font-medium text-gray-600 mb-1.5">
               <span class="flex items-center gap-2">
-                <svg class="w-4 h-4 text-purple-600" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-                </svg>
+                <svg class="w-4 h-4 text-purple-600" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
                 OpenRouter API Key
               </span>
             </label>
             <div class="relative">
-              <input 
-                type="password" 
-                id="openrouter-api-key-input" 
-                class="api-key-input pr-10" 
-                placeholder="Enter your OpenRouter API key"
-              />
-              <button 
-                onclick="toggleKeyVisibility('openrouter-api-key-input')" 
-                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
-                <svg class="w-4 h-4 eye-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-                </svg>
+              <input type="password" id="openrouter-api-key-input" class="api-key-input pr-10" placeholder="Enter your OpenRouter API key"/>
+              <button onclick="toggleKeyVisibility('openrouter-api-key-input')" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                <svg class="w-4 h-4 eye-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
               </button>
             </div>
-            <div id="openrouter-key-status" class="key-status">
-              <div class="key-status-dot missing"></div>
-              <span class="text-gray-500">Not configured</span>
-            </div>
+            <div id="openrouter-key-status" class="key-status"><div class="key-status-dot missing"></div><span class="text-gray-400">Not configured</span></div>
           </div>
 
-          <!-- FlutterFlow API Key -->
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">
+            <label class="block text-sm font-medium text-gray-600 mb-1.5">
               <span class="flex items-center gap-2">
-                <svg class="w-4 h-4 text-orange-500" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-                </svg>
+                <svg class="w-4 h-4 text-orange-500" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
                 FlutterFlow API Key
               </span>
             </label>
             <div class="relative">
-              <input 
-                type="password" 
-                id="flutterflow-api-key-input" 
-                class="api-key-input pr-10" 
-                placeholder="Enter your FlutterFlow API key"
-              />
-              <button 
-                onclick="toggleKeyVisibility('flutterflow-api-key-input')" 
-                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
-                <svg class="w-4 h-4 eye-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-                </svg>
+              <input type="password" id="flutterflow-api-key-input" class="api-key-input pr-10" placeholder="Enter your FlutterFlow API key"/>
+              <button onclick="toggleKeyVisibility('flutterflow-api-key-input')" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                <svg class="w-4 h-4 eye-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
               </button>
             </div>
-            <div id="flutterflow-key-status" class="key-status">
-              <div class="key-status-dot missing"></div>
-              <span class="text-gray-500">Not configured</span>
-            </div>
-            <div id="flutterflow-api-key-error" class="text-xs text-red-600 mt-1 hidden">
-              API key should be at least 20 characters with only letters, numbers, underscores, and dashes
-            </div>
-            <p class="text-xs text-gray-500 mt-1">
-              Get your API key from FlutterFlow → 
-              <a href="https://app.flutterflow.io/settings/api" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-700 hover:underline">Settings → API Access</a>
-            </p>
-            
-            <!-- Advanced Section -->
+            <div id="flutterflow-key-status" class="key-status"><div class="key-status-dot missing"></div><span class="text-gray-400">Not configured</span></div>
+            <div id="flutterflow-api-key-error" class="text-xs text-red-500 mt-1 hidden">API key should be at least 20 characters with only letters, numbers, underscores, and dashes</div>
+            <p class="text-xs text-gray-400 mt-1">Get your key: <a href="https://app.flutterflow.io/settings/api" target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:underline">FlutterFlow Settings → API Access</a></p>
             <details class="group mt-3">
-              <summary class="flex items-center gap-2 cursor-pointer text-sm font-medium text-gray-600 hover:text-gray-800 list-none">
-                <svg class="w-4 h-4 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                </svg>
+              <summary class="flex items-center gap-2 cursor-pointer text-xs font-medium text-gray-400 hover:text-gray-600 list-none">
+                <svg class="w-3.5 h-3.5 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                 Advanced
               </summary>
-              <div class="mt-3 pl-4 border-l-2 border-gray-200">
-                <label class="block text-sm font-medium text-gray-700 mb-1">
-                  API Endpoint
-                </label>
-                <select 
-                  id="flutterflow-endpoint-select" 
-                  class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                  onchange="setFlutterFlowEndpoint(this.value)"
-                >
-                  <option value="https://api.flutterflow.io/v2/">Production (api.flutterflow.io)</option>
-                  <option value="https://api.flutterflow.io/v2-staging/">Staging (api.flutterflow.io/v2-staging)</option>
+              <div class="mt-2 pl-4 border-l-2 border-gray-100">
+                <label class="block text-xs font-medium text-gray-500 mb-1">API Endpoint</label>
+                <select id="flutterflow-endpoint-select" style="font-size:12px; padding:7px 10px; appearance:auto; background-image:none;" onchange="setFlutterFlowEndpoint(this.value)">
+                  <option value="https://api.flutterflow.io/v2/">Production</option>
+                  <option value="https://api.flutterflow.io/v2-staging/">Staging</option>
                 </select>
-                <p class="text-xs text-gray-500 mt-1">
-                  Use Staging if Production returns 500 errors
-                </p>
+                <p class="text-xs text-gray-400 mt-1">Use Staging if Production returns 500 errors</p>
               </div>
             </details>
-           </div>
+          </div>
 
-            <!-- FlutterFlow Projects Dropdown -->
-           <div id="flutterflow-projects-container" class="hidden">
-             <label class="block text-sm font-medium text-gray-700 mb-2">
-               <span class="flex items-center gap-2">
-                 <svg class="w-4 h-4 text-orange-500" viewBox="0 0 24 24" fill="currentColor">
-                   <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
-                 </svg>
-                 Select Project
-               </span>
-             </label>
-             <select id="flutterflow-projects-select" class="api-key-input w-full">
-               <option value="">Loading projects...</option>
-             </select>
-             <p class="text-xs text-gray-500 mt-1">
-               Select a project to automatically fill Project ID
-             </p>
-             <div id="flutterflow-projects-error" class="text-xs text-red-600 mt-1 hidden">
-               Failed to load projects. Check your API key and try again.
-             </div>
-           </div>
-
-           <!-- FlutterFlow Project ID -->
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">
+          <div id="flutterflow-projects-container" class="hidden">
+            <label class="block text-sm font-medium text-gray-600 mb-1.5">
               <span class="flex items-center gap-2">
-                <svg class="w-4 h-4 text-orange-500" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
-                </svg>
+                <svg class="w-4 h-4 text-orange-500" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+                Select Project
+              </span>
+            </label>
+            <select id="flutterflow-projects-select" class="api-key-input w-full" style="font-family:'DM Sans',sans-serif; appearance:auto; background-image:none;">
+              <option value="">Loading projects...</option>
+            </select>
+            <p class="text-xs text-gray-400 mt-1">Select a project to auto-fill Project ID</p>
+            <div id="flutterflow-projects-error" class="text-xs text-red-500 mt-1 hidden">Failed to load projects.</div>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-600 mb-1.5">
+              <span class="flex items-center gap-2">
+                <svg class="w-4 h-4 text-orange-500" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
                 FlutterFlow Project ID
               </span>
             </label>
-            <input 
-              type="text" 
-              id="flutterflow-project-id-input" 
-              class="api-key-input" 
-              placeholder="Enter your FlutterFlow Project ID"
-            />
-            <p class="text-xs text-gray-500 mt-1">
-              Found in your project URL: flutterflow.io/project/[PROJECT-ID]<br>
-              <span class="text-gray-400">e.g., my-app-1234-abcd</span>
-            </p>
-            <div id="flutterflow-project-status" class="key-status">
-              <div class="key-status-dot missing"></div>
-              <span class="text-gray-500">Not configured</span>
-            </div>
-            <div id="flutterflow-project-id-error" class="text-xs text-red-600 mt-1 hidden">
-              Project ID should be at least 5 characters with only letters, numbers, and dashes
-            </div>
+            <input type="text" id="flutterflow-project-id-input" class="api-key-input" placeholder="Enter your FlutterFlow Project ID"/>
+            <p class="text-xs text-gray-400 mt-1">Found in URL: flutterflow.io/project/<strong>[PROJECT-ID]</strong></p>
+            <div id="flutterflow-project-status" class="key-status"><div class="key-status-dot missing"></div><span class="text-gray-400">Not configured</span></div>
+            <div id="flutterflow-project-id-error" class="text-xs text-red-500 mt-1 hidden">Project ID should be at least 5 characters with only letters, numbers, and dashes</div>
           </div>
 
-           <div class="bg-orange-50 border border-orange-200 rounded-lg p-1 mb-1">
-             <p class="text-xs text-orange-700">
-               <strong>FlutterFlow Direct Commit:</strong> Configures direct commit from Step 3.
-             </p>
-           </div>
-
-           <div class="bg-blue-50 border border-blue-200 rounded-lg p-1">
-             <p class="text-xs text-blue-700">
-               <strong>Security:</strong> Keys are encrypted locally (AES-256) and never stored on our servers.
-             </p>
-           </div>
+          <div class="bg-orange-50 border border-orange-100 rounded-lg p-3">
+            <p class="text-xs text-orange-600"><strong>FlutterFlow Direct Commit:</strong> Configures direct commit from Step 3.</p>
+          </div>
+          <div class="bg-blue-50 border border-blue-100 rounded-lg p-3">
+            <p class="text-xs text-blue-600"><strong>Security:</strong> Keys are encrypted locally (AES-256) and never stored on our servers.</p>
+          </div>
         </div>
-
-        <div class="px-6 py-4 border-t border-gray-200 flex gap-3 justify-end">
-          <button 
-            onclick="clearAllApiKeys()" 
-            class="px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-          >
-            Clear All Keys
-          </button>
-          <button 
-            onclick="saveApiKeys()" 
-            class="px-4 py-2 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors"
-          >
-            Save & Close
-          </button>
+        <div class="px-6 py-4 border-t border-gray-100 flex gap-3 justify-end">
+          <button onclick="clearAllApiKeys()" class="px-4 py-2 text-sm font-medium text-red-500 hover:bg-red-50 rounded-lg transition-colors">Clear All Keys</button>
+          <button onclick="saveApiKeys()" class="px-4 py-2 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors">Save & Close</button>
         </div>
       </div>
     </div>
 
+    <!-- Walkthrough Modal -->
     <div id="walkthrough-modal" class="modal-overlay" onclick="closeWalkthroughModal(event)">
       <div class="modal-content" onclick="event.stopPropagation()">
-        <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-          <h2 class="font-semibold text-lg text-gray-900">Welcome to FlutterFlow Custom Code Connect</h2>
-          <button onclick="closeWalkthroughModal()" class="p-1 hover:bg-gray-100 rounded-lg transition-colors">
-            <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-            </svg>
+        <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h2 class="font-semibold text-base text-gray-900">Welcome to FlutterFlow Custom Code Connect</h2>
+          <button onclick="closeWalkthroughModal()" class="modal-close">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
-
         <div class="p-6">
-          <p class="text-sm text-gray-600 mb-6">
-            Get started in 4 simple steps:
-          </p>
-
-          <div class="space-y-4">
-            <div id="walkthrough-step1" class="flex items-start gap-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <div class="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center flex-shrink-0 font-semibold">1</div>
-              <div class="flex-1">
-                <h3 class="font-medium text-gray-900 mb-1">Add Your API Key</h3>
-                <p class="text-sm text-gray-600 mb-2">You'll need a Gemini API key minimum (it's free). Click the button below to add your key.</p>
-                <button onclick="closeWalkthroughModal(); openApiKeysModal();" class="text-sm text-blue-600 hover:text-blue-700 font-medium">
-                  Open API Keys Settings →
-                </button>
-              </div>
+          <p class="text-sm text-gray-400 mb-5">Get started in 4 simple steps:</p>
+          <div class="space-y-3">
+            <div id="walkthrough-step1" class="flex items-start gap-3 p-4 bg-blue-50 rounded-lg border border-blue-100">
+              <div class="w-7 h-7 bg-blue-500 text-white rounded-full flex items-center justify-center flex-shrink-0 font-semibold text-xs">1</div>
+              <div><h3 class="font-medium text-gray-800 text-sm mb-1">Add Your API Key</h3><p class="text-xs text-gray-500 mb-1">You need a Gemini API key minimum (free).</p><button onclick="closeWalkthroughModal(); openApiKeysModal();" class="text-xs text-blue-500 font-medium">Open API Keys →</button></div>
             </div>
-
-            <div id="walkthrough-step2" class="flex items-start gap-4 p-4 bg-gray-50 rounded-lg border border-gray-200 opacity-60">
-              <div class="w-8 h-8 bg-gray-400 text-white rounded-full flex items-center justify-center flex-shrink-0 font-semibold">2</div>
-              <div class="flex-1">
-                <h3 class="font-medium text-gray-900 mb-1">Describe What You Want</h3>
-                <p class="text-sm text-gray-600 mb-2">Type your prompt in the Design Prompt Canvas. Be specific about your custom widget or action.</p>
-                <button onclick="closeWalkthroughModal(); focusPromptInput();" class="text-sm text-blue-600 hover:text-blue-700 font-medium">
-                  Add My Prompt →
-                </button>
-              </div>
+            <div id="walkthrough-step2" class="flex items-start gap-3 p-4 bg-gray-50 rounded-lg border border-gray-100 opacity-50">
+              <div class="w-7 h-7 bg-gray-300 text-white rounded-full flex items-center justify-center flex-shrink-0 font-semibold text-xs">2</div>
+              <div><h3 class="font-medium text-gray-800 text-sm mb-1">Describe What You Want</h3><p class="text-xs text-gray-500 mb-1">Type your prompt. Be specific.</p><button onclick="closeWalkthroughModal(); focusPromptInput();" class="text-xs text-blue-500 font-medium">Add Prompt →</button></div>
             </div>
-
-            <div id="walkthrough-step3" class="flex items-start gap-4 p-4 bg-gray-50 rounded-lg border border-gray-200 opacity-60">
-              <div class="w-8 h-8 bg-gray-400 text-white rounded-full flex items-center justify-center flex-shrink-0 font-semibold">3</div>
-              <div class="flex-1">
-                <h3 class="font-medium text-gray-900 mb-1">Choose a Model</h3>
-                <p class="text-sm text-gray-600 mb-2">Select your preferred AI model from the dropdown. Gemini is fastest and works great!</p>
-                <button onclick="closeWalkthroughModal(); openModelSelector();" class="text-sm text-blue-600 hover:text-blue-700 font-medium">
-                  Select Model →
-                </button>
-              </div>
+            <div id="walkthrough-step3" class="flex items-start gap-3 p-4 bg-gray-50 rounded-lg border border-gray-100 opacity-50">
+              <div class="w-7 h-7 bg-gray-300 text-white rounded-full flex items-center justify-center flex-shrink-0 font-semibold text-xs">3</div>
+              <div><h3 class="font-medium text-gray-800 text-sm mb-1">Choose a Model</h3><p class="text-xs text-gray-500 mb-1">Select your preferred AI model.</p><button onclick="closeWalkthroughModal(); openModelSelector();" class="text-xs text-blue-500 font-medium">Select Model →</button></div>
             </div>
-
-            <div id="walkthrough-step4" class="flex items-start gap-4 p-4 bg-gray-50 rounded-lg border border-gray-200 opacity-60">
-              <div class="w-8 h-8 bg-gray-400 text-white rounded-full flex items-center justify-center flex-shrink-0 font-semibold">4</div>
-              <div class="flex-1">
-                <h3 class="font-medium text-gray-900 mb-1">Hit Run!</h3>
-                <p class="text-sm text-gray-600 mb-2">Click the Run Pipeline button and watch the AI generate FlutterFlow-ready code.</p>
-                <button onclick="closeWalkthroughModal(); runThinkingPipeline();" class="text-sm text-blue-600 hover:text-blue-700 font-medium">
-                  Run Pipeline →
-                </button>
-              </div>
+            <div id="walkthrough-step4" class="flex items-start gap-3 p-4 bg-gray-50 rounded-lg border border-gray-100 opacity-50">
+              <div class="w-7 h-7 bg-gray-300 text-white rounded-full flex items-center justify-center flex-shrink-0 font-semibold text-xs">4</div>
+              <div><h3 class="font-medium text-gray-800 text-sm mb-1">Hit Run!</h3><p class="text-xs text-gray-500 mb-1">Click Run Pipeline and watch the magic.</p><button onclick="closeWalkthroughModal(); runThinkingPipeline();" class="text-xs text-blue-500 font-medium">Run Pipeline →</button></div>
             </div>
           </div>
-
-          <div class="mt-6 pt-4 border-t border-gray-200">
-            <label class="flex items-center gap-2">
-              <input type="checkbox" id="walkthrough-dont-show" class="w-4 h-4 text-blue-500 rounded border-gray-300 focus:ring-blue-500">
-              <span class="text-sm text-gray-600">Don't show this again</span>
-            </label>
+          <div class="mt-5 pt-4 border-t border-gray-100">
+            <label class="flex items-center gap-2"><input type="checkbox" id="walkthrough-dont-show" class="w-4 h-4 text-blue-500 rounded border-gray-300"><span class="text-xs text-gray-400">Don't show this again</span></label>
           </div>
         </div>
-
-        <div class="px-6 py-4 border-t border-gray-200 flex justify-end">
-          <button onclick="closeWalkthroughModal()" class="px-4 py-2 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors">
-            Got It!
-          </button>
+        <div class="px-6 py-4 border-t border-gray-100 flex justify-end">
+          <button onclick="closeWalkthroughModal()" class="px-4 py-2 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors">Got It!</button>
         </div>
       </div>
     </div>
 
     <!-- Commit Confirmation Modal -->
     <div id="commit-confirm-modal" class="modal-overlay" onclick="closeCommitConfirmModal(event)">
-      <div class="modal-content" onclick="event.stopPropagation()" style="max-width: 640px;">
-        <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-          <h2 class="font-semibold text-lg text-gray-900">Confirm Commit to FlutterFlow</h2>
-          <button onclick="closeCommitConfirmModal()" class="p-1 hover:bg-gray-100 rounded-lg transition-colors">
-            <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-            </svg>
-          </button>
+      <div class="modal-content" onclick="event.stopPropagation()" style="max-width: 620px;">
+        <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h2 class="font-semibold text-base text-gray-900">Confirm Commit to FlutterFlow</h2>
+          <button onclick="closeCommitConfirmModal()" class="modal-close"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
         </div>
-
         <div class="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
-          <!-- Code Summary -->
           <div>
-            <h3 class="font-medium text-gray-900 mb-2">Code Summary</h3>
-            <div class="bg-gray-50 rounded-lg p-3 text-sm">
+            <h3 class="font-medium text-gray-700 mb-2 text-sm">Code Summary</h3>
+            <div class="bg-gray-50 rounded-lg p-3 text-sm border border-gray-100">
               <div class="grid grid-cols-2 gap-2">
-                <div><span class="text-gray-500">File:</span> <span id="confirm-file-name" class="font-medium"></span></div>
-                <div><span class="text-gray-500">Type:</span> <span id="confirm-artifact-type" class="font-medium"></span></div>
-                <div><span class="text-gray-500">Size:</span> <span id="confirm-file-size" class="font-medium"></span></div>
-                <div><span class="text-gray-500">Lines:</span> <span id="confirm-line-count" class="font-medium"></span></div>
+                <div><span class="text-gray-400">File:</span> <span id="confirm-file-name" class="font-medium text-gray-700"></span></div>
+                <div><span class="text-gray-400">Type:</span> <span id="confirm-artifact-type" class="font-medium text-gray-700"></span></div>
+                <div><span class="text-gray-400">Size:</span> <span id="confirm-file-size" class="font-medium text-gray-700"></span></div>
+                <div><span class="text-gray-400">Lines:</span> <span id="confirm-line-count" class="font-medium text-gray-700"></span></div>
               </div>
             </div>
           </div>
-
-          <!-- Dependencies -->
-          <div id="confirm-deps-section" class="hidden">
-            <h3 class="font-medium text-gray-900 mb-2">Dependencies</h3>
-            <div class="bg-blue-50 rounded-lg p-3">
-              <p class="text-xs text-blue-700 mb-2">The following packages will be added to pubspec.yaml:</p>
-              <ul id="confirm-deps-list" class="text-xs text-blue-800 space-y-1"></ul>
-            </div>
-          </div>
-
-          <!-- Warnings -->
-          <div id="confirm-warnings-section" class="hidden">
-            <h3 class="font-medium text-amber-700 mb-2">Warnings</h3>
-            <div class="bg-amber-50 rounded-lg p-3">
-              <ul id="confirm-warnings-list" class="text-xs text-amber-800 space-y-1"></ul>
-            </div>
-          </div>
-
-          <!-- Project Info -->
+          <div id="confirm-deps-section" class="hidden"><h3 class="font-medium text-gray-700 mb-2 text-sm">Dependencies</h3><div class="bg-blue-50 rounded-lg p-3 border border-blue-100"><p class="text-xs text-blue-600 mb-1">Packages added to pubspec.yaml:</p><ul id="confirm-deps-list" class="text-xs text-blue-700 space-y-1"></ul></div></div>
+          <div id="confirm-warnings-section" class="hidden"><h3 class="font-medium text-amber-700 mb-2 text-sm">Warnings</h3><div class="bg-amber-50 rounded-lg p-3 border border-amber-100"><ul id="confirm-warnings-list" class="text-xs text-amber-700 space-y-1"></ul></div></div>
+          <div><h3 class="font-medium text-gray-700 mb-2 text-sm">Target Project</h3><div class="flex items-center gap-2 text-sm"><svg class="w-4 h-4 text-orange-500" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg><span id="confirm-project-id" class="text-gray-600"></span></div></div>
           <div>
-            <h3 class="font-medium text-gray-900 mb-2">Target Project</h3>
-            <div class="flex items-center gap-2 text-sm">
-              <svg class="w-4 h-4 text-orange-500" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-              </svg>
-              <span id="confirm-project-id" class="text-gray-700"></span>
-            </div>
-          </div>
-
-          <!-- Code Preview (collapsible) -->
-          <div>
-            <button onclick="toggleCodePreview()" class="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700">
-              <svg id="code-preview-chevron" class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-              </svg>
-              Preview Code
-            </button>
-            <div id="code-preview-content" class="hidden mt-2">
-              <div class="code-container" style="max-height: 300px;">
-                <pre id="confirm-code-preview" class="code-font text-gray-300 text-xs"></pre>
-              </div>
-            </div>
+            <button onclick="toggleCodePreview()" class="flex items-center gap-2 text-xs text-blue-500 hover:text-blue-600"><svg id="code-preview-chevron" class="w-3.5 h-3.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>Preview Code</button>
+            <div id="code-preview-content" class="hidden mt-2"><div class="code-container" style="max-height:300px;"><pre id="confirm-code-preview" class="code-font text-gray-300 text-xs"></pre></div></div>
           </div>
         </div>
-
-        <div class="px-6 py-4 border-t border-gray-200 flex gap-3 justify-end">
-          <button 
-            onclick="closeCommitConfirmModal()" 
-            class="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            Cancel
-          </button>
-          <button 
-            onclick="confirmCommitToFlutterFlow()" 
-            class="px-4 py-2 text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 rounded-lg transition-colors"
-          >
-            Confirm Commit
-          </button>
+        <div class="px-6 py-4 border-t border-gray-100 flex gap-3 justify-end">
+          <button onclick="closeCommitConfirmModal()" class="px-4 py-2 text-sm font-medium text-gray-400 hover:bg-gray-50 rounded-lg transition-colors">Cancel</button>
+          <button onclick="confirmCommitToFlutterFlow()" class="px-4 py-2 text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 rounded-lg transition-colors">Confirm Commit</button>
         </div>
       </div>
     </div>
 
     <!-- Commit Progress Overlay -->
-    <div id="commit-progress-overlay" class="modal-overlay" style="background: rgba(0, 0, 0, 0.7);">
-      <div class="modal-content" style="max-width: 400px; text-align: center;">
-        <div class="p-6">
-          <div class="spinner mb-4 mx-auto"></div>
-          <h3 class="font-semibold text-gray-900 mb-2" id="progress-title">Committing to FlutterFlow...</h3>
-          <p class="text-sm text-gray-500 mb-4" id="progress-message">Preparing code</p>
-          
-          <!-- Progress Bar -->
-          <div class="w-full bg-gray-200 rounded-full h-2 mb-2">
-            <div id="commit-progress-bar" class="bg-orange-500 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
-          </div>
+    <div id="commit-progress-overlay" class="modal-overlay" style="background:rgba(0,0,0,0.6);backdrop-filter:blur(5px);">
+      <div class="modal-content" style="max-width:400px;text-align:center;">
+        <div class="p-8">
+          <div class="spinner mb-5 mx-auto"></div>
+          <h3 class="font-semibold text-gray-900 mb-2 text-base" id="progress-title">Committing to FlutterFlow...</h3>
+          <p class="text-sm text-gray-400 mb-5" id="progress-message">Preparing code</p>
+          <div class="w-full bg-gray-100 rounded-full h-1.5 mb-2"><div id="commit-progress-bar" class="bg-orange-500 h-1.5 rounded-full transition-all duration-300" style="width:0%"></div></div>
           <p class="text-xs text-gray-400" id="progress-detail">Step 1 of 4</p>
         </div>
       </div>
@@ -1284,119 +1135,110 @@
 
     <!-- Commit Success Modal -->
     <div id="commit-success-modal" class="modal-overlay" onclick="closeCommitSuccessModal(event)">
-      <div class="modal-content" onclick="event.stopPropagation()" style="max-width: 480px;">
-        <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-          <h2 class="font-semibold text-lg text-green-700 flex items-center gap-2">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-            </svg>
+      <div class="modal-content" onclick="event.stopPropagation()" style="max-width:480px;">
+        <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h2 class="font-semibold text-base text-green-600 flex items-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
             Commit Successful!
           </h2>
-          <button onclick="closeCommitSuccessModal()" class="p-1 hover:bg-gray-100 rounded-lg transition-colors">
-            <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-            </svg>
-          </button>
+          <button onclick="closeCommitSuccessModal()" class="modal-close"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
         </div>
-
         <div class="p-6 space-y-4">
-          <!-- Success Message -->
           <div class="text-center">
-            <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
-              <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-              </svg>
+            <div class="w-14 h-14 bg-green-50 border border-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+              <svg class="w-7 h-7 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
             </div>
-            <p class="text-gray-700" id="success-message">Code committed successfully!</p>
+            <p class="text-sm text-gray-600" id="success-message">Code committed successfully!</p>
           </div>
-
-          <!-- Commit Details -->
-          <div class="bg-gray-50 rounded-lg p-4 text-sm">
-            <h3 class="font-medium text-gray-900 mb-2">Commit Details</h3>
-            <div class="space-y-1">
-              <div class="flex justify-between">
-                <span class="text-gray-500">Project:</span>
-                <span class="font-medium text-gray-900" id="success-project-id"></span>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-gray-500">File:</span>
-                <span class="font-medium text-gray-900" id="success-file-name"></span>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-gray-500">Type:</span>
-                <span class="font-medium text-gray-900" id="success-artifact-type"></span>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-gray-500">Time:</span>
-                <span class="font-medium text-gray-900" id="success-time"></span>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-gray-500">Size:</span>
-                <span class="font-medium text-gray-900" id="success-size"></span>
-              </div>
+          <div class="bg-gray-50 rounded-lg p-4 border border-gray-100 text-sm">
+            <h3 class="font-medium text-gray-700 mb-2 text-sm">Commit Details</h3>
+            <div class="space-y-1.5">
+              <div class="flex justify-between"><span class="text-gray-400">Project:</span><span class="font-medium text-gray-700" id="success-project-id"></span></div>
+              <div class="flex justify-between"><span class="text-gray-400">File:</span><span class="font-medium text-gray-700" id="success-file-name"></span></div>
+              <div class="flex justify-between"><span class="text-gray-400">Type:</span><span class="font-medium text-gray-700" id="success-artifact-type"></span></div>
+              <div class="flex justify-between"><span class="text-gray-400">Time:</span><span class="font-medium text-gray-700" id="success-time"></span></div>
+              <div class="flex justify-between"><span class="text-gray-400">Size:</span><span class="font-medium text-gray-700" id="success-size"></span></div>
             </div>
           </div>
-
-          <!-- Warnings (if any) -->
-          <div id="success-warnings-section" class="hidden bg-amber-50 border border-amber-200 rounded-lg p-3">
-            <h3 class="font-medium text-amber-800 text-sm mb-1">Warnings</h3>
-            <ul id="success-warnings-list" class="text-xs text-amber-700 space-y-1"></ul>
-          </div>
-
-          <!-- Next Steps -->
-          <div class="bg-blue-50 rounded-lg p-4">
-            <h3 class="font-medium text-blue-900 text-sm mb-2">What's Next?</h3>
-            <ul class="text-sm text-blue-800 space-y-1">
-              <li>• Open your FlutterFlow project to see the changes</li>
-              <li>• Check the Custom Code section in FlutterFlow</li>
-              <li>• Test the code in FlutterFlow's preview mode</li>
-            </ul>
-          </div>
+          <div id="success-warnings-section" class="hidden bg-amber-50 border border-amber-100 rounded-lg p-3"><h3 class="font-medium text-amber-700 text-sm mb-1">Warnings</h3><ul id="success-warnings-list" class="text-xs text-amber-600 space-y-1"></ul></div>
+          <div class="bg-blue-50 border border-blue-100 rounded-lg p-4"><h3 class="font-medium text-blue-800 text-sm mb-2">What's Next?</h3><ul class="text-sm text-blue-600 space-y-1"><li>Open your FlutterFlow project</li><li>Check the Custom Code section</li><li>Test in FlutterFlow's preview mode</li></ul></div>
         </div>
-
-        <div class="px-6 py-4 border-t border-gray-200 flex gap-3 justify-end">
-          <a 
-            id="success-open-ff-link"
-            href="#"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="px-4 py-2 text-sm font-medium text-orange-600 hover:bg-orange-50 rounded-lg transition-colors flex items-center gap-2"
-          >
-            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-            </svg>
-            Open in FlutterFlow
+        <div class="px-6 py-4 border-t border-gray-100 flex gap-3 justify-end">
+          <a id="success-open-ff-link" href="#" target="_blank" rel="noopener noreferrer" class="px-4 py-2 text-sm font-medium text-orange-500 hover:bg-orange-50 rounded-lg transition-colors flex items-center gap-2">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>Open in FlutterFlow
           </a>
-          <button 
-            onclick="closeCommitSuccessModal()" 
-            class="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
-          >
-            Done
-          </button>
+          <button onclick="closeCommitSuccessModal()" class="px-4 py-2 text-sm font-medium text-white bg-green-500 hover:bg-green-600 rounded-lg transition-colors">Done</button>
         </div>
       </div>
     </div>
 
+    <!-- Sign In Modal -->
+    <div id="signin-modal" class="modal-overlay" onclick="closeSignInModal(event)">
+      <div class="modal-content" onclick="event.stopPropagation()" style="max-width:420px;">
+        <div style="padding:32px;">
+          <div class="flex items-start justify-between mb-5">
+            <div>
+              <h2 style="font-size:18px;font-weight:600;color:#131820;margin-bottom:4px;">Sign in</h2>
+              <p style="font-size:13px;color:#9aa0ad;line-height:1.5;">Enter your email and we'll send you a sign-in link.</p>
+            </div>
+            <button onclick="closeSignInModal()" class="modal-close ml-4 flex-shrink-0"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+          </div>
+          <input id="signin-email-input" type="email" placeholder="you@example.com" class="api-key-input mb-3" style="font-family:'DM Sans',sans-serif;font-size:14px;padding:11px 14px;" onkeydown="if(event.key==='Enter') handleMagicLinkRequest()" />
+          <button id="signin-submit-btn" onclick="handleMagicLinkRequest()" class="btn-action btn-run" style="font-size:14px;">Send Sign-in Link</button>
+          <p id="signin-message" class="text-sm text-gray-400 mt-3 text-center min-h-[1.25rem]"></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pricing Modal -->
+    <div id="pricing-modal" class="modal-overlay" onclick="closePricingModal(event)">
+      <div class="modal-content" onclick="event.stopPropagation()" style="max-width:660px;">
+        <div style="padding:32px;">
+          <div class="flex items-start justify-between mb-6">
+            <div>
+              <h2 style="font-size:18px;font-weight:600;color:#131820;margin-bottom:3px;">Choose a plan</h2>
+              <p style="font-size:13px;color:#9aa0ad;">Unlock more generations and advanced features.</p>
+            </div>
+            <button onclick="closePricingModal()" class="modal-close ml-4 flex-shrink-0"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+          </div>
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div class="border border-gray-200 rounded-xl p-5">
+              <h3 class="font-semibold text-gray-900 mb-1 text-sm">Free</h3>
+              <p class="text-2xl font-bold text-gray-900 mb-1">$0<span class="text-sm font-normal text-gray-400">/mo</span></p>
+              <ul class="text-xs text-gray-400 space-y-1.5 mb-5"><li>50 requests/month</li><li>Fallback model only</li><li>Code Dissector</li></ul>
+              <div id="free-tier-current" class="w-full text-center text-xs text-gray-300 py-2 border border-gray-100 rounded-lg">Current plan</div>
+            </div>
+            <div class="border-2 border-blue-400 rounded-xl p-5 bg-blue-50 relative">
+              <div class="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-blue-500 text-white text-xs font-semibold px-3 py-0.5 rounded-full">Popular</div>
+              <h3 class="font-semibold text-gray-900 mb-1 text-sm">Professional</h3>
+              <p class="text-2xl font-bold text-gray-900 mb-1">$19<span class="text-sm font-normal text-gray-400">/mo</span></p>
+              <p class="text-xs text-gray-400 mb-2">$20.90 inc. GST for AU</p>
+              <ul class="text-xs text-gray-500 space-y-1.5 mb-5"><li>500 requests/month</li><li>Model Selector</li><li>Code Dissector</li></ul>
+              <button id="checkout-btn-professional" onclick="startCheckout('professional')" class="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg text-xs font-semibold transition-colors">Subscribe</button>
+            </div>
+            <div class="border border-gray-200 rounded-xl p-5 bg-gray-900">
+              <h3 class="font-semibold text-white mb-1 text-sm">Power Developer</h3>
+              <p class="text-2xl font-bold text-white mb-1">$49<span class="text-sm font-normal text-gray-400">/mo</span></p>
+              <p class="text-xs text-gray-500 mb-2">$53.90 inc. GST for AU</p>
+              <ul class="text-xs text-gray-400 space-y-1.5 mb-5"><li>2000 requests/month</li><li>Extended context</li><li>Multi-file Dissector</li><li>BYOK option</li></ul>
+              <button id="checkout-btn-power" onclick="startCheckout('power')" class="w-full bg-white hover:bg-gray-100 text-gray-900 py-2 rounded-lg text-xs font-semibold transition-colors">Subscribe</button>
+            </div>
+          </div>
+          <p class="text-xs text-gray-400 text-center mt-5">Prices in AUD. 10% GST applied for Australian customers.</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="deploy-section" class="hidden"></div>
+
     <script type="module" src="/app.js"></script>
     <script>
-      // Check if app.js loaded successfully
       window.addEventListener('error', function(e) {
         if (e.target && e.target.tagName === 'SCRIPT' && e.target.src && e.target.src.includes('app.js')) {
-          console.error('Failed to load app.js module. This usually means:');
-          console.error('1. You opened index.html directly (file:// protocol) instead of using the dev server');
-          console.error('2. The Vite dev server is not running');
-          console.error('');
-          console.error('SOLUTION: Run "npm run dev" and open http://localhost:3000');
-          
-          // Show visible error to user
-          const errorDiv = document.createElement('div');
-          errorDiv.className = 'fixed inset-x-0 top-0 bg-red-600 text-white p-4 z-50 font-sans text-center';
-          errorDiv.innerHTML = `
-            <strong>App Failed to Load</strong><br>
-            JavaScript module could not be loaded. Please run <code class="bg-white/20 px-2 rounded">npm run dev</code>
-            and open <a href="http://localhost:3000" class="text-sky-300 underline">http://localhost:3000</a>
-          `;
-          document.body.appendChild(errorDiv);
+          var d = document.createElement('div');
+          d.className = 'fixed inset-x-0 top-0 bg-red-600 text-white p-4 z-50 font-sans text-center';
+          d.innerHTML = '<strong>App Failed to Load</strong><br>Run <code class="bg-white/20 px-2 rounded">npm run dev</code> and open <a href="http://localhost:3000" class="text-sky-300 underline">http://localhost:3000</a>';
+          document.body.appendChild(d);
         }
       }, true);
     </script>
