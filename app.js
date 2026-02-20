@@ -567,6 +567,7 @@ function hasStoredKey(provider) {
 function checkRequiredApiKeys(selectedModel) {
   // Map models to their required API key providers
   const MODEL_KEY_REQUIREMENTS = {
+    "gemini-3-flash-preview": "gemini",
     "gemini-3.1-pro-preview": "gemini",
     "claude-4.6-opus": "anthropic",
     "gpt-5.2-codex": "openai",
@@ -917,9 +918,7 @@ async function saveApiKeys() {
   }
   if (projectIdInput.value.trim()) {
     if (!validateFlutterFlowProjectId(projectIdInput.value)) {
-      alert(
-        "Invalid FlutterFlow Project ID format. Project IDs should be at least 5 characters and contain only letters, numbers, and dashes.",
-      );
+      showToast("Invalid FlutterFlow Project ID. Must be at least 5 characters (letters, numbers, dashes).", "error");
       projectIdInput.focus();
       return;
     }
@@ -4015,7 +4014,7 @@ Ensure it still adheres to the ORIGINAL SPECIFICATION.
     showStepLoading(3, false);
   } catch (error) {
     console.error("Refinement failed:", error);
-    alert("Refinement failed: " + error.message);
+    showToast("Refinement failed: " + error.message, "error");
 
     // If it failed, we might want to stay on the step where it failed or go back to 3
     // For now, let's just re-enable the button if we are still on step 3 or visible
@@ -4080,7 +4079,7 @@ async function regenerateFromPastedErrors() {
   }
 
   if (!pipelineState.step2Result) {
-    alert("No generated code found. Please run the full pipeline first.")
+    showToast("No generated code found. Please run the full pipeline first.", "warning")
     return
   }
 
@@ -4136,7 +4135,7 @@ Maintain the original specification and intent.`
     if (input) input.value = ""
   } catch (error) {
     console.error("Fix from errors failed:", error)
-    alert(`Failed to fix errors: ${error.message}`)
+    showToast(`Failed to fix errors: ${error.message}`, "error")
   } finally {
     pipelineState.isRunning = false
     if (btn) {
@@ -4162,7 +4161,7 @@ async function runThinkingPipeline() {
   const selectedModel = document.getElementById("code-generator-model").value;
 
   if (!userInput.trim()) {
-    alert("Please describe your FlutterFlow widget first.");
+    showToast("Please describe your FlutterFlow widget first.", "warning");
     return;
   }
 
@@ -4173,9 +4172,8 @@ async function runThinkingPipeline() {
   // Check for required API keys before running
   const keyCheck = checkRequiredApiKeys(effectiveModel);
   if (!keyCheck.valid) {
-    alert(`${keyCheck.message}
-
-Click the settings icon (⚙️) in the top right to configure API keys.`);
+    showToast(`${keyCheck.message} Open API Keys to configure.`, "error");
+    openApiKeysModal();
     return;
   }
 
@@ -4333,7 +4331,7 @@ function retryWithDifferentModel() {
  */
 async function initiateCommitToFlutterFlow() {
   if (!pipelineState.step2Result) {
-    alert("No code to commit. Please run the pipeline first to generate code.");
+    showToast("No code to commit. Please run the pipeline first.", "warning");
     return;
   }
 
@@ -4341,9 +4339,7 @@ async function initiateCommitToFlutterFlow() {
   const projectId = await getApiKey("flutterflow_project_id");
 
   if (!apiKey || !projectId) {
-    alert(
-      "FlutterFlow credentials not configured. Please add your API Key and Project ID in the API Keys settings.",
-    );
+    showToast("FlutterFlow credentials not configured. Add your API Key and Project ID in settings.", "warning");
     openApiKeysModal();
     return;
   }
@@ -4527,7 +4523,7 @@ Please regenerate the code to fix these errors while maintaining the original sp
     showStepLoading(3, false);
   } catch (error) {
     console.error("Regeneration failed:", error);
-    alert("Regeneration failed: " + error.message);
+    showToast("Regeneration failed: " + error.message, "error");
   } finally {
     pipelineState.isRunning = false;
 
@@ -4632,14 +4628,26 @@ async function verifyMagicLink(token) {
 }
 
 async function refreshSession(sessionToken) {
-  const res = await fetch(`${BUILDSHIP_BASE_URL}/auth/refresh-session`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ sessionToken })
-  })
-  const data = await res.json()
-  if (data.error || !data.email || !data.sessionToken) return null
-  return data
+  try {
+    const res = await fetch(`${BUILDSHIP_BASE_URL}/auth/refresh-session`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionToken })
+    })
+    if (!res.ok) {
+      console.error('refreshSession: non-OK response', { url: `${BUILDSHIP_BASE_URL}/auth/refresh-session`, status: res.status })
+      return null
+    }
+    const data = await res.json()
+    if (data.error || !data.email || !data.sessionToken) {
+      console.warn('refreshSession: validation failed', { error: data.error, hasEmail: !!data.email, hasToken: !!data.sessionToken })
+      return null
+    }
+    return data
+  } catch (err) {
+    console.error('refreshSession: fetch failed', { url: `${BUILDSHIP_BASE_URL}/auth/refresh-session`, message: err.message, stack: err.stack })
+    return null
+  }
 }
 
 function saveSession(email, sessionToken) {
@@ -4720,6 +4728,7 @@ async function handleMagicLinkRequest() {
     if (msg) msg.textContent = `Check your email — we sent a link to ${email}`
     if (btn) btn.textContent = 'Sent!'
   } catch (err) {
+    console.error('handleMagicLinkRequest: sendMagicLink failed', { email, err })
     if (msg) msg.textContent = 'Something went wrong. Please try again.'
     if (btn) { btn.disabled = false; btn.textContent = 'Send Link' }
   }
@@ -4746,12 +4755,15 @@ function updateAuthUI() {
 // --- USAGE METERING ---
 
 function getUsageData() {
+  const month = getCurrentYearMonth()
   try {
     const raw = localStorage.getItem(USAGE_STORAGE_KEY)
-    if (!raw) return { count: 0, month: getCurrentYearMonth() }
+    if (!raw) return { count: 0, month }
     return JSON.parse(raw)
-  } catch {
-    return { count: 0, month: getCurrentYearMonth() }
+  } catch (err) {
+    console.warn('getUsageData: failed to parse usage storage', { key: USAGE_STORAGE_KEY, month, err })
+    localStorage.removeItem(USAGE_STORAGE_KEY)
+    return { count: 0, month }
   }
 }
 
@@ -5031,7 +5043,7 @@ function closePricingModal(event) {
 }
 
 function showToast(message, type = 'info') {
-  const colors = { success: 'bg-green-600 text-white', error: 'bg-red-600 text-white', info: 'bg-gray-800 text-white' }
+  const colors = { success: 'bg-green-600 text-white', error: 'bg-red-600 text-white', warning: 'bg-amber-500 text-white', info: 'bg-gray-800 text-white' }
   const toast = document.createElement('div')
   toast.className = `fixed bottom-6 left-1/2 -translate-x-1/2 px-5 py-3 rounded-lg text-sm font-medium shadow-lg z-50 transition-opacity duration-300 ${colors[type] || colors.info}`
   toast.textContent = message
