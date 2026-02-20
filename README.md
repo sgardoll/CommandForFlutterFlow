@@ -326,12 +326,6 @@ Contributions are welcome! Please read our contributing guidelines before submit
 
 ---
 
-## License
-
-MIT License - see [LICENSE](LICENSE) for details.
-
----
-
 <p align="center">
   <strong>Stop fighting FlutterFlow. Start building.</strong>
 </p>
