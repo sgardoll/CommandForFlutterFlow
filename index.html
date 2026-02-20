@@ -497,6 +497,39 @@
           </button>
         </div>
 
+        <!-- Account & Subscription -->
+        <div class="p-5 border-b border-gray-200">
+          <div id="auth-signedout">
+            <button class="settings-btn w-full" id="auth-signin-btn" onclick="openSignInModal()">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+              </svg>
+              <span>Sign In</span>
+            </button>
+          </div>
+          <div id="auth-signedin" class="hidden">
+            <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center gap-2 min-w-0">
+                <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                </svg>
+                <span id="auth-user-email" class="text-sm text-gray-700 truncate"></span>
+              </div>
+              <button onclick="handleSignOut()" class="text-xs text-gray-400 hover:text-gray-600 flex-shrink-0 ml-2">Sign out</button>
+            </div>
+            <div class="flex items-center justify-between">
+              <span id="subscription-tier-badge" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">Free</span>
+              <button id="manage-billing-btn" onclick="openCustomerPortal()" class="text-xs text-indigo-600 hover:text-indigo-700 font-medium hidden">Manage billing</button>
+            </div>
+            <div id="upgrade-prompt" class="mt-3 hidden">
+              <button onclick="openPricingModal()" class="w-full text-center text-xs bg-indigo-600 hover:bg-indigo-700 text-white py-1.5 px-3 rounded-md font-medium transition-colors">Upgrade plan</button>
+            </div>
+          </div>
+          <div class="mt-2">
+            <span id="usage-counter" class="text-xs text-gray-500">0 / 50 runs this month</span>
+          </div>
+        </div>
+
         <!-- Design Prompt Canvas -->
         <div class="p-5 border-b border-gray-200">
           <div class="flex items-center gap-2 mb-3">
@@ -1400,5 +1433,83 @@
         }
       }, true);
     </script>
+
+    <!-- Sign In Modal -->
+    <div id="signin-modal" class="modal-overlay" onclick="closeSignInModal(event)">
+      <div class="modal-content" onclick="event.stopPropagation()" style="max-width: 400px;">
+        <div class="flex items-center justify-between mb-6">
+          <h2 class="text-xl font-semibold text-gray-900">Sign in</h2>
+          <button onclick="closeSignInModal()" class="text-gray-400 hover:text-gray-600">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+        <p class="text-sm text-gray-600 mb-4">Enter your email and we'll send you a sign-in link. No password needed.</p>
+        <input
+          id="signin-email-input"
+          type="email"
+          placeholder="you@example.com"
+          class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          onkeydown="if(event.key==='Enter') handleMagicLinkRequest()"
+        />
+        <button
+          id="signin-submit-btn"
+          onclick="handleMagicLinkRequest()"
+          class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-4 rounded-md text-sm font-medium transition-colors"
+        >Send Link</button>
+        <p id="signin-message" class="text-sm text-gray-500 mt-3 text-center min-h-[1.25rem]"></p>
+      </div>
+    </div>
+
+    <!-- Pricing Modal -->
+    <div id="pricing-modal" class="modal-overlay" onclick="closePricingModal(event)">
+      <div class="modal-content" onclick="event.stopPropagation()" style="max-width: 640px;">
+        <div class="flex items-center justify-between mb-6">
+          <h2 class="text-xl font-semibold text-gray-900">Choose a plan</h2>
+          <button onclick="closePricingModal()" class="text-gray-400 hover:text-gray-600">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div class="border border-gray-200 rounded-lg p-4">
+            <h3 class="font-semibold text-gray-900 mb-1">Free</h3>
+            <p class="text-2xl font-bold text-gray-900 mb-1">$0<span class="text-sm font-normal text-gray-500">/mo</span></p>
+            <ul class="text-xs text-gray-600 space-y-1 mb-4">
+              <li>50 requests/month</li>
+              <li>Fallback model only</li>
+              <li>Code Dissector</li>
+            </ul>
+            <div id="free-tier-current" class="w-full text-center text-xs text-gray-400 py-1.5">Current plan</div>
+          </div>
+          <div class="border border-indigo-200 rounded-lg p-4 bg-indigo-50">
+            <h3 class="font-semibold text-gray-900 mb-1">Professional</h3>
+            <p class="text-2xl font-bold text-gray-900 mb-1">$19<span class="text-sm font-normal text-gray-500">/mo</span></p>
+            <p class="text-xs text-gray-400 mb-2">$20.90 inc. GST for AU customers</p>
+            <ul class="text-xs text-gray-600 space-y-1 mb-4">
+              <li>500 requests/month</li>
+              <li>Model Selector</li>
+              <li>Code Dissector</li>
+            </ul>
+            <button id="checkout-btn-professional" onclick="startCheckout('professional')" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-1.5 px-3 rounded-md text-xs font-medium transition-colors">Subscribe</button>
+          </div>
+          <div class="border border-gray-200 rounded-lg p-4">
+            <h3 class="font-semibold text-gray-900 mb-1">Power Developer</h3>
+            <p class="text-2xl font-bold text-gray-900 mb-1">$49<span class="text-sm font-normal text-gray-500">/mo</span></p>
+            <p class="text-xs text-gray-400 mb-2">$53.90 inc. GST for AU customers</p>
+            <ul class="text-xs text-gray-600 space-y-1 mb-4">
+              <li>2000 requests/month</li>
+              <li>Extended context</li>
+              <li>Multi-file Dissector</li>
+              <li>BYOK option</li>
+            </ul>
+            <button id="checkout-btn-power" onclick="startCheckout('power')" class="w-full bg-gray-900 hover:bg-gray-800 text-white py-1.5 px-3 rounded-md text-xs font-medium transition-colors">Subscribe</button>
+          </div>
+        </div>
+        <p class="text-xs text-gray-400 text-center mt-4">Prices in AUD. 10% GST applied at checkout for Australian customers. ABN can be entered during checkout.</p>
+      </div>
+    </div>
   </body>
 </html>

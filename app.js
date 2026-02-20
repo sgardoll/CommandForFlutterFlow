@@ -10,6 +10,34 @@ const GEMINI_BASE_URL = IS_DEV ? '/api/gemini' : 'https://generativelanguage.goo
 const ANTHROPIC_BASE_URL = IS_DEV ? '/api/anthropic' : 'https://api.anthropic.com'
 const OPENAI_BASE_URL = IS_DEV ? '/api/openai' : 'https://api.openai.com'
 
+// --- AUTH / SUBSCRIPTION CONFIG ---
+const BUILDSHIP_BASE_URL = 'https://4tgke4.buildship.run'
+const STRIPE_PUBLISHABLE_KEY = 'pk_live_51R8y3MKszA2slvDX8402H2tJtQkNanGCSeAz8YA5hZ8mmiwAR9ztvhGHvzh2KX1KMZt4vvt6wlh1MUtw8C9kbpkJ00NFSVe4GL'
+const STRIPE_PRICE_IDS = {
+  professional: 'price_1T2ldCKszA2slvDXatdeCpbI',
+  power: 'price_1T2le9KszA2slvDXR4mPvw7M'
+}
+
+let authState = {
+  email: null,
+  sessionToken: null,
+  isVerified: false,
+}
+
+let subscriptionState = {
+  tier: 'free',
+  status: 'none',
+  periodEnd: null,
+}
+
+// --- TIER LIMITS ---
+const TIER_LIMITS = {
+  free: 50,
+  professional: 500,
+  power: 2000,
+}
+const USAGE_STORAGE_KEY = 'ccc_usage'
+
 // Model Configuration
 const PROMPT_ARCHITECT_MODEL = "gemini-3.1-pro-preview";
 const CODE_DISSECTOR_MODEL = "gemini-3.1-pro-preview";
@@ -4136,8 +4164,12 @@ async function runThinkingPipeline() {
     return;
   }
 
+  if (!canRunPipeline()) return;
+
+  const effectiveModel = getEffectiveModel(selectedModel);
+
   // Check for required API keys before running
-  const keyCheck = checkRequiredApiKeys(selectedModel);
+  const keyCheck = checkRequiredApiKeys(effectiveModel);
   if (!keyCheck.valid) {
     alert(`${keyCheck.message}
 
@@ -4160,7 +4192,7 @@ Click the settings icon (⚙️) in the top right to configure API keys.`);
   Running...`;
 
   // Update model info
-  updateModelInfo(selectedModel);
+  updateModelInfo(effectiveModel);
 
   try {
     // Dismiss welcome video and hide ready state, show step 1
@@ -4186,7 +4218,7 @@ Click the settings icon (⚙️) in the top right to configure API keys.`);
 
     pipelineState.step2Result = await runCodeGenerator(
       pipelineState.step1Result,
-      selectedModel,
+      effectiveModel,
     );
 
     const step2Output = document.getElementById("step2-output");
@@ -4207,6 +4239,8 @@ Click the settings icon (⚙️) in the top right to configure API keys.`);
     auditOutput.innerHTML = renderMarkdownAudit(pipelineState.step3Result);
 
     showStepLoading(3, false);
+    incrementUsage();
+    updateUsageDisplay();
   } catch (error) {
     console.error("Pipeline failed:", error);
 
@@ -4568,6 +4602,444 @@ function highlightCode(code, language = "dart") {
   }
 }
 
+// --- AUTH FUNCTIONS ---
+
+async function sendMagicLink(email) {
+  const res = await fetch(`${BUILDSHIP_BASE_URL}/auth/send-magic-link`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email })
+  })
+  if (!res.ok) throw new Error('Failed to send magic link')
+  return res.json()
+}
+
+async function verifyMagicLink(token) {
+  const res = await fetch(`${BUILDSHIP_BASE_URL}/auth/verify-magic-link`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token })
+  })
+  const data = await res.json()
+  if (data.error || !data.email || !data.sessionToken) {
+    throw new Error(data.error || 'Invalid or expired link')
+  }
+  return data
+}
+
+async function refreshSession(sessionToken) {
+  const res = await fetch(`${BUILDSHIP_BASE_URL}/auth/refresh-session`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sessionToken })
+  })
+  const data = await res.json()
+  if (data.error || !data.email || !data.sessionToken) return null
+  return data
+}
+
+function saveSession(email, sessionToken) {
+  localStorage.setItem('ccc_email', email)
+  localStorage.setItem('ccc_session', sessionToken)
+  authState.email = email
+  authState.sessionToken = sessionToken
+  authState.isVerified = true
+}
+
+function clearSession() {
+  localStorage.removeItem('ccc_email')
+  localStorage.removeItem('ccc_session')
+  authState.email = null
+  authState.sessionToken = null
+  authState.isVerified = false
+  subscriptionState = { tier: 'free', status: 'none', periodEnd: null }
+}
+
+function getStoredSession() {
+  return {
+    email: localStorage.getItem('ccc_email'),
+    sessionToken: localStorage.getItem('ccc_session')
+  }
+}
+
+async function initializeAuth() {
+  const params = new URLSearchParams(window.location.search)
+  const magicToken = params.get('token')
+
+  if (magicToken) {
+    window.history.replaceState({}, '', window.location.pathname)
+    try {
+      const { email, sessionToken } = await verifyMagicLink(magicToken)
+      saveSession(email, sessionToken)
+    } catch (err) {
+      showToast(err.message || 'Sign-in link invalid or expired.', 'error')
+    }
+  } else {
+    const { email, sessionToken } = getStoredSession()
+    if (email && sessionToken) {
+      const refreshed = await refreshSession(sessionToken)
+      if (refreshed) {
+        saveSession(refreshed.email, refreshed.sessionToken)
+      } else {
+        clearSession()
+      }
+    }
+  }
+
+  updateAuthUI()
+}
+
+function openSignInModal() {
+  const modal = document.getElementById('signin-modal')
+  if (modal) modal.classList.add('open')
+}
+
+function closeSignInModal(event) {
+  if (event && event.target !== event.currentTarget) return
+  const modal = document.getElementById('signin-modal')
+  if (modal) modal.classList.remove('open')
+}
+
+async function handleMagicLinkRequest() {
+  const input = document.getElementById('signin-email-input')
+  const btn = document.getElementById('signin-submit-btn')
+  const msg = document.getElementById('signin-message')
+  const email = input?.value?.trim()
+
+  if (!email || !email.includes('@')) {
+    if (msg) msg.textContent = 'Please enter a valid email address.'
+    return
+  }
+
+  if (btn) { btn.disabled = true; btn.textContent = 'Sending…' }
+  if (msg) msg.textContent = ''
+
+  try {
+    await sendMagicLink(email)
+    if (input) input.value = ''
+    if (msg) msg.textContent = `Check your email — we sent a link to ${email}`
+    if (btn) btn.textContent = 'Sent!'
+  } catch (err) {
+    if (msg) msg.textContent = 'Something went wrong. Please try again.'
+    if (btn) { btn.disabled = false; btn.textContent = 'Send Link' }
+  }
+}
+
+function handleSignOut() {
+  clearSession()
+  clearSubscriptionCache()
+  updateAuthUI()
+  updateSubscriptionUI()
+}
+
+function updateAuthUI() {
+  const signedIn = authState.isVerified && !!authState.email
+  const signedout = document.getElementById('auth-signedout')
+  const signedin = document.getElementById('auth-signedin')
+  if (signedout) signedout.classList.toggle('hidden', signedIn)
+  if (signedin) signedin.classList.toggle('hidden', !signedIn)
+  const emailEl = document.getElementById('auth-user-email')
+  if (emailEl) emailEl.textContent = authState.email || ''
+  updateSubscriptionUI()
+}
+
+// --- USAGE METERING ---
+
+function getUsageData() {
+  try {
+    const raw = localStorage.getItem(USAGE_STORAGE_KEY)
+    if (!raw) return { count: 0, month: getCurrentYearMonth() }
+    return JSON.parse(raw)
+  } catch {
+    return { count: 0, month: getCurrentYearMonth() }
+  }
+}
+
+function getCurrentYearMonth() {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+}
+
+function getUsage() {
+  const data = getUsageData()
+  if (data.month !== getCurrentYearMonth()) {
+    return { count: 0, month: getCurrentYearMonth() }
+  }
+  return data
+}
+
+function incrementUsage() {
+  const current = getUsage()
+  const updated = { count: current.count + 1, month: getCurrentYearMonth() }
+  localStorage.setItem(USAGE_STORAGE_KEY, JSON.stringify(updated))
+  return updated
+}
+
+function getRunLimit() {
+  return TIER_LIMITS[subscriptionState.tier] ?? TIER_LIMITS.free
+}
+
+function canRunPipeline() {
+  const { count } = getUsage()
+  const limit = getRunLimit()
+  if (count >= limit) {
+    showToast(`You've used all ${limit} runs for this month. Upgrade to continue.`, 'error')
+    openPricingModal()
+    return false
+  }
+  const warningThreshold = Math.floor(limit * 0.8)
+  if (count >= warningThreshold) {
+    const remaining = limit - count
+    showToast(`${remaining} run${remaining === 1 ? '' : 's'} remaining this month.`, 'warning')
+  }
+  return true
+}
+
+function getEffectiveModel(selectedModel) {
+  if (subscriptionState.tier === 'free') {
+    return FALLBACK_MODEL
+  }
+  return selectedModel
+}
+
+function updateModelSelectorGating() {
+  const container = document.getElementById('code-options-content')
+  const select = document.getElementById('code-generator-model')
+  if (!container || !select) return
+
+  const isFree = subscriptionState.tier === 'free'
+  select.disabled = isFree
+
+  let notice = document.getElementById('model-selector-free-notice')
+  if (isFree) {
+    select.value = FALLBACK_MODEL
+    if (!notice) {
+      notice = document.createElement('p')
+      notice.id = 'model-selector-free-notice'
+      notice.className = 'text-xs text-gray-500 mt-1'
+      notice.textContent = 'Upgrade to unlock model selection.'
+      select.parentNode.appendChild(notice)
+    }
+  } else {
+    if (notice) notice.remove()
+  }
+}
+
+function updateUsageDisplay() {
+  const el = document.getElementById('usage-counter')
+  if (!el) return
+  const { count } = getUsage()
+  const limit = getRunLimit()
+  el.textContent = `${count} / ${limit} runs this month`
+  const pct = limit > 0 ? count / limit : 0
+  el.className = pct >= 1
+    ? 'text-xs text-red-600 font-medium'
+    : pct >= 0.8
+      ? 'text-xs text-yellow-600 font-medium'
+      : 'text-xs text-gray-500'
+}
+
+// --- STRIPE FUNCTIONS ---
+
+async function fetchSubscription() {
+  if (!authState.isVerified || !authState.sessionToken) {
+    subscriptionState = { tier: 'free', status: 'none', periodEnd: null }
+    return
+  }
+
+  const cached = localStorage.getItem('ccc_subscription')
+  if (cached) {
+    try {
+      const { data, ts } = JSON.parse(cached)
+      if (Date.now() - ts < 5 * 60 * 1000) {
+        subscriptionState = data
+        return
+      }
+    } catch (_) {}
+  }
+
+  try {
+    const res = await fetch(`${BUILDSHIP_BASE_URL}/stripe/get-subscription`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionToken: authState.sessionToken })
+    })
+
+    const data = await res.json()
+
+    if (data.error) {
+      clearSession()
+      updateAuthUI()
+      return
+    }
+    subscriptionState = {
+      tier: data.tier || 'free',
+      status: data.status || 'none',
+      periodEnd: data.periodEnd || null
+    }
+
+    localStorage.setItem('ccc_subscription', JSON.stringify({
+      data: subscriptionState,
+      ts: Date.now()
+    }))
+  } catch (err) {
+    console.error('fetchSubscription failed:', err)
+  }
+}
+
+function clearSubscriptionCache() {
+  localStorage.removeItem('ccc_subscription')
+}
+
+async function startCheckout(tierId) {
+  if (!authState.isVerified || !authState.sessionToken) {
+    openSignInModal()
+    return
+  }
+
+  if (!STRIPE_PRICE_IDS[tierId]) {
+    showToast('Invalid plan selected.', 'error')
+    return
+  }
+
+  const btn = document.getElementById('checkout-btn-' + tierId)
+  if (btn) { btn.disabled = true; btn.textContent = 'Redirecting…' }
+
+  try {
+    const res = await fetch(`${BUILDSHIP_BASE_URL}/stripe/create-checkout-session`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tierId, sessionToken: authState.sessionToken })
+    })
+
+    const checkoutData = await res.json()
+    if (checkoutData.error || !checkoutData.url) {
+      throw new Error(checkoutData.error || 'Failed to create checkout session')
+    }
+
+    const { url } = checkoutData
+    window.location.href = url
+  } catch (err) {
+    console.error('startCheckout failed:', err)
+    if (btn) { btn.disabled = false; btn.textContent = 'Subscribe' }
+    showToast('Could not start checkout. Please try again.', 'error')
+  }
+}
+
+async function openCustomerPortal() {
+  if (!authState.isVerified || !authState.sessionToken) {
+    openSignInModal()
+    return
+  }
+
+  const btn = document.getElementById('manage-billing-btn')
+  if (btn) { btn.disabled = true; btn.textContent = 'Loading…' }
+
+  try {
+    const res = await fetch(`${BUILDSHIP_BASE_URL}/stripe/create-portal-session`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionToken: authState.sessionToken })
+    })
+
+    const portalData = await res.json()
+    if (portalData.error || !portalData.url) throw new Error(portalData.error || 'Failed to open billing portal')
+    const { url } = portalData
+    window.location.href = url
+  } catch (err) {
+    console.error('openCustomerPortal failed:', err)
+    if (btn) { btn.disabled = false; btn.textContent = 'Manage billing' }
+    showToast('Could not open billing portal. Please try again.', 'error')
+  }
+}
+
+function handleCheckoutRedirect() {
+  const params = new URLSearchParams(window.location.search)
+  const checkout = params.get('checkout')
+  if (checkout === 'success') {
+    window.history.replaceState({}, '', window.location.pathname)
+    clearSubscriptionCache()
+    showToast('Subscription active! Welcome aboard.', 'success')
+  } else if (checkout === 'cancel') {
+    window.history.replaceState({}, '', window.location.pathname)
+    showToast('Checkout cancelled.', 'info')
+  }
+}
+
+// --- SUBSCRIPTION UI ---
+
+function updateSubscriptionUI() {
+  const signedIn = authState.isVerified && !!authState.email
+  const tier = subscriptionState.tier
+
+  const badge = document.getElementById('subscription-tier-badge')
+  if (badge) {
+    const labels = { free: 'Free', professional: 'Professional', power: 'Power Developer' }
+    const colors = {
+      free: 'bg-gray-100 text-gray-600',
+      professional: 'bg-indigo-100 text-indigo-700',
+      power: 'bg-purple-100 text-purple-700'
+    }
+    badge.textContent = labels[tier] || 'Free'
+    badge.className = `inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${colors[tier] || colors.free}`
+  }
+
+  const upgradePrompt = document.getElementById('upgrade-prompt')
+  if (upgradePrompt) upgradePrompt.classList.toggle('hidden', !signedIn || tier !== 'free')
+
+  const manageBillingBtn = document.getElementById('manage-billing-btn')
+  if (manageBillingBtn) manageBillingBtn.classList.toggle('hidden', !signedIn || tier === 'free')
+
+  updatePricingModalState(tier)
+  updateModelSelectorGating()
+  updateUsageDisplay()
+}
+
+function updatePricingModalState(tier) {
+  const configs = {
+    professional: { btnId: 'checkout-btn-professional', defaultText: 'Subscribe', activeClass: 'bg-indigo-600 hover:bg-indigo-700 text-white' },
+    power: { btnId: 'checkout-btn-power', defaultText: 'Subscribe', activeClass: 'bg-gray-900 hover:bg-gray-800 text-white' }
+  }
+  Object.entries(configs).forEach(([t, { btnId, defaultText, activeClass }]) => {
+    const btn = document.getElementById(btnId)
+    if (!btn) return
+    if (t === tier) {
+      btn.disabled = true
+      btn.textContent = 'Current plan'
+      btn.className = `w-full py-1.5 px-3 rounded-md text-xs font-medium bg-gray-100 text-gray-500 cursor-default`
+    } else {
+      btn.disabled = false
+      btn.textContent = defaultText
+      btn.className = `w-full ${activeClass} py-1.5 px-3 rounded-md text-xs font-medium transition-colors`
+    }
+  })
+  const freeCurrent = document.getElementById('free-tier-current')
+  if (freeCurrent) freeCurrent.classList.toggle('hidden', tier !== 'free')
+}
+
+function openPricingModal() {
+  const modal = document.getElementById('pricing-modal')
+  if (modal) modal.classList.add('open')
+}
+
+function closePricingModal(event) {
+  if (event && event.target !== event.currentTarget) return
+  const modal = document.getElementById('pricing-modal')
+  if (modal) modal.classList.remove('open')
+}
+
+function showToast(message, type = 'info') {
+  const colors = { success: 'bg-green-600 text-white', error: 'bg-red-600 text-white', info: 'bg-gray-800 text-white' }
+  const toast = document.createElement('div')
+  toast.className = `fixed bottom-6 left-1/2 -translate-x-1/2 px-5 py-3 rounded-lg text-sm font-medium shadow-lg z-50 transition-opacity duration-300 ${colors[type] || colors.info}`
+  toast.textContent = message
+  document.body.appendChild(toast)
+  setTimeout(() => {
+    toast.style.opacity = '0'
+    setTimeout(() => toast.remove(), 300)
+  }, 3500)
+}
+
 // --- INITIALIZATION ---
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -4579,6 +5051,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Initialize welcome video
   initializeWelcomeVideo();
+
+  await initializeAuth();
+  handleCheckoutRedirect();
+  await fetchSubscription();
+  updateSubscriptionUI();
 
   // Initialize API keys and check connection
   await checkConnection();
@@ -4997,3 +5474,11 @@ window.regenerateFromPastedErrors = regenerateFromPastedErrors;
 window.clearErrorInput = clearErrorInput;
 window.setFlutterFlowEndpoint = setFlutterFlowEndpoint;
 window.getFlutterFlowEndpoint = getFlutterFlowEndpoint;
+window.openSignInModal = openSignInModal;
+window.closeSignInModal = closeSignInModal;
+window.handleMagicLinkRequest = handleMagicLinkRequest;
+window.handleSignOut = handleSignOut;
+window.startCheckout = startCheckout;
+window.openCustomerPortal = openCustomerPortal;
+window.openPricingModal = openPricingModal;
+window.closePricingModal = closePricingModal;
