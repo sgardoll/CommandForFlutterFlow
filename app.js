@@ -4374,6 +4374,8 @@ async function initiateCommitToFlutterFlow() {
     return;
   }
 
+  showCommitProgress();
+
   const result = await executeCommit(code, {
     artifactType,
     artifactName,
@@ -4383,12 +4385,12 @@ async function initiateCommitToFlutterFlow() {
     },
   });
 
+  hideCommitProgress();
+
   if (result.success) {
-    alert(
-      `Success! ${result.message}\n\nTime: ${(result.elapsedTime / 1000).toFixed(1)}s`,
-    );
+    showCommitSuccessModal(result);
   } else {
-    showCommitError(result);
+    showCommitFailureModal(result);
   }
 }
 
@@ -5279,6 +5281,48 @@ function closeCommitSuccessModal(event) {
   }
 }
 
+function showCommitSuccessModal(result) {
+  const set = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = val || "";
+  };
+
+  const fileName = result.metadata?.fileName || "";
+  const projectId = result.metadata?.projectId || "";
+  const artifactType = result.metadata?.artifactType || "";
+  const elapsed = result.elapsedTime ? `${(result.elapsedTime / 1000).toFixed(1)}s` : "";
+  const size = result.metadata?.fileSize ? `${(result.metadata.fileSize / 1024).toFixed(1)} KB` : "";
+
+  set("success-message", result.message || "Code committed successfully!");
+  set("success-project-id", projectId);
+  set("success-file-name", fileName);
+  set("success-artifact-type", artifactType);
+  set("success-time", elapsed);
+  set("success-size", size);
+
+  const ffLink = document.getElementById("success-open-ff-link");
+  if (ffLink && projectId) {
+    ffLink.href = `https://app.flutterflow.io/project/${projectId}`;
+  }
+
+  const warningsSection = document.getElementById("success-warnings-section");
+  const warningsList = document.getElementById("success-warnings-list");
+  if (result.warnings && result.warnings.length > 0 && warningsSection && warningsList) {
+    warningsList.innerHTML = result.warnings.map(([file, errs]) =>
+      `<li><span class="font-medium">${escapeHtml(file)}:</span> ${escapeHtml(String(errs))}</li>`
+    ).join("");
+    warningsSection.classList.remove("hidden");
+  }
+
+  const modal = document.getElementById("commit-success-modal");
+  if (modal) modal.classList.add("open");
+}
+
+function showCommitFailureModal(result) {
+  hideCommitProgress();
+  showCommitError(result);
+}
+
 /**
  * Toggles the code preview section.
  */
@@ -5302,7 +5346,7 @@ function showCommitProgress() {
   const overlay = document.getElementById("commit-progress-overlay");
   if (overlay) {
     overlay.classList.add("open");
-    updateCommitProgress(0, "Initializing...", "Step 0 of 4");
+    updateCommitProgress(25, "Preparing code...", "Step 1 of 4");
   }
 }
 
@@ -5415,10 +5459,12 @@ async function confirmCommitToFlutterFlow() {
     },
   });
 
+  hideCommitProgress();
+
   if (result.success) {
-    alert(`Success! ${result.message}`);
+    showCommitSuccessModal(result);
   } else {
-    alert(`Commit failed: ${result.error}`);
+    showCommitFailureModal(result);
   }
 
   pendingCommitData = null;
@@ -5462,7 +5508,9 @@ window.dismissWelcomeVideo = dismissWelcomeVideo;
 window.initiateCommitToFlutterFlow = initiateCommitToFlutterFlow;
 window.updateFlutterFlowCredentialStatus = updateFlutterFlowCredentialStatus;
 window.closeCommitConfirmModal = closeCommitConfirmModal;
-window.closeCommitSuccessModal = closeCommitSuccessModal;
+window.closeCommitSuccessModal = closeCommitSuccessModal
+window.showCommitSuccessModal = showCommitSuccessModal
+window.showCommitFailureModal = showCommitFailureModal;
 window.toggleCodePreview = toggleCodePreview;
 window.confirmCommitToFlutterFlow = confirmCommitToFlutterFlow;
 window.runRefinement = runRefinement;
