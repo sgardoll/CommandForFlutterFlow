@@ -20,6 +20,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 2: Usage Metering & Degradation** - Request tracking, limits, auto-routing
 - [ ] **Phase 3: Tier-Based Feature Gating** - Lock/unlock features by subscription
 - [ ] **Phase 4: Australian GST Compliance** - Tax logic, ABN capture, invoices
+- [ ] **Phase 5: YouTube Checklist Review** - Go through top 10 checklist from that guy off YouTube (voice notes on tablet)
 
 ## Phase Details
 
@@ -90,6 +91,18 @@ Plans:
 Plans:
 - TBD during `/gsd-plan-phase 4`
 
+### Phase 5: YouTube Checklist Review
+**Goal**: Review and implement items from the top 10 checklist video (voice notes stored on tablet).
+
+**Depends on**: Phase 4 (complete monetization foundation first)
+
+**Research**: Unlikely (internal review task)
+
+**Plans**: TBD
+
+Plans:
+- TBD during `/gsd-plan-phase 5`
+
 ## Progress
 
 **Execution Order:**
@@ -101,3 +114,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | 2. Usage Metering & Degradation | 0/TBD | Not started | - |
 | 3. Tier-Based Feature Gating | 0/TBD | Not started | - |
 | 4. Australian GST Compliance | 0/TBD | Not started | - |
+| 5. YouTube Checklist Review | 0/TBD | Not started | - |
