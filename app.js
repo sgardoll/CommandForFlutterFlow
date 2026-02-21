@@ -1225,7 +1225,7 @@ async function callClaude(prompt, systemInstruction) {
       // Handle specific error types
       if (errorText.includes("image") || errorText.includes("media")) {
         throw new Error(
-          "Claude API error: This model doesn't support image input. Please use Gemini 3.0 Pro for image-based requests.",
+          "Claude API error: This model doesn't support image input. Please use Gemini 3.1 Pro for image-based requests.",
         );
       }
 
@@ -1284,7 +1284,7 @@ async function callOpenAI(prompt, systemInstruction) {
         errorText.includes("media")
       ) {
         throw new Error(
-          "OpenAI API error: This model doesn't support image input. Please use Gemini 3.0 Pro for image-based requests.",
+          "OpenAI API error: This model doesn't support image input. Please use Gemini 3.1 Pro for image-based requests.",
         );
       }
 
@@ -3954,16 +3954,44 @@ function updateModelInfo(selectedModel) {
     "openrouter-free": "OpenRouter: Free Models",
   }
 
-  // Update sidebar model label for Code Generator
-  const effectiveModel = getEffectiveModel(selectedModel)
-  const modelLabel = document.getElementById("step2-model-label")
-  if (modelLabel) {
-    const displayName = modelNames[effectiveModel] || effectiveModel
-    const suffix = effectiveModel !== selectedModel ? ' (Free)' : ''
-    modelLabel.textContent = displayName + suffix
+  // Helper function to get display name
+  function getDisplayName(model) {
+    return modelNames[model] || model
   }
 
-  console.log(`Using model: ${modelNames[effectiveModel] || effectiveModel}`)
+  // Update step 1 (Prompt Architect) model label - uses PROMPT_ARCHITECT_MODEL
+  const step1Label = document.getElementById("step1-model-label")
+  if (step1Label) {
+    step1Label.textContent = getDisplayName(PROMPT_ARCHITECT_MODEL)
+  }
+
+  // Update step 2 (Code Generator) model label - shows selected model
+  // If user is on free tier and selected a paid model, show: "Selected Model → Free Model"
+  const effectiveModel = getEffectiveModel(selectedModel)
+  const step2Label = document.getElementById("step2-model-label")
+  if (step2Label) {
+    if (effectiveModel !== selectedModel) {
+      // Free tier user selected a paid model - show both
+      step2Label.textContent = `${getDisplayName(selectedModel)} → ${getDisplayName(effectiveModel)} (Free Tier)`
+    } else {
+      // User's selection matches effective model
+      step2Label.textContent = getDisplayName(selectedModel)
+    }
+  }
+
+  // Update step 3 (Code Review) model label - uses CODE_DISSECTOR_MODEL
+  const step3Label = document.getElementById("step3-model-label")
+  if (step3Label) {
+    step3Label.textContent = getDisplayName(CODE_DISSECTOR_MODEL)
+  }
+
+  console.log(`Step 1 (Prompt Architect): ${getDisplayName(PROMPT_ARCHITECT_MODEL)}`)
+  if (effectiveModel !== selectedModel) {
+    console.log(`Step 2 (Code Generator): ${getDisplayName(selectedModel)} → ${getDisplayName(effectiveModel)} (Free Tier fallback)`)
+  } else {
+    console.log(`Step 2 (Code Generator): ${getDisplayName(selectedModel)}`)
+  }
+  console.log(`Step 3 (Code Review): ${getDisplayName(CODE_DISSECTOR_MODEL)}`)
 }
 
 async function runRefinement() {
@@ -4291,7 +4319,7 @@ async function runThinkingPipeline() {
       let errorMessage = error.message;
       if (error.message.includes("image input")) {
         errorMessage =
-          "This model doesn't support image input. Please use Gemini 3.0 Pro for image-based requests or remove image references from your prompt.";
+          "This model doesn't support image input. Please use Gemini 3.1 Pro for image-based requests or remove image references from your prompt.";
       } else if (
         error.message.includes("Load failed") ||
         error.message.includes("CORS")

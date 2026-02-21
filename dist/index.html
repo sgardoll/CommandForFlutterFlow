@@ -644,7 +644,7 @@
         color: var(--badge-text);
       }
     </style>
-    <script type="module" crossorigin src="/assets/index-CzdFrW2o.js"></script>
+    <script type="module" crossorigin src="/assets/index-zWD2plqw.js"></script>
   </head>
   <body>
     <div class="app-shell">
@@ -708,6 +708,7 @@
             <span class="sb-sublabel">Model Selector</span>
             <select id="code-generator-model">
               <option value="gemini-3.1-pro-preview" selected>Gemini 3.1 Pro</option>
+              <option value="gemini-3-flash-preview">Gemini 3.0 Flash (Free)</option>
               <option value="claude-4.6-opus">Claude 4.6 Opus</option>
               <option value="gpt-5.2-codex">GPT-5.2-Codex</option>
               <option value="openrouter-auto">OpenRouter: Auto Router</option>
@@ -730,7 +731,7 @@
                   </svg>
                   <span class="workflow-label">Prompt Architect</span>
                 </div>
-                <span class="text-sm text-gray-400" style="margin-left:22px;">Gemini 3.0 Pro</span>
+                <span id="step1-model-label" class="text-sm text-gray-400" style="margin-left:22px;">Gemini 3.1 Pro</span>
               </div>
               <div id="step1-status" class="status-icon">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -747,7 +748,7 @@
                   </svg>
                   <span class="workflow-label">Code Generator</span>
                 </div>
-                <span id="step2-model-label" class="text-sm text-gray-400" style="margin-left:22px;">Gemini 3.0 Pro</span>
+                <span id="step2-model-label" class="text-sm text-gray-400" style="margin-left:22px;">Gemini 3.1 Pro</span>
               </div>
               <div id="step2-status" class="status-icon">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -764,7 +765,7 @@
                   </svg>
                   <span class="workflow-label">Code Review</span>
                 </div>
-                <span class="text-sm text-gray-400" style="margin-left:22px;">Gemini 3.0 Pro</span>
+                <span id="step3-model-label" class="text-sm text-gray-400" style="margin-left:22px;">Gemini 3.1 Pro</span>
               </div>
               <div id="step3-status" class="status-icon">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
