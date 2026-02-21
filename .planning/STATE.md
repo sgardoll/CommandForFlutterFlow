@@ -52,6 +52,10 @@ Recent decisions affecting current work:
 
 None yet.
 
+### Roadmap Evolution
+
+- Phase 5 added: YouTube Checklist Review (2026-02-21)
+
 ### Pending Todos
 
 None yet.
