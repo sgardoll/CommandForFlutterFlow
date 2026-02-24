@@ -4910,9 +4910,6 @@ function canRunPipeline() {
 }
 
 function getEffectiveModel(selectedModel) {
-  if (subscriptionState.tier === 'free') {
-    return FALLBACK_MODEL
-  }
   return selectedModel
 }
 
@@ -4921,22 +4918,10 @@ function updateModelSelectorGating() {
   const select = document.getElementById('code-generator-model')
   if (!container || !select) return
 
-  const isFree = subscriptionState.tier === 'free'
-  select.disabled = isFree
+  select.disabled = false
 
   let notice = document.getElementById('model-selector-free-notice')
-  if (isFree) {
-    select.value = FALLBACK_MODEL
-    if (!notice) {
-      notice = document.createElement('p')
-      notice.id = 'model-selector-free-notice'
-      notice.className = 'text-xs text-gray-500 mt-1'
-      notice.textContent = 'Upgrade to unlock model selection.'
-      select.parentNode.appendChild(notice)
-    }
-  } else {
-    if (notice) notice.remove()
-  }
+  if (notice) notice.remove()
 
   // Sync sidebar model label with effective model
   updateModelInfo(select.value)
