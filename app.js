@@ -1,3 +1,5 @@
+import posthog from "posthog-js";
+
 // --- CONFIGURATION ---
 // Environment keys (fallback)
 const envGeminiApiKey = import.meta.env.VITE_GEMINI_API_KEY || "";
@@ -9,6 +11,27 @@ const IS_DEV = import.meta.env.DEV
 const GEMINI_BASE_URL = IS_DEV ? '/api/gemini' : 'https://generativelanguage.googleapis.com'
 const ANTHROPIC_BASE_URL = IS_DEV ? '/api/anthropic' : 'https://api.anthropic.com'
 const OPENAI_BASE_URL = IS_DEV ? '/api/openai' : 'https://api.openai.com'
+
+// --- ANALYTICS ---
+const POSTHOG_KEY = import.meta.env.VITE_PUBLIC_POSTHOG_KEY;
+const POSTHOG_HOST = import.meta.env.VITE_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com';
+
+if (POSTHOG_KEY) {
+  posthog.init(POSTHOG_KEY, {
+    api_host: POSTHOG_HOST,
+    person_profiles: 'identified_only'
+  });
+}
+
+function trackEvent(eventName, properties = {}) {
+  if (POSTHOG_KEY) {
+    try {
+      posthog.capture(eventName, properties);
+    } catch(e) {
+      console.error("PostHog tracking failed", e);
+    }
+  }
+}
 
 // --- AUTH / SUBSCRIPTION CONFIG ---
 const BUILDSHIP_BASE_URL = 'https://4tgke4.buildship.run'
@@ -3927,6 +3950,8 @@ function copyCode(elementId) {
   navigator.clipboard
     .writeText(text)
     .then(() => {
+      trackEvent("Code Copied", { elementId });
+      
       // Find the copy button for this element
       const container = element.closest(".code-container");
       const btn = container?.querySelector(".copy-btn");
@@ -4218,6 +4243,12 @@ async function runThinkingPipeline() {
 
   const effectiveModel = getEffectiveModel(selectedModel);
 
+  trackEvent("Pipeline Started", { 
+    selectedModel, 
+    effectiveModel,
+    inputLength: userInput.length
+  });
+
   // Check for required API keys before running
   const keyCheck = checkRequiredApiKeys(effectiveModel);
   if (!keyCheck.valid) {
@@ -4254,6 +4285,7 @@ async function runThinkingPipeline() {
     showStepLoading(1, true);
 
     pipelineState.step1Result = await runPromptArchitect(userInput);
+    trackEvent("Prompt Architect Completed");
 
     const step1Output = document.getElementById("step1-output");
     const cleanStep1 = extractCodeFromMarkdown(pipelineState.step1Result);
@@ -4269,6 +4301,7 @@ async function runThinkingPipeline() {
       pipelineState.step1Result,
       effectiveModel,
     );
+    trackEvent("Code Generator Completed");
 
     const step2Output = document.getElementById("step2-output");
     const cleanStep2 = extractCodeFromMarkdown(pipelineState.step2Result);
@@ -4283,6 +4316,7 @@ async function runThinkingPipeline() {
     pipelineState.step3Result = await runCodeDissector(
       pipelineState.step2Result,
     );
+    trackEvent("Code Dissector Completed");
 
     const auditOutput = document.getElementById("step3-output");
     auditOutput.innerHTML = renderMarkdownAudit(pipelineState.step3Result);
@@ -4292,6 +4326,11 @@ async function runThinkingPipeline() {
     updateUsageDisplay();
   } catch (error) {
     console.error("Pipeline failed:", error);
+    
+    trackEvent("Pipeline Failed", { 
+      error: error.message,
+      effectiveModel: getEffectiveModel(document.getElementById("code-generator-model").value)
+    });
 
     // Determine which step failed based on the error context
     let errorStep = 1; // Default to step 1
@@ -4420,6 +4459,7 @@ async function initiateCommitToFlutterFlow() {
   }
 
   showCommitProgress();
+  trackEvent("Deploy to FlutterFlow Started", { artifactType, artifactName });
 
   const result = await executeCommit(code, {
     artifactType,
@@ -4433,8 +4473,10 @@ async function initiateCommitToFlutterFlow() {
   hideCommitProgress();
 
   if (result.success) {
+    trackEvent("Deploy to FlutterFlow Success", { artifactType, artifactName });
     showCommitSuccessModal(result);
   } else {
+    trackEvent("Deploy to FlutterFlow Failed", { artifactType, artifactName, error: result.error });
     showCommitFailureModal(result);
   }
 }

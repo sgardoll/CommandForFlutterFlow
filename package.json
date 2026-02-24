@@ -13,5 +13,8 @@
     "pptxgenjs": "^4.0.1",
     "sharp": "^0.34.5",
     "vite": "^5.0.0"
+  },
+  "dependencies": {
+    "posthog-js": "^1.353.0"
   }
 }
