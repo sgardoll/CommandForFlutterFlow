@@ -742,12 +742,11 @@
               <span class="sb-sublabel">Code Generation Model</span>
               <div id="code-options-content">
                 <select id="code-generator-model">
-                  <option value="gemini-3.1-pro-preview" selected>Gemini 3.1 Pro</option>
-                  <option value="gemini-3-flash-preview">Gemini 3.0 Flash (Free)</option>
-                  <option value="claude-4.6-opus">Claude 4.6 Opus</option>
-                  <option value="gpt-5.2-codex">GPT-5.2-Codex</option>
-                  <option value="openrouter-auto">OpenRouter: Auto Router</option>
-                  <option value="openrouter-free">OpenRouter: Free Models</option>
+                  <option value="google/gemini-3.1-pro-preview" selected>Gemini 3.1 Pro</option>
+                  <option value="anthropic/claude-4.6-opus">Claude 4.6 Opus</option>
+                  <option value="openai/gpt-5.3-codex">GPT-5.3-Codex</option>
+                  <option value="openrouter/auto">OpenRouter: Auto Router</option>
+                  <option value="openrouter/free">OpenRouter: Free Models</option>
                 </select>
               </div>
             </div>
@@ -1065,12 +1064,7 @@
             <div id="flutterflow-project-id-error" class="text-xs text-red-500 mt-1 hidden">Project ID should be at least 5 characters with only letters, numbers, and dashes</div>
           </div>
 
-          <div class="bg-orange-50 border border-orange-100 rounded-lg p-3">
-            <p class="text-xs text-orange-600"><strong>FlutterFlow Direct Commit:</strong> Configures direct commit from Step 3.</p>
-          </div>
-          <div class="bg-blue-50 border border-blue-100 rounded-lg p-3">
-            <p class="text-xs text-blue-600"><strong>Security:</strong> Keys are encrypted locally (AES-256) and never stored on our servers.</p>
-          </div>
+
         </div>
         <div class="px-6 py-4 border-t border-gray-100 flex gap-3 justify-end" style="flex-shrink:0;background:#fff;border-radius:0 0 16px 16px;">
           <button onclick="clearAllApiKeys()" class="px-4 py-2 text-sm font-medium text-red-500 hover:bg-red-50 rounded-lg transition-colors">Clear All Keys</button>

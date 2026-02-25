@@ -67,9 +67,9 @@ const TIER_LIMITS = {
 const USAGE_STORAGE_KEY = 'ccc_usage'
 
 // Model Configuration
-const PROMPT_ARCHITECT_MODEL = "gemini-3.1-pro-preview";
-const CODE_REVIEW_MODEL = "gemini-3.1-pro-preview";
-const FALLBACK_MODEL = "gemini-3-flash-preview";
+const PROMPT_ARCHITECT_MODEL = "google/gemini-3.1-pro-preview"
+const CODE_REVIEW_MODEL = "google/gemini-3.1-pro-preview"
+const FALLBACK_MODEL = "google/gemini-3.1-pro-preview"
 
 // --- SHARED FLUTTERFLOW CONSTRAINTS TEMPLATE ---
 // These constraints are shared across all three pipeline agents to ensure consistency.
@@ -2649,7 +2649,7 @@ async function executeCommit(code, options = {}) {
 
 async function runPromptArchitect(userInput) {
   try {
-    const result = await callBuildShip("architect", "gemini-3.1-pro-preview", userInput, {})
+    const result = await callBuildShip("architect", PROMPT_ARCHITECT_MODEL, userInput, {})
     return result
   } catch (error) {
     throw new Error(`Prompt Architect failed: ${error.message}`)
@@ -2668,7 +2668,7 @@ async function runCodeGenerator(masterPrompt, selectedModel) {
 async function runCodeReview(code, architectOutput = null) {
   const context = architectOutput ? { architect_output: architectOutput } : {}
   try {
-    const result = await callBuildShip("review", "gemini-3.1-pro-preview", code, context)
+    const result = await callBuildShip("review", CODE_REVIEW_MODEL, code, context)
     return result
   } catch (error) {
     throw new Error(`Code Review failed: ${error.message}`)
@@ -3018,12 +3018,11 @@ function copyCode(elementId) {
 
 function updateModelInfo(selectedModel) {
   const modelNames = {
-    "gemini-3.1-pro-preview": "Gemini 3.1 Pro",
-    "gemini-3-flash-preview": "Gemini 3.0 Flash",
-    "claude-4.6-opus": "Claude 4.6 Opus",
-    "gpt-5.2-codex": "GPT-5.2-Codex",
-    "openrouter-auto": "OpenRouter: Auto",
-    "openrouter-free": "OpenRouter: Free Models",
+    "google/gemini-3.1-pro-preview": "Gemini 3.1 Pro",
+    "anthropic/claude-4.6-opus": "Claude 4.6 Opus",
+    "openai/gpt-5.3-codex": "GPT-5.3-Codex",
+    "openrouter/auto": "OpenRouter: Auto",
+    "openrouter/free": "OpenRouter: Free Models",
   }
 
   // Helper function to get display name
@@ -3327,11 +3326,14 @@ async function runThinkingPipeline() {
     pipelineState.step1Result = await runPromptArchitect(userInput);
     trackEvent("Prompt Architect Completed");
 
-    const step1Output = document.getElementById("step1-output");
-    const cleanStep1 = extractCodeFromMarkdown(pipelineState.step1Result);
-    step1Output.innerHTML = highlightCode(cleanStep1);
-    step1Output.dataset.raw = cleanStep1; // Store raw for copy
-    showStepLoading(1, false);
+    const step1Output = document.getElementById("step1-output")
+    const cleanStep1 = extractCodeFromMarkdown(pipelineState.step1Result)
+    step1Output.innerHTML = highlightCode(cleanStep1, 'json')
+    if (cleanStep1 && !step1Output.innerHTML.trim()) {
+      step1Output.textContent = cleanStep1
+    }
+    step1Output.dataset.raw = cleanStep1
+    showStepLoading(1, false)
 
     // Step 2: Code Generator
     selectWorkflowStep(2);
@@ -3436,9 +3438,9 @@ function retryWithDifferentModel() {
   // Show model selection dialog
   const currentModel = document.getElementById("code-generator-model").value;
   const otherModels = [
-    "gemini-3.1-pro-preview",
-    "claude-4.6-opus",
-    "gpt-5.2-codex",
+    "google/gemini-3.1-pro-preview",
+    "anthropic/claude-4.6-opus",
+    "openai/gpt-5.3-codex",
   ].filter((model) => model !== currentModel);
 
   const selectedModel = prompt(
@@ -3709,7 +3711,8 @@ async function updateFlutterFlowCredentialStatus() {
 
 // Extract code from markdown code blocks (strips ```dart ... ```)
 function extractCodeFromMarkdown(text) {
-  if (!text) return text;
+  if (!text) return ''
+  if (typeof text !== 'string') return String(text)
 
   // Match ```language\n...code...\n``` pattern
   const codeBlockRegex = /```(?:\w+)?\n?([\s\S]*?)```/;
@@ -3724,14 +3727,17 @@ function extractCodeFromMarkdown(text) {
 }
 
 function highlightCode(code, language = "dart") {
-  if (!code) return "";
+  if (!code) return ""
   try {
-    // Strip markdown code fences before highlighting
-    const cleanCode = extractCodeFromMarkdown(code);
-    return hljs.highlight(cleanCode, { language: language }).value;
+    const cleanCode = extractCodeFromMarkdown(code)
+    return hljs.highlight(cleanCode, { language }).value
   } catch (error) {
-    console.warn("Syntax highlighting failed:", error);
-    return extractCodeFromMarkdown(code) || "";
+    console.warn("Syntax highlighting failed:", error)
+    try {
+      return hljs.highlight(extractCodeFromMarkdown(code), { language: 'json' }).value
+    } catch {
+      return extractCodeFromMarkdown(code) || ""
+    }
   }
 }
 
@@ -4175,11 +4181,26 @@ async function callBuildShip(step, model, prompt, context = {}) {
     })
 
     const data = await res.json()
+    console.log(`[BuildShip] ${step} response keys:`, Object.keys(data), 'content type:', typeof data.content)
     if (!res.ok) {
       throw new Error(`${data.message || data.error || 'BuildShip pipeline error'} (HTTP ${res.status})`)
     }
 
-    return data.output
+    let output = data.output || data.content
+    if (!output) {
+      throw new Error(`BuildShip returned no output for step "${step}"`)
+    }
+
+    // Coerce non-string content (OpenRouter may return array of content parts)
+    if (Array.isArray(output)) {
+      output = output
+        .map(part => typeof part === 'string' ? part : part.text || '')
+        .join('')
+    }
+    if (typeof output !== 'string') {
+      output = JSON.stringify(output)
+    }
+    return output
   } catch (error) {
     if (error instanceof TypeError) {
       throw new Error(`BuildShip unreachable: ${error.message}`)
