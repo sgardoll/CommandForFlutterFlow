@@ -5591,8 +5591,11 @@ function focusPromptInput() {
 }
 
 function openModelSelector() {
+  const details = document.getElementById("advanced-settings");
+  if (details) details.open = true;
   const select = document.getElementById("code-generator-model");
   if (select) {
+    select.scrollIntoView({ behavior: "smooth", block: "center" });
     select.focus();
     select.click();
   }
