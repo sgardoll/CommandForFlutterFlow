@@ -13,7 +13,7 @@ See: .planning/PROJECT.md (updated 2026-02-20)
 Phase: 9 of 9 (Tier Restrictions & Paywall UI)
 Plan: 09-01 (Tier Restrictions & Paywall) ✅ Complete (code shipped, backend deployed)
 Status: All Phase 9 frontend and backend changes committed. E2E manual testing not yet done.
-Last activity: 2026-02-26 — Phase 9 code review + minor fix committed
+Last activity: 2026-02-25 — Phase 9 code review + minor fix committed
 
 Progress: █████████░ 90%
 
@@ -54,7 +54,7 @@ Recent decisions affecting current work:
 - GPT-5.2-Codex upgraded to GPT-5.3-Codex, Gemini 3.0 Flash removed (2026-02-25)
 - Server-side usage tracking via Firestore — authUserCheck returns usage_count, pipeline increments atomically (2026-02-25)
 - Optimistic localStorage cache for usage — server syncs on page load, +1 locally after pipeline success (2026-02-25)
-- Pipeline review step usage_count NOT synced to frontend — optimistic +1 is sufficient (2026-02-26)
+- Pipeline review step usage_count NOT synced to frontend — optimistic +1 is sufficient (2026-02-25)
 
 ### Deferred Issues
 

@@ -90,7 +90,7 @@ Phases execute in numeric order: 6 → 7 → 8 → 9
 | 3. Tier-Based Feature Gating | v1 | 0/TBD | Complete | 2026-02-25 |
 | 4. Australian GST Compliance | v1 | 0/TBD | Complete | 2026-02-25 |
 | 5. YouTube Checklist Review | v1 | 0/TBD | Complete | 2026-02-25 |
-| 6. Advanced UI & Responsiveness | v1.1 | 4/4 | Planned | - |
-| 7. BuildShip Identity Resolution | v1.1 | 0/TBD | Not started | - |
-| 8. BuildShip LLM Pipeline Migration | v1.1 | 0/TBD | Not started | - |
-| 9. Tier Restrictions & Paywall UI | v1.1 | 0/TBD | Not started | - |
+| 6. Advanced UI & Responsiveness | v1.1 | 4/4 | Complete | 2026-02-25 |
+| 7. BuildShip Identity Resolution | v1.1 | 1/1 | Complete | 2026-02-25 |
+| 8. BuildShip LLM Pipeline Migration | v1.1 | 1/1 | Complete | 2026-02-25 |
+| 9. Tier Restrictions & Paywall UI | v1.1 | 1/1 | Complete | 2026-02-25 |

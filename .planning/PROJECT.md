@@ -41,22 +41,22 @@ Users get a polished, responsive UI with BuildShip-powered AI inference, identit
 - [ ] Responsive layout — works correctly on mobile and tablet breakpoints
 - [ ] UI polish pass based on YouTube checklist feedback
 
-**BuildShip Identity Resolution (Phase 7)**
-- [ ] Integrate BuildShip authUserCheck endpoint (https://4tgke4.buildship.run/authUserCheck)
-- [ ] Resolve user identity (email, tier, usage) on app load
-- [ ] Store resolved identity in app state, drive UI gating from it
+**BuildShip Identity Resolution (Phase 7)** ✅
+- [x] Integrate BuildShip authUserCheck endpoint (https://4tgke4.buildship.run/authUserCheck)
+- [x] Resolve user identity (email, tier, usage) on app load
+- [x] Store resolved identity in app state, drive UI gating from it
 
-**BuildShip LLM Pipeline Migration (Phase 8)**
-- [ ] Migrate all AI inference calls to BuildShip runpipeline endpoint (https://4tgke4.buildship.run/service/runpipeline)
-- [ ] Remove direct Gemini/Claude/OpenAI/OpenRouter calls from app.js
-- [ ] API proxy (/api/) remains for local dev fallback only
+**BuildShip LLM Pipeline Migration (Phase 8)** ✅
+- [x] Migrate all AI inference calls to BuildShip runpipeline endpoint (https://4tgke4.buildship.run/service/runpipeline)
+- [x] Remove direct Gemini/Claude/OpenAI/OpenRouter calls from app.js
+- [x] API proxy (/api/) remains for local dev fallback only
 
-**Tier Restrictions & Paywall (Phase 9)**
-- [ ] Free tier: 2 generations/month, Gemini 3.1 Pro only, no model selection
-- [ ] Pro tier ($8.99 USD/mo): 50 generations/month, model selection, regeneration
-- [ ] Power tier: BYOK, unlimited, all features
-- [ ] Enforce feature gating in UI based on resolved identity from Phase 7
-- [ ] Paywall prompt with upgrade CTA when limit reached or locked feature accessed
+**Tier Restrictions & Paywall (Phase 9)** ✅
+- [x] Free tier: 2 generations/month, Gemini 3.1 Pro only, no model selection
+- [x] Pro tier ($8.99 USD/mo): 50 generations/month, model selection, regeneration
+- [x] Power tier: BYOK, unlimited, all features
+- [x] Enforce feature gating in UI based on resolved identity from Phase 7
+- [x] Paywall prompt with upgrade CTA when limit reached or locked feature accessed
 
 ### Out of Scope
 
