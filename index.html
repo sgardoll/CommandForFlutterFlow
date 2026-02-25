@@ -673,6 +673,653 @@
         background: var(--badge-bg);
         color: var(--badge-text);
       }
+
+      /* ── Walkthrough Modal Redesign ─────────────────────── */
+      .wt-hero {
+        display: flex;
+        align-items: center;
+        gap: 28px;
+        padding: 32px 32px 24px;
+        background: linear-gradient(168deg, #f0f4ff 0%, #f8f9ff 40%, #fff 100%);
+        position: relative;
+        overflow: hidden;
+      }
+
+      .wt-hero::before {
+        content: '';
+        position: absolute;
+        top: -40px;
+        right: -40px;
+        width: 180px;
+        height: 180px;
+        background: radial-gradient(circle, rgba(139, 92, 246, 0.06) 0%, transparent 70%);
+        border-radius: 50%;
+        pointer-events: none;
+      }
+
+      .wt-illustration {
+        position: relative;
+        width: 200px;
+        height: 200px;
+        flex-shrink: 0;
+      }
+
+      .wt-orbit {
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+        border: 2px solid transparent;
+        animation: wt-orbit-spin 20s linear infinite;
+      }
+
+      .wt-orbit-1 {
+        border-image: linear-gradient(135deg, rgba(99, 102, 241, 0.3), rgba(168, 85, 247, 0.15), transparent 60%) 1;
+        border-radius: 50%;
+        border: 2px solid rgba(99, 102, 241, 0.15);
+      }
+
+      .wt-orbit-2 {
+        inset: 16px;
+        border: 2px dashed rgba(139, 92, 246, 0.12);
+        animation-direction: reverse;
+        animation-duration: 28s;
+      }
+
+      .wt-orbit-3 {
+        inset: 32px;
+        border: 1.5px solid rgba(59, 130, 246, 0.1);
+        animation-duration: 15s;
+      }
+
+      @keyframes wt-orbit-spin {
+        to { transform: rotate(360deg); }
+      }
+
+      .wt-center-gem {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 72px;
+        height: 72px;
+      }
+
+      .wt-gem-shape {
+        width: 100%;
+        height: 100%;
+        filter: drop-shadow(0 4px 12px rgba(99, 102, 241, 0.3));
+      }
+
+      .wt-code-tag {
+        position: absolute;
+        font-family: 'DM Mono', monospace;
+        font-size: 13px;
+        font-weight: 500;
+        color: #8b5cf6;
+        background: rgba(255, 255, 255, 0.9);
+        backdrop-filter: blur(4px);
+        padding: 4px 8px;
+        border-radius: 6px;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+        line-height: 1;
+      }
+
+      .wt-code-tag-1 { bottom: 28px; left: 4px; color: #6366f1; }
+      .wt-code-tag-2 { bottom: 32px; right: 0px; color: #7c3aed; }
+
+      .wt-gear {
+        position: absolute;
+        color: #94a3b8;
+        opacity: 0.5;
+        animation: wt-gear-spin 8s linear infinite;
+      }
+      .wt-gear-1 { top: 12px; right: 28px; width: 22px; height: 22px; }
+      .wt-gear-2 { top: 36px; right: 8px; width: 16px; height: 16px; animation-direction: reverse; animation-duration: 12s; }
+
+      @keyframes wt-gear-spin {
+        to { transform: rotate(360deg); }
+      }
+
+      .wt-sparkle {
+        position: absolute;
+        width: 8px;
+        height: 8px;
+        animation: wt-sparkle-pulse 2s ease-in-out infinite;
+      }
+      .wt-sparkle::before,
+      .wt-sparkle::after {
+        content: '';
+        position: absolute;
+        background: currentColor;
+        border-radius: 1px;
+      }
+      .wt-sparkle::before {
+        width: 2px;
+        height: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+      }
+      .wt-sparkle::after {
+        width: 100%;
+        height: 2px;
+        top: 50%;
+        transform: translateY(-50%);
+      }
+
+      .wt-sparkle-1 { top: 20px; left: 24px; color: #818cf8; animation-delay: 0s; }
+      .wt-sparkle-2 { top: 8px; left: 80px; color: #a78bfa; animation-delay: 0.6s; }
+      .wt-sparkle-3 { top: 44px; left: 56px; color: #6366f1; animation-delay: 1.2s; font-size: 6px; }
+      .wt-sparkle-4 { bottom: 16px; right: 44px; color: #818cf8; animation-delay: 0.3s; }
+
+      @keyframes wt-sparkle-pulse {
+        0%, 100% { opacity: 0.3; transform: scale(0.8); }
+        50% { opacity: 1; transform: scale(1.2); }
+      }
+
+      .wt-free-badge {
+        position: absolute;
+        top: 8px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: linear-gradient(135deg, #22c55e, #16a34a);
+        color: #fff;
+        font-family: 'Delight', 'Outfit', sans-serif;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        padding: 3px 12px;
+        border-radius: 4px;
+        box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3);
+        z-index: 2;
+      }
+
+      .wt-hero-text {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .wt-hero-heading {
+        font-family: 'Delight', 'Outfit', sans-serif;
+        font-size: 26px;
+        font-weight: 700;
+        color: var(--navy);
+        letter-spacing: -0.03em;
+        line-height: 1.2;
+      }
+
+      .wt-info-card {
+        margin: 0 24px;
+        padding: 20px 24px;
+        background: linear-gradient(135deg, #eef2ff 0%, #f0f4ff 50%, #ede9fe 100%);
+        border-radius: 14px;
+        text-align: center;
+        position: relative;
+      }
+
+      .wt-info-text {
+        font-family: 'Delight', 'DM Sans', sans-serif;
+        font-size: 14px;
+        color: #334155;
+        line-height: 1.6;
+        margin-bottom: 16px;
+      }
+
+      .wt-info-text strong {
+        font-weight: 700;
+        color: #1e293b;
+      }
+
+      .wt-upgrade-btn {
+        display: block;
+        width: 100%;
+        padding: 14px 24px;
+        background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 50%, #4f46e5 100%);
+        color: #fff;
+        font-family: 'Delight', 'DM Sans', sans-serif;
+        font-size: 14px;
+        font-weight: 600;
+        border: none;
+        border-radius: 10px;
+        cursor: pointer;
+        letter-spacing: -0.01em;
+        transition: all 0.2s ease;
+        box-shadow: 0 4px 14px -3px rgba(99, 102, 241, 0.4);
+      }
+
+      .wt-upgrade-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 20px -3px rgba(99, 102, 241, 0.5);
+        background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 50%, #4338ca 100%);
+      }
+
+      .wt-steps {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+        padding: 20px 24px 0;
+      }
+
+      .wt-step-card {
+        background: #fff;
+        border: 1px solid #e8ebf0;
+        border-radius: 12px;
+        padding: 18px;
+        transition: border-color 0.2s, box-shadow 0.2s;
+      }
+
+      .wt-step-card:hover {
+        border-color: #c7d2fe;
+        box-shadow: 0 2px 8px rgba(99, 102, 241, 0.08);
+      }
+
+      .wt-step-num {
+        width: 28px;
+        height: 28px;
+        background: #3b82f6;
+        color: #fff;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 13px;
+        font-weight: 700;
+        font-family: 'Delight', 'DM Sans', sans-serif;
+        margin-bottom: 10px;
+      }
+
+      .wt-step-title {
+        font-family: 'Delight', 'Outfit', sans-serif;
+        font-size: 14px;
+        font-weight: 600;
+        color: #1e293b;
+        margin-bottom: 4px;
+      }
+
+      .wt-step-desc {
+        font-size: 12.5px;
+        color: #64748b;
+        line-height: 1.5;
+        margin-bottom: 10px;
+      }
+
+      .wt-step-link {
+        font-size: 12.5px;
+        font-weight: 600;
+        color: #3b82f6;
+        text-decoration: none;
+        cursor: pointer;
+        background: none;
+        border: none;
+        padding: 0;
+        font-family: 'Delight', 'DM Sans', sans-serif;
+        transition: color 0.15s;
+      }
+      .wt-step-link:hover { color: #2563eb; }
+
+      .wt-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px 24px 20px;
+      }
+
+      .wt-dont-show {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+      }
+
+      .wt-dont-show input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+        border-radius: 4px;
+        border: 1.5px solid #cbd5e1;
+        accent-color: #3b82f6;
+        cursor: pointer;
+      }
+
+      .wt-dont-show span {
+        font-size: 12px;
+        color: #94a3b8;
+        font-family: 'Delight', 'DM Sans', sans-serif;
+      }
+
+      .wt-gotit-btn {
+        padding: 10px 22px;
+        background: #3b82f6;
+        color: #fff;
+        font-family: 'Delight', 'DM Sans', sans-serif;
+        font-size: 14px;
+        font-weight: 600;
+        border: none;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: background 0.15s;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .wt-gotit-btn:hover { background: #2563eb; }
+
+      .wt-gotit-btn svg {
+        width: 16px;
+        height: 16px;
+      }
+
+      @media (max-width: 640px) {
+        .wt-hero { flex-direction: column; text-align: center; gap: 16px; padding: 24px; }
+        .wt-illustration { width: 160px; height: 160px; }
+        .wt-hero-heading { font-size: 22px; }
+        .wt-steps { grid-template-columns: 1fr; }
+        .wt-info-card { margin: 0 16px; }
+      }
+
+      /* ── Pricing Modal Redesign ─────────────────────── */
+      .pm-inner {
+        padding: 0;
+        overflow: hidden;
+      }
+
+      .pm-header {
+        padding: 28px 32px 0;
+      }
+
+      .pm-title {
+        font-family: 'Delight', 'Outfit', sans-serif;
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--navy);
+        letter-spacing: -0.03em;
+        margin-bottom: 3px;
+      }
+
+      .pm-subtitle {
+        font-size: 13px;
+        color: #94a3b8;
+        font-family: 'Delight', 'DM Sans', sans-serif;
+      }
+
+      .pm-hero {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 28px 32px 20px;
+        overflow: hidden;
+      }
+
+      .pm-hero::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(168deg, #f0f4ff 0%, #f8f9ff 40%, #fff 100%);
+        pointer-events: none;
+      }
+
+      .pm-hero-illustration {
+        position: relative;
+        width: 160px;
+        height: 160px;
+        flex-shrink: 0;
+      }
+
+      .pm-gear-ring {
+        position: absolute;
+        inset: 0;
+        animation: wt-orbit-spin 25s linear infinite;
+      }
+
+      .pm-gear-ring svg {
+        width: 100%;
+        height: 100%;
+      }
+
+      .pm-center-icon {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 64px;
+        height: 64px;
+        filter: drop-shadow(0 4px 14px rgba(99, 102, 241, 0.3));
+      }
+
+      .pm-sparkle {
+        position: absolute;
+        width: 6px;
+        height: 6px;
+        animation: wt-sparkle-pulse 2s ease-in-out infinite;
+      }
+      .pm-sparkle::before,
+      .pm-sparkle::after {
+        content: '';
+        position: absolute;
+        background: currentColor;
+        border-radius: 1px;
+      }
+      .pm-sparkle::before {
+        width: 2px;
+        height: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+      }
+      .pm-sparkle::after {
+        width: 100%;
+        height: 2px;
+        top: 50%;
+        transform: translateY(-50%);
+      }
+      .pm-sparkle-1 { top: 18px; left: 20px; color: #818cf8; animation-delay: 0.2s; }
+      .pm-sparkle-2 { top: 12px; right: 28px; color: #a78bfa; animation-delay: 0.8s; }
+      .pm-sparkle-3 { bottom: 24px; left: 32px; color: #6366f1; animation-delay: 1.4s; }
+      .pm-sparkle-4 { bottom: 16px; right: 16px; color: #818cf8; animation-delay: 0.5s; }
+
+      .pm-dot {
+        position: absolute;
+        width: 4px;
+        height: 4px;
+        border-radius: 50%;
+        background: #c7d2fe;
+        opacity: 0.6;
+      }
+      .pm-dot-1 { top: 28px; right: 44px; }
+      .pm-dot-2 { bottom: 36px; right: 52px; }
+      .pm-dot-3 { top: 44px; left: 44px; }
+
+      .pm-line-accent {
+        position: absolute;
+        width: 40px;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, #c7d2fe, transparent);
+        opacity: 0.5;
+      }
+      .pm-line-accent-1 { top: 40px; right: 0; transform: rotate(-20deg); }
+      .pm-line-accent-2 { bottom: 48px; left: 4px; transform: rotate(15deg); }
+
+      .pm-cards {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 14px;
+        padding: 0 24px;
+      }
+
+      .pm-card {
+        background: #fff;
+        border: 1px solid #e8ebf0;
+        border-radius: 14px;
+        padding: 22px 18px;
+        position: relative;
+        transition: border-color 0.2s, box-shadow 0.2s;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .pm-card:hover {
+        box-shadow: 0 2px 12px rgba(99, 102, 241, 0.06);
+      }
+
+      .pm-card-pro {
+        border: 2px solid #818cf8;
+        background: linear-gradient(180deg, #f5f3ff 0%, #fff 40%);
+      }
+
+      .pm-card-power {
+        border: 1px solid #c7d2fe;
+        background: linear-gradient(135deg, #eef2ff 0%, #e8e0ff 100%);
+      }
+
+      .pm-popular-badge {
+        position: absolute;
+        top: -11px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: linear-gradient(135deg, #6366f1, #4f46e5);
+        color: #fff;
+        font-family: 'Delight', 'DM Sans', sans-serif;
+        font-size: 11px;
+        font-weight: 700;
+        padding: 3px 14px;
+        border-radius: 20px;
+        white-space: nowrap;
+        box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+        letter-spacing: 0.02em;
+      }
+
+      .pm-card-label {
+        font-family: 'Delight', 'DM Sans', sans-serif;
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #6366f1;
+        margin-bottom: 6px;
+      }
+
+      .pm-card-name {
+        font-family: 'Delight', 'Outfit', sans-serif;
+        font-size: 16px;
+        font-weight: 700;
+        color: #1e293b;
+        margin-bottom: 4px;
+      }
+
+      .pm-card-price {
+        font-family: 'Delight', 'Outfit', sans-serif;
+        font-size: 28px;
+        font-weight: 800;
+        color: #0f172a;
+        letter-spacing: -0.03em;
+        line-height: 1.1;
+        margin-bottom: 2px;
+      }
+
+      .pm-card-price span {
+        font-size: 14px;
+        font-weight: 500;
+        color: #94a3b8;
+      }
+
+      .pm-price-note {
+        font-size: 11px;
+        color: #94a3b8;
+        margin-bottom: 14px;
+        font-family: 'Delight', 'DM Sans', sans-serif;
+      }
+
+      .pm-features {
+        list-style: none;
+        padding: 0;
+        margin: 0 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+        padding-bottom: 18px;
+      }
+
+      .pm-features li {
+        font-size: 12px;
+        color: #64748b;
+        font-family: 'Delight', 'DM Sans', sans-serif;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        line-height: 1.3;
+      }
+
+      .pm-features li::before {
+        content: '';
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: #c7d2fe;
+        flex-shrink: 0;
+      }
+
+      .pm-card-pro .pm-features li::before { background: #818cf8; }
+      .pm-card-power .pm-features li::before { background: #a78bfa; }
+
+      .pm-subscribe-btn {
+        display: block;
+        width: 100%;
+        padding: 10px 16px;
+        font-family: 'Delight', 'DM Sans', sans-serif;
+        font-size: 13px;
+        font-weight: 600;
+        border: none;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        text-align: center;
+      }
+
+      .pm-subscribe-btn-pro {
+        background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+        color: #fff;
+        box-shadow: 0 3px 10px -2px rgba(99, 102, 241, 0.35);
+      }
+      .pm-subscribe-btn-pro:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 5px 16px -2px rgba(99, 102, 241, 0.45);
+      }
+
+      .pm-subscribe-btn-power {
+        background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
+        color: #fff;
+        box-shadow: 0 3px 10px -2px rgba(139, 92, 246, 0.35);
+      }
+      .pm-subscribe-btn-power:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 5px 16px -2px rgba(139, 92, 246, 0.45);
+      }
+
+      .pm-current-plan-indicator {
+        display: block;
+        width: 100%;
+        text-align: center;
+        font-family: 'Delight', 'DM Sans', sans-serif;
+        font-size: 12px;
+        color: #94a3b8;
+        padding: 10px 16px;
+        border: 1px solid #e8ebf0;
+        border-radius: 10px;
+        background: #f8fafc;
+      }
+
+      .pm-footer-note {
+        text-align: center;
+        font-size: 11px;
+        color: #94a3b8;
+        padding: 16px 24px 24px;
+        font-family: 'Delight', 'DM Sans', sans-serif;
+      }
+
+      @media (max-width: 640px) {
+        .pm-cards { grid-template-columns: 1fr; gap: 16px; }
+        .pm-hero-illustration { width: 120px; height: 120px; }
+        .pm-header { padding: 24px 20px 0; }
+        .pm-cards { padding: 0 16px; }
+      }
     </style>
   </head>
   <body>
@@ -1095,48 +1742,113 @@
 
     <!-- Walkthrough Modal -->
     <div id="walkthrough-modal" class="modal-overlay" onclick="closeWalkthroughModal(event)">
-      <div class="modal-content" onclick="event.stopPropagation()">
+      <div class="modal-content" onclick="event.stopPropagation()" style="max-width: 640px; padding: 0; overflow: hidden;">
+
+        <!-- Header -->
         <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h2 class="font-semibold text-base text-gray-900">Welcome to FlutterFlow Custom Code Connect</h2>
+          <h2 class="font-semibold text-base text-gray-900">Welcome to Custom Code Connect</h2>
           <button onclick="closeWalkthroughModal()" class="modal-close">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
-        <div class="p-6">
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
-            <p class="text-sm text-gray-400">Get started in 3 simple steps:</p>
-            <div class="flex items-center gap-4">
-              <a href="https://www.youtube.com/watch?v=aFTUqLSkAGY" target="_blank" rel="noopener noreferrer" class="flex items-center gap-1.5 text-xs text-blue-500 hover:text-blue-600 font-medium transition-colors">
-                <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/></svg>
-                Setup Guide
-              </a>
-              <a href="https://youtu.be/zRjexvW58IQ?si=IKoyaCW14ElMmkL8&t=4" target="_blank" rel="noopener noreferrer" class="flex items-center gap-1.5 text-xs text-blue-500 hover:text-blue-600 font-medium transition-colors">
-                <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/></svg>
-                Full Tutorial
-              </a>
+
+        <!-- Hero Section -->
+        <div class="wt-hero">
+          <!-- Illustration -->
+          <div class="wt-illustration">
+            <!-- Orbiting rings -->
+            <div class="wt-orbit wt-orbit-1"></div>
+            <div class="wt-orbit wt-orbit-2"></div>
+            <div class="wt-orbit wt-orbit-3"></div>
+
+            <!-- Center gem -->
+            <div class="wt-center-gem">
+              <svg class="wt-gem-shape" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <linearGradient id="gem-grad" x1="10" y1="8" x2="62" y2="64" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stop-color="#818cf8"/>
+                    <stop offset="50%" stop-color="#6366f1"/>
+                    <stop offset="100%" stop-color="#4f46e5"/>
+                  </linearGradient>
+                  <linearGradient id="gem-shine" x1="20" y1="10" x2="52" y2="62" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stop-color="#c7d2fe" stop-opacity="0.6"/>
+                    <stop offset="100%" stop-color="#818cf8" stop-opacity="0"/>
+                  </linearGradient>
+                </defs>
+                <polygon points="36,4 64,24 58,56 14,56 8,24" fill="url(#gem-grad)"/>
+                <polygon points="36,4 64,24 36,20 8,24" fill="url(#gem-shine)"/>
+                <polygon points="36,20 64,24 58,56 14,56 8,24" fill="url(#gem-grad)" opacity="0.9"/>
+                <line x1="36" y1="20" x2="36" y2="56" stroke="#a5b4fc" stroke-width="0.5" opacity="0.5"/>
+                <line x1="36" y1="20" x2="58" y2="56" stroke="#a5b4fc" stroke-width="0.5" opacity="0.3"/>
+                <line x1="36" y1="20" x2="14" y2="56" stroke="#a5b4fc" stroke-width="0.5" opacity="0.3"/>
+              </svg>
             </div>
+
+            <!-- Code tags -->
+            <span class="wt-code-tag wt-code-tag-1">&lt;/&gt;</span>
+            <span class="wt-code-tag wt-code-tag-2">{ }</span>
+
+            <!-- Gears -->
+            <svg class="wt-gear wt-gear-1" viewBox="0 0 24 24" fill="currentColor"><path d="M12 15.5A3.5 3.5 0 0 1 8.5 12 3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.53c.04-.32.07-.64.07-.97s-.03-.66-.07-1l2.11-1.63c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64L4.57 11c-.04.34-.07.67-.07 1s.03.65.07.97l-2.11 1.66c-.19.15-.25.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1.01c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.58 1.69-.98l2.49 1.01c.22.08.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64L19.43 12.97z"/></svg>
+            <svg class="wt-gear wt-gear-2" viewBox="0 0 24 24" fill="currentColor"><path d="M12 15.5A3.5 3.5 0 0 1 8.5 12 3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.53c.04-.32.07-.64.07-.97s-.03-.66-.07-1l2.11-1.63c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64L4.57 11c-.04.34-.07.67-.07 1s.03.65.07.97l-2.11 1.66c-.19.15-.25.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1.01c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.58 1.69-.98l2.49 1.01c.22.08.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64L19.43 12.97z"/></svg>
+
+            <!-- Sparkles -->
+            <div class="wt-sparkle wt-sparkle-1"></div>
+            <div class="wt-sparkle wt-sparkle-2"></div>
+            <div class="wt-sparkle wt-sparkle-3"></div>
+            <div class="wt-sparkle wt-sparkle-4"></div>
+
+            <!-- FREE badge -->
+            <div class="wt-free-badge">FREE</div>
           </div>
-          <div class="space-y-3">
-            <div id="walkthrough-step1" class="flex items-start gap-3 p-4 bg-blue-50 rounded-lg border border-blue-100">
-              <div class="w-7 h-7 bg-blue-500 text-white rounded-full flex items-center justify-center flex-shrink-0 font-semibold text-xs">1</div>
-              <div><h3 class="font-medium text-gray-800 text-sm mb-1">Add Your API Key</h3><p class="text-xs text-gray-500 mb-1">You need a Gemini API key minimum (free).</p><button onclick="closeWalkthroughModal(); openApiKeysModal();" class="text-xs text-blue-500 font-medium">Open API Keys →</button></div>
-            </div>
-            <div id="walkthrough-step2" class="flex items-start gap-3 p-4 bg-gray-50 rounded-lg border border-gray-100 opacity-50">
-              <div class="w-7 h-7 bg-gray-300 text-white rounded-full flex items-center justify-center flex-shrink-0 font-semibold text-xs">2</div>
-              <div><h3 class="font-medium text-gray-800 text-sm mb-1">Describe What You Want</h3><p class="text-xs text-gray-500 mb-1">Type your prompt. Be specific.</p><button onclick="closeWalkthroughModal(); focusPromptInput();" class="text-xs text-blue-500 font-medium">Add Prompt →</button></div>
-            </div>
-            <div id="walkthrough-step3" class="flex items-start gap-3 p-4 bg-gray-50 rounded-lg border border-gray-100 opacity-50">
-              <div class="w-7 h-7 bg-gray-300 text-white rounded-full flex items-center justify-center flex-shrink-0 font-semibold text-xs">3</div>
-              <div><h3 class="font-medium text-gray-800 text-sm mb-1">Hit Run!</h3><p class="text-xs text-gray-500 mb-1">Click Run Pipeline and watch the magic.</p><button onclick="closeWalkthroughModal(); runThinkingPipeline();" class="text-xs text-blue-500 font-medium">Run Pipeline →</button></div>
-            </div>
-          </div>
-          <div class="mt-5 pt-4 border-t border-gray-100">
-            <label class="flex items-center gap-2"><input type="checkbox" id="walkthrough-dont-show" class="w-4 h-4 text-blue-500 rounded border-gray-300"><span class="text-xs text-gray-400">Don't show this again</span></label>
+
+          <!-- Hero text -->
+          <div class="wt-hero-text">
+            <h3 class="wt-hero-heading">Get Started with<br/>Our Free Tier!</h3>
           </div>
         </div>
-        <div class="px-6 py-4 border-t border-gray-100 flex justify-end">
-          <button onclick="closeWalkthroughModal()" class="px-4 py-2 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors">Got It!</button>
+
+        <!-- Info card -->
+        <div class="wt-info-card">
+          <p class="wt-info-text">
+            You get <strong>2 free generations per month</strong> to try Custom Code Connect. Need more power?
+          </p>
+          <button class="wt-upgrade-btn" onclick="closeWalkthroughModal(); openPricingModal();">Unlock More &mdash; Upgrade Plan</button>
         </div>
+
+        <!-- Steps -->
+        <div class="wt-steps">
+          <div id="walkthrough-step1" class="wt-step-card bg-blue-50 border-blue-200">
+            <div class="wt-step-num bg-blue-500">1</div>
+            <div class="wt-step-title">Describe What You Want</div>
+            <div class="wt-step-desc">Type a detailed prompt describing the custom widget, action, or function you need.</div>
+            <button class="wt-step-link" onclick="closeWalkthroughModal(); focusPromptInput();">Add Prompt &rarr;</button>
+          </div>
+          <div id="walkthrough-step2" class="wt-step-card opacity-60 bg-gray-50 border-gray-200">
+            <div class="wt-step-num bg-gray-400">2</div>
+            <div class="wt-step-title">Hit Run!</div>
+            <div class="wt-step-desc">Click Run Pipeline and watch as AI generates FlutterFlow-ready code.</div>
+            <button class="wt-step-link" onclick="closeWalkthroughModal(); runThinkingPipeline();">Run Pipeline &rarr;</button>
+          </div>
+        </div>
+
+        <!-- Hidden step3 for JS compatibility -->
+        <div id="walkthrough-step3" style="display: none;">
+          <div class="bg-gray-400">3</div>
+        </div>
+
+        <!-- Footer -->
+        <div class="wt-footer">
+          <label class="wt-dont-show">
+            <input type="checkbox" id="walkthrough-dont-show"/>
+            <span>Don't show this again</span>
+          </label>
+          <button class="wt-gotit-btn" onclick="closeWalkthroughModal()">
+            Got It!
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+          </button>
+        </div>
+
       </div>
     </div>
 
@@ -1246,42 +1958,109 @@
 
     <!-- Pricing Modal -->
     <div id="pricing-modal" class="modal-overlay" onclick="closePricingModal(event)">
-      <div class="modal-content" onclick="event.stopPropagation()" style="max-width:660px;">
-        <div style="padding:32px;">
-          <div class="flex items-start justify-between mb-6">
-            <div>
-              <h2 style="font-size:18px;font-weight:600;color:#131820;margin-bottom:3px;">Choose a plan</h2>
-              <p style="font-size:13px;color:#9aa0ad;">Unlock more generations and advanced features.</p>
-            </div>
-            <button onclick="closePricingModal()" class="modal-close ml-4 flex-shrink-0"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+      <div class="modal-content pm-inner" onclick="event.stopPropagation()" style="max-width:720px;">
+
+        <!-- Header -->
+        <div class="pm-header" style="display:flex;align-items:flex-start;justify-content:space-between;">
+          <div>
+            <h2 class="pm-title">Choose a plan</h2>
+            <p class="pm-subtitle">Unlock more generations and advanced features.</p>
           </div>
-          <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div class="border border-gray-200 rounded-xl p-5">
-              <h3 class="font-semibold text-gray-900 mb-1 text-sm">Free</h3>
-              <p class="text-2xl font-bold text-gray-900 mb-1">$0<span class="text-sm font-normal text-gray-400">/mo</span></p>
-              <ul class="text-xs text-gray-400 space-y-1.5 mb-5"><li>2 generations/month</li><li>Gemini model only</li><li>Code Review</li></ul>
-              <div id="free-tier-current" class="w-full text-center text-xs text-gray-300 py-2 border border-gray-100 rounded-lg">Current plan</div>
-            </div>
-            <div class="border-2 border-blue-400 rounded-xl p-5 bg-blue-50 relative">
-              <div class="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-blue-500 text-white text-xs font-semibold px-3 py-0.5 rounded-full">Popular</div>
-              <p class="text-xs font-semibold text-blue-600 mb-2 uppercase tracking-wide">For FlutterFlow Professionals</p>
-              <h3 class="font-semibold text-gray-900 mb-1 text-sm">Pro</h3>
-              <p class="text-2xl font-bold text-gray-900 mb-1"><span id="pro-price">A$11</span><span class="text-sm font-normal text-gray-400">/mo</span></p>
-              <p id="pro-price-note" class="text-xs text-gray-400 mb-3">AUD · billed monthly</p>
-              <ul class="text-xs text-gray-500 space-y-1.5 mb-5"><li>50 generations/month</li><li>All models</li><li>Code Regeneration</li></ul>
-              <button id="checkout-btn-professional" onclick="startCheckout('professional')" class="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg text-xs font-semibold transition-colors">Subscribe</button>
-            </div>
-            <div class="border border-indigo-200 rounded-xl p-5" style="background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);">
-              <p class="text-xs font-semibold text-indigo-600 mb-2 uppercase tracking-wide">For Agencies & Enterprise</p>
-              <h3 class="font-semibold text-gray-900 mb-1 text-sm">Power</h3>
-              <p class="text-2xl font-bold text-gray-900 mb-1"><span id="power-price">A$49</span><span class="text-sm font-normal text-gray-400">/mo</span></p>
-              <p id="power-price-note" class="text-xs text-gray-500 mb-3">AUD · billed monthly</p>
-              <ul class="text-xs text-gray-500 space-y-1.5 mb-5"><li>2000 generations/month</li><li>All models + early access</li><li>BYOK support</li><li>API & MCP Access</li><li>Code Review</li></ul>
-              <button id="checkout-btn-power" onclick="startCheckout('power')" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-lg text-xs font-semibold transition-colors">Subscribe</button>
-            </div>
-          </div>
-          <p class="text-xs text-gray-400 text-center mt-5">Plans billed monthly. Prices vary by region.</p>
+          <button onclick="closePricingModal()" class="modal-close" style="flex-shrink:0;margin-top:2px;"><svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
         </div>
+
+        <!-- Hero Illustration -->
+        <div class="pm-hero">
+          <div class="pm-hero-illustration">
+            <!-- Gear ring (orbiting) -->
+            <div class="pm-gear-ring">
+              <svg viewBox="0 0 160 160" fill="none">
+                <circle cx="80" cy="80" r="62" stroke="#c7d2fe" stroke-width="1.5" stroke-dasharray="6 8" opacity="0.6"/>
+                <circle cx="80" cy="18" r="4" fill="#818cf8" opacity="0.7"/>
+                <circle cx="142" cy="80" r="3" fill="#a78bfa" opacity="0.5"/>
+                <circle cx="80" cy="142" r="3.5" fill="#6366f1" opacity="0.6"/>
+                <circle cx="18" cy="80" r="3" fill="#818cf8" opacity="0.5"/>
+              </svg>
+            </div>
+            <!-- Center icon -->
+            <svg class="pm-center-icon" viewBox="0 0 64 64" fill="none">
+              <rect x="18" y="18" width="28" height="28" rx="6" fill="url(#pmGrad1)" transform="rotate(15 32 32)"/>
+              <rect x="20" y="20" width="24" height="24" rx="5" fill="url(#pmGrad2)" transform="rotate(-10 32 32)"/>
+              <path d="M26 32l4 4 8-8" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <defs>
+                <linearGradient id="pmGrad1" x1="18" y1="18" x2="46" y2="46" gradientUnits="userSpaceOnUse">
+                  <stop stop-color="#818cf8"/>
+                  <stop offset="1" stop-color="#6366f1"/>
+                </linearGradient>
+                <linearGradient id="pmGrad2" x1="20" y1="20" x2="44" y2="44" gradientUnits="userSpaceOnUse">
+                  <stop stop-color="#6366f1"/>
+                  <stop offset="1" stop-color="#4f46e5"/>
+                </linearGradient>
+              </defs>
+            </svg>
+            <!-- Sparkles -->
+            <div class="pm-sparkle pm-sparkle-1"></div>
+            <div class="pm-sparkle pm-sparkle-2"></div>
+            <div class="pm-sparkle pm-sparkle-3"></div>
+            <div class="pm-sparkle pm-sparkle-4"></div>
+            <!-- Decorative dots -->
+            <div class="pm-dot pm-dot-1"></div>
+            <div class="pm-dot pm-dot-2"></div>
+            <div class="pm-dot pm-dot-3"></div>
+            <!-- Line accents -->
+            <div class="pm-line-accent pm-line-accent-1"></div>
+            <div class="pm-line-accent pm-line-accent-2"></div>
+          </div>
+        </div>
+
+        <!-- Plan Cards -->
+        <div class="pm-cards">
+          <!-- Free -->
+          <div class="pm-card">
+            <div class="pm-card-name">Free</div>
+            <div class="pm-card-price">$0<span>/mo</span></div>
+            <div class="pm-price-note">&nbsp;</div>
+            <ul class="pm-features">
+              <li>2 generations/month</li>
+              <li>Gemini model only</li>
+              <li>Code Review</li>
+            </ul>
+            <div id="free-tier-current" class="pm-current-plan-indicator">Current plan</div>
+          </div>
+
+          <!-- Pro -->
+          <div class="pm-card pm-card-pro">
+            <div class="pm-popular-badge">Popular</div>
+            <div class="pm-card-label">For FlutterFlow Professionals</div>
+            <div class="pm-card-name">Pro</div>
+            <div class="pm-card-price"><span id="pro-price">A$11</span><span>/mo</span></div>
+            <div id="pro-price-note" class="pm-price-note">AUD · billed monthly</div>
+            <ul class="pm-features">
+              <li>50 generations/month</li>
+              <li>All models</li>
+              <li>Code Regeneration</li>
+            </ul>
+            <button id="checkout-btn-professional" onclick="startCheckout('professional')" class="pm-subscribe-btn pm-subscribe-btn-pro">Subscribe</button>
+          </div>
+
+          <!-- Power -->
+          <div class="pm-card pm-card-power">
+            <div class="pm-card-label">For Agencies &amp; Enterprise</div>
+            <div class="pm-card-name">Power</div>
+            <div class="pm-card-price"><span id="power-price">A$49</span><span>/mo</span></div>
+            <div id="power-price-note" class="pm-price-note">AUD · billed monthly</div>
+            <ul class="pm-features">
+              <li>2000 generations/month</li>
+              <li>All models + early access</li>
+              <li>BYOK support</li>
+              <li>API &amp; MCP Access</li>
+              <li>Code Review</li>
+            </ul>
+            <button id="checkout-btn-power" onclick="startCheckout('power')" class="pm-subscribe-btn pm-subscribe-btn-power">Subscribe</button>
+          </div>
+        </div>
+
+        <p class="pm-footer-note">Plans billed monthly. Prices vary by region.</p>
       </div>
     </div>
 
