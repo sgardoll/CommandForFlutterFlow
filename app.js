@@ -691,7 +691,7 @@ function closeApiKeysModal(event) {
 let walkthroughStep = 1;
 
 function updateWalkthroughUI() {
-  for (let i = 1; i <= 4; i++) {
+  for (let i = 1; i <= 3; i++) {
     const stepEl = document.getElementById(`walkthrough-step${i}`);
     if (stepEl) {
       if (i === walkthroughStep) {
@@ -731,9 +731,18 @@ function updateWalkthroughUI() {
 }
 
 function advanceWalkthrough() {
-  if (walkthroughStep < 4) {
+  if (walkthroughStep < 3) {
     walkthroughStep++;
     updateWalkthroughUI();
+  }
+}
+
+function openWalkthroughModal() {
+  const modal = document.getElementById("walkthrough-modal");
+  if (modal) {
+    walkthroughStep = 1;
+    updateWalkthroughUI();
+    modal.classList.add("open");
   }
 }
 
@@ -4847,10 +4856,13 @@ function updateAuthUI() {
   const signedIn = authState.isVerified && !!authState.email
   const signedout = document.getElementById('auth-signedout')
   const signedin = document.getElementById('auth-signedin')
+  const guestUsage = document.getElementById('auth-guest-usage')
   if (signedout) signedout.classList.toggle('hidden', signedIn)
   if (signedin) signedin.classList.toggle('hidden', !signedIn)
+  if (guestUsage) guestUsage.classList.toggle('hidden', signedIn)
   const emailEl = document.getElementById('auth-user-email')
   if (emailEl) emailEl.textContent = authState.email || ''
+  updateGuestUsageCounter()
   updateSubscriptionUI()
 }
 
@@ -4939,6 +4951,15 @@ function updateUsageDisplay() {
     : pct >= 0.8
       ? 'text-xs text-yellow-600 font-medium'
       : 'text-xs text-gray-500'
+  updateGuestUsageCounter()
+}
+
+function updateGuestUsageCounter() {
+  const el = document.getElementById('guest-usage-text')
+  if (!el) return
+  const usage = getUsageData()
+  const count = usage.month === getCurrentYearMonth() ? (usage.count ?? 0) : 0
+  el.textContent = `${count} / 2 generations used`
 }
 
 // --- STRIPE FUNCTIONS ---
@@ -5211,11 +5232,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       const selectedModel = modelSelect.value;
       updateModelInfo(selectedModel);
       updateRunPipelineButtonState();
-
-      if (walkthroughStep === 3) {
-        advanceWalkthrough();
-        updateWalkthroughUI();
-      }
     });
   }
 
@@ -5580,6 +5596,7 @@ window.retryWithDifferentModel = retryWithDifferentModel;
 window.openApiKeysModal = openApiKeysModal;
 window.closeApiKeysModal = closeApiKeysModal;
 window.closeWalkthroughModal = closeWalkthroughModal;
+window.openWalkthroughModal = openWalkthroughModal;
 window.advanceWalkthrough = advanceWalkthrough;
 window.commitToFlutterFlow = commitToFlutterFlow;
 

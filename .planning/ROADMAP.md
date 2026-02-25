@@ -34,10 +34,13 @@ None
 **Goal**: Move API keys and Model selection into an "Advanced" collapsed dropdown under the prompt input, make API Keys modal responsive (scrollable with sticky Save button), and ensure mobile homepage hides right panel.
 **Depends on**: Previous milestone complete
 **Research**: Unlikely (internal UI/CSS patterns)
-**Plans**: TBD
+**Plans**: 4 plans
 
 Plans:
-- [ ] 06-01: TBD (run `/gsd-plan-phase 6` to break down)
+- [ ] PLAN-A: Advanced Dropdown — merge API Keys + Model Selector into collapsible `<details>` below prompt
+- [ ] PLAN-B: Modal Sticky Save — make API Keys modal Save button sticky at bottom
+- [ ] PLAN-C: Mobile Responsiveness — hide right panel on mobile, full-width sidebar, dvh fix
+- [ ] PLAN-D: Pricing Modal Update — update tiers to v1.1 (Free=2gen, Pro=$8.99 USD, Power=BYOK)
 
 #### Phase 7: BuildShip Identity Resolution
 **Goal**: Implement browser signature, IP, and cookie tracking sent to `https://4tgke4.buildship.run/authUserCheck`. Confidence score ≥ 75 means same user. Rate-limit and validate the endpoint client-side.
@@ -87,7 +90,7 @@ Phases execute in numeric order: 6 → 7 → 8 → 9
 | 3. Tier-Based Feature Gating | v1 | 0/TBD | Complete | 2026-02-25 |
 | 4. Australian GST Compliance | v1 | 0/TBD | Complete | 2026-02-25 |
 | 5. YouTube Checklist Review | v1 | 0/TBD | Complete | 2026-02-25 |
-| 6. Advanced UI & Responsiveness | v1.1 | 0/TBD | Not started | - |
+| 6. Advanced UI & Responsiveness | v1.1 | 4/4 | Planned | - |
 | 7. BuildShip Identity Resolution | v1.1 | 0/TBD | Not started | - |
 | 8. BuildShip LLM Pipeline Migration | v1.1 | 0/TBD | Not started | - |
 | 9. Tier Restrictions & Paywall UI | v1.1 | 0/TBD | Not started | - |

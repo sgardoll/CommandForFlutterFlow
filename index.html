@@ -78,6 +78,7 @@
       .sidebar-scroll::-webkit-scrollbar-thumb { background: #ddd; border-radius: 2px; }
 
       .sidebar-header {
+        position: relative;
         padding: 24px 28px 20px;
         border-bottom: 1px solid var(--border);
       }
@@ -686,6 +687,15 @@
             </div>
             <div class="sidebar-brand-text">Custom Code <span>Connect</span></div>
           </div>
+          <button
+            onclick="openWalkthroughModal()"
+            title="Help"
+            style="position:absolute; top:50%; right:16px; transform:translateY(-50%); width:28px; height:28px; border-radius:50%; border:1px solid var(--border); background:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--label);"
+          >
+            <svg style="width:14px; height:14px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+          </button>
         </div>
 
         <div class="sidebar-scroll">
@@ -831,6 +841,13 @@
               </svg>
               Sign in for usage tracking
             </button>
+          </div>
+          <div id="auth-guest-usage" style="margin-top:8px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
+              <span style="font-size:11px; color:#8a8f9c;"><span id="guest-usage-text">0 / 2 generations used</span></span>
+              <span style="font-size:11px; font-weight:500; color:#64748b;">Free</span>
+            </div>
+            <button onclick="openPricingModal()" style="width:100%; text-align:center; font-size:11px; background:#3b82f6; color:white; padding:5px 12px; border-radius:6px; border:none; cursor:pointer; font-family:inherit; font-weight:500;">Upgrade →</button>
           </div>
           <div id="auth-signedin" class="hidden" style="margin-top: 10px;">
             <div style="display:flex; align-items:center; justify-content:space-between;">
@@ -1140,7 +1157,7 @@
         </div>
         <div class="p-6">
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
-            <p class="text-sm text-gray-400">Get started in 4 simple steps:</p>
+            <p class="text-sm text-gray-400">Get started in 3 simple steps:</p>
             <div class="flex items-center gap-4">
               <a href="https://www.youtube.com/watch?v=aFTUqLSkAGY" target="_blank" rel="noopener noreferrer" class="flex items-center gap-1.5 text-xs text-blue-500 hover:text-blue-600 font-medium transition-colors">
                 <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/></svg>
@@ -1163,10 +1180,6 @@
             </div>
             <div id="walkthrough-step3" class="flex items-start gap-3 p-4 bg-gray-50 rounded-lg border border-gray-100 opacity-50">
               <div class="w-7 h-7 bg-gray-300 text-white rounded-full flex items-center justify-center flex-shrink-0 font-semibold text-xs">3</div>
-              <div><h3 class="font-medium text-gray-800 text-sm mb-1">Advanced Settings</h3><p class="text-xs text-gray-500 mb-1">Configure API keys and select your preferred AI model.</p><button onclick="closeWalkthroughModal(); const d=document.getElementById('advanced-settings'); d.open=true; d.scrollIntoView({behavior:'smooth'});" class="text-xs text-blue-500 font-medium">Open Settings →</button></div>
-            </div>
-            <div id="walkthrough-step4" class="flex items-start gap-3 p-4 bg-gray-50 rounded-lg border border-gray-100 opacity-50">
-              <div class="w-7 h-7 bg-gray-300 text-white rounded-full flex items-center justify-center flex-shrink-0 font-semibold text-xs">4</div>
               <div><h3 class="font-medium text-gray-800 text-sm mb-1">Hit Run!</h3><p class="text-xs text-gray-500 mb-1">Click Run Pipeline and watch the magic.</p><button onclick="closeWalkthroughModal(); runThinkingPipeline();" class="text-xs text-blue-500 font-medium">Run Pipeline →</button></div>
             </div>
           </div>
