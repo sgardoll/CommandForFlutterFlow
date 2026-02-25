@@ -60,10 +60,18 @@ let identityState = {
 
 // --- TIER LIMITS ---
 const TIER_LIMITS = {
-  free: 50,
-  professional: 500,
+  free: 2,
+  professional: 50,
   power: 2000,
 }
+
+const FREE_MODEL = 'google/gemini-3.1-pro-preview'
+const PRO_MODELS = [
+  'anthropic/claude-4.6-opus',
+  'openai/gpt-5.3-codex',
+  'openrouter/auto',
+  'openrouter/free',
+]
 const USAGE_STORAGE_KEY = 'ccc_usage'
 
 // Model Configuration
@@ -3318,6 +3326,8 @@ async function runThinkingPipeline() {
     dismissWelcomeVideo();
     const readyState = document.getElementById("ready-state");
     if (readyState) readyState.classList.add("hidden");
+    const paywallEl = document.getElementById("paywall-exhausted");
+    if (paywallEl) paywallEl.classList.add("hidden");
 
     // Step 1: Prompt Architect
     selectWorkflowStep(1);
@@ -3997,8 +4007,7 @@ function canRunPipeline() {
   const { count } = getUsage()
   const limit = getRunLimit()
   if (count >= limit) {
-    showToast(`You've used all ${limit} runs for this month. Upgrade to continue.`, 'error')
-    openPricingModal()
+    showPaywallExhausted(count, limit)
     return false
   }
   const warningThreshold = Math.floor(limit * 0.8)
@@ -4009,7 +4018,38 @@ function canRunPipeline() {
   return true
 }
 
+function showPaywallExhausted(count, limit) {
+  const readyState = document.getElementById('ready-state')
+  if (readyState) readyState.classList.add('hidden')
+
+  const paywall = document.getElementById('paywall-exhausted')
+  if (!paywall) {
+    showToast(`You've used all ${limit} runs for this month. Upgrade to continue.`, 'error')
+    openPricingModal()
+    return
+  }
+
+  const textEl = document.getElementById('paywall-exhausted-text')
+  if (textEl) {
+    const tier = subscriptionState.tier
+    if (tier === 'free') {
+      textEl.textContent = `You've used all ${limit} free generations this month. Upgrade to Pro for 50 generations/month and access to all AI models.`
+    } else {
+      textEl.textContent = `You've used all ${limit} generations this month on your ${tier} plan. Your limit resets next month.`
+    }
+  }
+
+  const signInBtn = document.getElementById('paywall-signin-btn')
+  if (signInBtn) signInBtn.classList.toggle('hidden', authState.isVerified)
+
+  paywall.classList.remove('hidden')
+}
+
 function getEffectiveModel(selectedModel) {
+  const tier = subscriptionState.tier
+  if (tier === 'free' && PRO_MODELS.includes(selectedModel)) {
+    return FREE_MODEL
+  }
   return selectedModel
 }
 
@@ -4018,12 +4058,43 @@ function updateModelSelectorGating() {
   const select = document.getElementById('code-generator-model')
   if (!container || !select) return
 
+  const tier = subscriptionState.tier
+  const isFree = tier === 'free'
+
+  const modelLabels = {
+    'google/gemini-3.1-pro-preview': 'Gemini 3.1 Pro',
+    'anthropic/claude-4.6-opus': 'Claude 4.6 Opus',
+    'openai/gpt-5.3-codex': 'GPT-5.3-Codex',
+    'openrouter/auto': 'OpenRouter: Auto Router',
+    'openrouter/free': 'OpenRouter: Free Models',
+  }
+
+  Array.from(select.options).forEach(opt => {
+    const baseLabel = modelLabels[opt.value] || opt.value
+    const isPro = PRO_MODELS.includes(opt.value)
+    opt.textContent = isPro && isFree ? `${baseLabel} (PRO)` : baseLabel
+    opt.disabled = isPro && isFree
+  })
+
+  if (isFree && PRO_MODELS.includes(select.value)) {
+    select.value = FREE_MODEL
+  }
+
   select.disabled = false
 
   let notice = document.getElementById('model-selector-free-notice')
-  if (notice) notice.remove()
+  if (isFree) {
+    if (!notice) {
+      notice = document.createElement('p')
+      notice.id = 'model-selector-free-notice'
+      notice.className = 'text-xs text-gray-400 mt-1'
+      container.appendChild(notice)
+    }
+    notice.innerHTML = `Free plan — Gemini only. <button onclick="openPricingModal()" style="color:#3b82f6;background:none;border:none;cursor:pointer;font:inherit;padding:0;text-decoration:underline;">Upgrade for all models</button>`
+  } else if (notice) {
+    notice.remove()
+  }
 
-  // Sync sidebar model label with effective model
   updateModelInfo(select.value)
 }
 
@@ -4040,6 +4111,10 @@ function updateUsageDisplay() {
       ? 'text-xs text-yellow-600 font-medium'
       : 'text-xs text-gray-500'
   updateGuestUsageCounter()
+
+  if (pct >= 1 && !pipelineState.isRunning) {
+    showPaywallExhausted(count, limit)
+  }
 }
 
 function updateGuestUsageCounter() {
@@ -4047,7 +4122,8 @@ function updateGuestUsageCounter() {
   if (!el) return
   const usage = getUsageData()
   const count = usage.month === getCurrentYearMonth() ? (usage.count ?? 0) : 0
-  el.textContent = `${count} / 2 generations used`
+  const limit = TIER_LIMITS.free
+  el.textContent = `${count} / ${limit} generations used`
 }
 
 // --- STRIPE FUNCTIONS ---

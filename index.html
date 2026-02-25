@@ -907,6 +907,21 @@
               <p class="text-sm text-gray-400 text-center max-w-sm">Enter a prompt and click "Run Pipeline" to start.</p>
             </div>
 
+            <div id="paywall-exhausted" class="hidden flex flex-col items-center justify-center" style="padding:60px 24px;">
+              <div style="width:48px;height:48px;border-radius:50%;background:#fef2f2;display:flex;align-items:center;justify-content:center;margin-bottom:16px;">
+                <svg class="w-6 h-6" style="color:#ef4444;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+                </svg>
+              </div>
+              <h3 class="text-base font-semibold text-gray-800 mb-2">Free generations used</h3>
+              <p id="paywall-exhausted-text" class="text-sm text-gray-400 text-center max-w-sm mb-4">You've used all your free generations this month. Upgrade to Pro for 50 generations/month and access to all AI models.</p>
+              <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">
+                <button onclick="openPricingModal()" style="background:#3b82f6;color:white;padding:10px 24px;border-radius:8px;border:none;cursor:pointer;font-family:inherit;font-size:14px;font-weight:600;">View Plans</button>
+                <button onclick="openSignInModal()" id="paywall-signin-btn" style="background:none;color:#3b82f6;padding:10px 24px;border-radius:8px;border:1px solid #3b82f6;cursor:pointer;font-family:inherit;font-size:14px;font-weight:500;">Sign In</button>
+              </div>
+              <p class="text-xs text-gray-300 mt-4">Generations reset at the start of each month.</p>
+            </div>
+
             <div id="step1-content" class="hidden">
               <div id="step1-loading" class="stage-loading hidden">
                 <div class="spinner mb-4"></div>
