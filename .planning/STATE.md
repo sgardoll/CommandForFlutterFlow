@@ -6,14 +6,14 @@ See: .planning/PROJECT.md (updated 2026-02-20)
 
 **Core value:** Users can subscribe, pay, and immediately get metered access to frontier AI models — with limits enforced, graceful fallback when exhausted, and correct Australian tax applied at checkout.
 
-**Current focus:** Phase 1 — Stripe Foundation
+**Current focus:** Phase 6 — Advanced UI & Responsiveness
 
 ## Current Position
 
-Phase: 1 of 4 (Stripe Foundation)
+Phase: 6 of 9 (Advanced UI & Responsiveness)
 Plan: Not started
 Status: Ready to plan
-Last activity: 2026-02-20 — Monetization milestone initialized
+Last activity: 2026-02-25 — Milestone v1.1 created
 
 Progress: ░░░░░░░░░░ 0%
 
@@ -47,6 +47,7 @@ Recent decisions affecting current work:
 - Architecture change allowed — Stripe webhooks require backend
 - GST-inclusive consumer pricing — Australian consumer law
 - **BuildShip for backend** — Visual workflow builder for serverless endpoints (2026-02-20)
+- Move LLM API logic to BuildShip `runpipeline` to centralize model execution (2026-02-25)
 
 ### Deferred Issues
 
@@ -55,6 +56,7 @@ None yet.
 ### Roadmap Evolution
 
 - Phase 5 added: YouTube Checklist Review (2026-02-21)
+- Milestone v1.1 created: Advanced UI & BuildShip Integration, 4 phases (Phase 6-9) (2026-02-25)
 
 ### Pending Todos
 
@@ -66,6 +68,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-20 09:26
-Stopped at: Roadmap creation complete
+Last session: 2026-02-25 18:14
+Stopped at: v1 milestone fully archived, v1.1 initialized — ready to plan Phase 6
 Resume file: None

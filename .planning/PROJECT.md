@@ -1,97 +1,109 @@
-# Connect I/O Custom Code — Managed Paid Monetization
+# Connect I/O Custom Code — Advanced UI & BuildShip Integration
 
 ## What This Is
 
-customcode.connectio.com.au is an AI-powered code generation platform for FlutterFlow developers, featuring a 3-step pipeline (Prompt Architect → Code Generator → Code Dissector). This milestone introduces a full monetization layer: Stripe-powered subscription tiers with usage metering, tier-based feature gating, graceful model degradation, and Australian GST compliance.
+customcode.connectio.com.au is an AI-powered code generation platform for FlutterFlow developers, featuring a 3-step pipeline (Prompt Architect → Code Generator → Code Dissector). This milestone migrates AI inference to BuildShip serverless endpoints, adds tier-based feature restrictions and paywall, resolves user identity, and improves UI responsiveness.
 
 ## Core Value
 
-Users can subscribe, pay, and immediately get metered access to frontier AI models — with limits enforced, graceful fallback when exhausted, and correct Australian tax applied at checkout.
+Users get a polished, responsive UI with BuildShip-powered AI inference, identity resolution, and tier-based access control — setting the foundation for future monetization enforcement.
 
 ## Requirements
 
-### Validated (Previous Milestone — Direct Commit to FlutterFlow)
+### Validated (Previous Milestones)
 
-- ✓ 3-step pipeline (Prompt Architect → Code Generator → Code Dissector)
-- ✓ Multiple AI model support (Gemini, Claude, OpenAI, OpenRouter)
-- ✓ API key management with AES-GCM client-side encryption
-- ✓ Walkthrough system for first-time users
-- ✓ Code display with syntax highlighting + copy-to-clipboard
-- ✓ FlutterFlow API Key + Project ID credentials management
-- ✓ One-click commit to FlutterFlow via API
-- ✓ Commit success/error feedback with mitigation options
+- ✓ 3-step pipeline (Prompt Architect → Code Generator → Code Dissector) — v0
+- ✓ Multiple AI model support (Gemini, Claude, OpenAI, OpenRouter) — v0
+- ✓ API key management with AES-GCM client-side encryption — v0
+- ✓ Walkthrough system for first-time users — v0
+- ✓ Code display with syntax highlighting + copy-to-clipboard — v0
+- ✓ FlutterFlow API Key + Project ID credentials management — v0
+- ✓ One-click commit to FlutterFlow via API — v0
+- ✓ Commit success/error feedback with mitigation options — v0
+- ✓ Stripe subscription products (Free, Pro $8.99 USD/mo, Power BYOK) — v1
+- ✓ Stripe Checkout flow with Australian GST — v1
+- ✓ Auth layer (user identity tied to subscription) — v1
+- ✓ Subscription state persisted and verified on app load — v1
+- ✓ Per-user request counter tracked via BuildShip — v1
+- ✓ Graceful model degradation when limit exhausted — v1
+- ✓ In-app notification when approaching/at limit — v1
+- ✓ Tier-based feature gating (Free/Pro/Power) — v1
+- ✓ BYOK locked to Power Developer tier — v1
+- ✓ 10% GST auto-applied to Australian billing addresses — v1
+- ✓ GST-inclusive consumer pricing display — v1
+- ✓ ABN capture for B2B transactions — v1
+- ✓ YouTube Checklist Review pass — v1
 
 ### Active
 
-**Stripe + Auth**
-- [ ] Stripe subscription products for Free, Professional ($25 AUD/mo), Power Developer ($75 AUD/mo)
-- [ ] Stripe Checkout flow with Australian GST applied at checkout
-- [ ] Auth layer (JWT or Stripe Customer Portal session) — user identity tied to subscription
-- [ ] Subscription state persisted and verified on app load
+**Advanced UI & Responsiveness (Phase 6)**
+- [ ] API Keys and Model selection moved to Advanced dropdown (collapsed by default)
+- [ ] Responsive layout — works correctly on mobile and tablet breakpoints
+- [ ] UI polish pass based on YouTube checklist feedback
 
-**Usage Metering + Graceful Degradation**
-- [ ] Per-user request counter tracked server-side (Stripe metered billing or lightweight backend)
-- [ ] Free tier: 50 requests/month, locked to efficient fallback model only
-- [ ] Professional tier: 500 premium requests/month + unlimited fallback after exhaustion
-- [ ] Power Developer tier: 2000 premium requests/month + unlimited fallback after exhaustion
-- [ ] Silent auto-routing from frontier model → fallback model when premium allocation exhausted
-- [ ] In-app notification when approaching/at limit with one-click upgrade path
+**BuildShip Identity Resolution (Phase 7)**
+- [ ] Integrate BuildShip authUserCheck endpoint (https://4tgke4.buildship.run/authUserCheck)
+- [ ] Resolve user identity (email, tier, usage) on app load
+- [ ] Store resolved identity in app state, drive UI gating from it
 
-**Tier-Based Feature Gating**
-- [ ] Free: No Model Selector, no Code Dissector project-wide analysis, no saved templates
-- [ ] Professional: Full Model Selector, single-file Code Dissector, saved templates
-- [ ] Power Developer: Full Model Selector, extended context (128k+), multi-file Code Dissector, beta model previews
-- [ ] BYOK (user-supplied keys) available as Power Developer tier feature only
+**BuildShip LLM Pipeline Migration (Phase 8)**
+- [ ] Migrate all AI inference calls to BuildShip runpipeline endpoint (https://4tgke4.buildship.run/service/runpipeline)
+- [ ] Remove direct Gemini/Claude/OpenAI/OpenRouter calls from app.js
+- [ ] API proxy (/api/) remains for local dev fallback only
 
-**Australian GST Compliance**
-- [ ] 10% GST auto-applied to all Australian billing addresses at checkout
-- [ ] Consumer pricing displayed GST-inclusive (e.g. $25 AUD incl. GST)
-- [ ] ABN capture for B2B transactions (agency purchases) — tax invoice with GST line item
-- [ ] International users: GST not applied
+**Tier Restrictions & Paywall (Phase 9)**
+- [ ] Free tier: 2 generations/month, Gemini 3.1 Pro only, no model selection
+- [ ] Pro tier ($8.99 USD/mo): 50 generations/month, model selection, regeneration
+- [ ] Power tier: BYOK, unlimited, all features
+- [ ] Enforce feature gating in UI based on resolved identity from Phase 7
+- [ ] Paywall prompt with upgrade CTA when limit reached or locked feature accessed
 
 ### Out of Scope
 
 - Agency / team tiers (pooled usage, shared libraries) — defer to v2
 - Enterprise tier (SSO, audit logs, HYOK, custom contracts) — defer to v2
-- Usage dashboard / analytics UI — enforce limits without visual reporting in v1
-- Extended context window feature (128k+) — referenced in tiers but implementation deferred unless trivial
+- Usage dashboard / analytics UI — enforce limits without visual reporting
+- Extended context window feature (128k+) — referenced in tiers but deferred
 - Automated refunds / proration UI — use Stripe Customer Portal for self-serve
+- Australian GST compliance details — completed in v1
 
 ## Context
 
 **Current architecture:**
-- Vanilla JS + Vite, no backend server — all AI calls proxied via PHP at `/api/`
-- AI inference flows: `app.js` → `/api/gemini-proxy.php` (and anthropic/openai variants)
+- Vanilla JS + Vite, no backend server — all AI calls proxied via PHP at /api/
+- AI inference flows: app.js -> /api/gemini-proxy.php (and anthropic/openai variants)
 - Client-side AES-GCM encryption for API keys in localStorage
-- Deployed to `ftp.connectio.com.au` (static files + PHP)
+- Deployed to ftp.connectio.com.au (static files + PHP)
 
-**Adding monetization requires:**
-- A backend layer for subscription verification + usage metering (Stripe webhooks can't hit PHP safely at scale; recommend a lightweight serverless function or a small Node/Express endpoint on the same host)
-- Stripe account with Australian entity registration for GST
-- User identity (email + Stripe Customer ID) stored somewhere persistent — either Stripe metadata or a minimal DB
+**Target architecture (v1.1):**
+- AI inference: app.js -> BuildShip runpipeline endpoint (serverless, centralized)
+- Identity: app.js -> BuildShip authUserCheck endpoint on load
+- PHP proxies remain for local dev only
+- BuildShip endpoints: https://4tgke4.buildship.run/authUserCheck and https://4tgke4.buildship.run/service/runpipeline
 
-**Pricing model logic:**
-- Premium requests = frontier model calls (Claude Opus, GPT Codex, Gemini Pro)
-- Standard requests = fallback model calls (Gemini Flash) — treated as unlimited
-- Allocation resets monthly with Stripe billing cycle
-- The platform absorbs ~$20–22 AUD wholesale API cost per Professional user at full utilization; margin relies on average utilization being ~30–40%
+**Pricing tiers (v1.1):**
+- Free: 2 generations/month, Gemini 3.1 Pro only, no model selection, no BYOK, no regeneration (visible in Advanced dropdown labelled PRO)
+- Pro: $8.99 USD/mo, 50 generations/month, model selection, regeneration and FlutterFlow debugging prompts
+- Power: BYOK, unlimited generations, all features
 
 ## Constraints
 
-- **Tax**: Australian GST compliance required at launch — ATO digital services rules, $75k AUD registration threshold already assumed exceeded
-- **Architecture**: Open to adding a lightweight backend (Node/serverless) if Stripe webhooks require it — no hard constraint to stay client-only
-- **Deployment**: Must deploy to existing FTP host (connectio.com.au) — PHP + static files today; serverless may need separate hosting
+- **Architecture**: Migrating to BuildShip for all production AI inference — PHP proxies for local dev fallback only
+- **Deployment**: Must deploy to existing FTP host (connectio.com.au) — static files + PHP
 - **Pricing display**: Consumer-facing prices must be GST-inclusive per Australian consumer law
+- **Identity**: BuildShip authUserCheck is the single source of truth for user tier and usage
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Stripe for billing | Industry standard, handles subscriptions + metered billing + tax | — Pending |
-| Three individual tiers only (v1) | Prove model works before agency/enterprise complexity | — Pending |
-| BYOK locked to Power Developer tier | Prevents free riders using personal keys to bypass metering | — Pending |
-| Architecture change allowed | Stripe webhooks and server-side metering require a backend | — Pending |
-| GST-inclusive consumer pricing | Australian consumer law requirement | — Pending |
+| Stripe for billing | Industry standard, handles subscriptions + metered billing + tax | Shipped v1 |
+| Three individual tiers only | Prove model works before agency/enterprise complexity | Shipped v1 |
+| BYOK locked to Power Developer tier | Prevents free riders using personal keys to bypass metering | Shipped v1 |
+| GST-inclusive consumer pricing | Australian consumer law requirement | Shipped v1 |
+| BuildShip for backend | Visual workflow builder for serverless endpoints | Active |
+| Migrate LLM inference to BuildShip | Centralize model execution, enable server-side tier enforcement | Active |
+| API Keys + Model to Advanced dropdown | Declutter primary UI, keep power-user options accessible | Active |
 
 ---
-*Last updated: 2026-02-20 after monetization milestone initialization*
+*Last updated: 2026-02-25 after v1 milestone completion and v1.1 initialization*

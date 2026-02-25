@@ -2,116 +2,92 @@
 
 ## Overview
 
-Transform customcode.connectio.com.au from a free/BYOK platform into a subscription-based SaaS with Stripe-powered tiers, usage metering, graceful model degradation, and Australian GST compliance. Four phases: Stripe checkout foundation → usage tracking/limits → feature gating by tier → tax compliance.
+Transform customcode.connectio.com.au from a free/BYOK platform into a subscription-based SaaS with Stripe-powered tiers, usage metering, graceful model degradation, Australian GST compliance, and a BuildShip backend for LLM pipeline execution and identity resolution.
 
 ## Domain Expertise
 
 None
 
+## Milestones
+
+- ✅ **[v1 Monetization Foundation](milestones/v1-ROADMAP.md)** — Phases 1-5 (shipped 2026-02-25)
+- 🚧 **v1.1 Advanced UI & BuildShip Integration** — Phases 6-9 (in progress)
+
 ## Phases
 
-**Phase Numbering:**
-- Integer phases (1, 2, 3, 4): Planned milestone work
-- Decimal phases (e.g., 2.1): Urgent insertions (marked with INSERTED)
+<details>
+<summary>✅ v1 Monetization Foundation (Phases 1-5) — SHIPPED 2026-02-25</summary>
 
-Decimal phases appear between their surrounding integers in numeric order.
+- [x] Phase 1: Stripe Foundation — Stripe Checkout, magic link auth, subscription state
+- [x] Phase 2: Usage Metering & Degradation — Request tracking, limits, auto-routing
+- [x] Phase 3: Tier-Based Feature Gating — Lock/unlock features by subscription
+- [x] Phase 4: Australian GST Compliance — Tax logic, ABN capture, invoices
+- [x] Phase 5: YouTube Checklist Review — Top 10 checklist review
 
-- [ ] **Phase 1: Stripe Foundation** - Products, checkout, subscription state
-- [ ] **Phase 2: Usage Metering & Degradation** - Request tracking, limits, auto-routing
-- [ ] **Phase 3: Tier-Based Feature Gating** - Lock/unlock features by subscription
-- [ ] **Phase 4: Australian GST Compliance** - Tax logic, ABN capture, invoices
-- [ ] **Phase 5: YouTube Checklist Review** - Go through top 10 checklist from that guy off YouTube (voice notes on tablet)
+</details>
 
-## Phase Details
+### 🚧 v1.1 Advanced UI & BuildShip Integration (In Progress)
 
-### Phase 1: Stripe Foundation
-**Goal**: Users can subscribe to Free/Professional/Power Developer tiers via Stripe Checkout, with subscription state persisted and verified on app load.
+**Milestone Goal:** Move AI calls to BuildShip, implement identity tracking, revamp the UI for advanced options, mobile responsiveness, and paywalls.
 
-**Depends on**: Nothing (first phase)
+#### Phase 6: Advanced UI & Responsiveness
+**Goal**: Move API keys and Model selection into an "Advanced" collapsed dropdown under the prompt input, make API Keys modal responsive (scrollable with sticky Save button), and ensure mobile homepage hides right panel.
+**Depends on**: Previous milestone complete
+**Research**: Unlikely (internal UI/CSS patterns)
+**Plans**: TBD
 
-**Research**: Likely (external API, first Stripe integration in this codebase)
+Plans:
+- [ ] 06-01: TBD (run `/gsd-plan-phase 6` to break down)
 
+#### Phase 7: BuildShip Identity Resolution
+**Goal**: Implement browser signature, IP, and cookie tracking sent to `https://4tgke4.buildship.run/authUserCheck`. Confidence score ≥ 75 means same user. Rate-limit and validate the endpoint client-side.
+**Depends on**: Phase 6
+**Research**: Likely (browser fingerprinting, external API, rate limiting)
 **Research topics**:
-- Stripe Checkout vs Payment Links for subscription flow
-- Webhook setup for serverless/FTP environment (PHP proxy existing, may need Node endpoint)
-- Storing Stripe Customer ID without database (Stripe metadata vs localStorage)
-- Australian entity registration requirements for Stripe account
-
-**Plans**: TBD (will be refined during phase planning)
+- Browser fingerprinting libraries (FingerprintJS or custom)
+- `identity-resolution-api-docs.md` endpoint schema
+- Client-side rate limiting strategies (debounce, per-session flag)
+- Cookie handling and IP extraction in BuildShip context
+**Plans**: TBD
 
 Plans:
-- TBD during `/gsd-plan-phase 1`
+- [ ] 07-01: TBD (run `/gsd-plan-phase 7` to break down)
 
-### Phase 2: Usage Metering & Degradation
-**Goal**: Per-user request counters enforce tier limits (50/500/2000 premium requests/month), with silent auto-routing from frontier models → fallback model when exhausted. In-app notifications when approaching limits.
-
-**Depends on**: Phase 1 (requires subscription state to know user tier)
-
-**Research**: Likely (architectural decision on where to track usage)
-
+#### Phase 8: BuildShip LLM Pipeline Migration
+**Goal**: Move all LLM API calls (Gemini, Claude, OpenAI) to `https://4tgke4.buildship.run/service/runpipeline`. Define and document exact request/response body schema. Remove direct API calls from app.js.
+**Depends on**: Phase 7
+**Research**: Likely (external API schema definition, migration pattern)
 **Research topics**:
-- Stripe metered billing vs lightweight backend counter (serverless function or Node/Express on same host)
-- Silent model routing logic in `callGemini()` — how to inject tier/usage state into API proxy flow
-- Notification UI patterns (toast vs banner vs modal for limit warnings)
-- Monthly reset mechanism tied to Stripe billing cycle
-
+- BuildShip `runpipeline` payload structure
+- Error handling and timeout patterns for proxied calls
+- Migrating `callGemini()` / `callClaude()` / `callOpenAI()` to unified endpoint
 **Plans**: TBD
 
 Plans:
-- TBD during `/gsd-plan-phase 2`
+- [ ] 08-01: TBD (run `/gsd-plan-phase 8` to break down)
 
-### Phase 3: Tier-Based Feature Gating
-**Goal**: Free tier locked to fallback model only (no Model Selector). Professional tier unlocks Model Selector + single-file Code Dissector. Power Developer tier unlocks extended context + multi-file Code Dissector + BYOK option.
-
-**Depends on**: Phase 1 (requires subscription state), Phase 2 (usage limits must be enforced before gating premium features)
-
-**Research**: Unlikely (internal UI logic, patterns exist in app.js for conditional feature display)
-
+#### Phase 9: Tier Restrictions & Paywall UI
+**Goal**: Enforce Free (2 generations), Pro (50), Power (unlimited) limits based on identity. Display PRO badges in Advanced dropdown for locked features. Create paywall explanation screen for exhausted free users.
+**Depends on**: Phase 8
+**Research**: Unlikely (internal UI state and conditional rendering)
 **Plans**: TBD
 
 Plans:
-- TBD during `/gsd-plan-phase 3`
-
-### Phase 4: Australian GST Compliance
-**Goal**: 10% GST auto-applied to Australian billing addresses at Stripe checkout. Consumer pricing displayed GST-inclusive. ABN capture for B2B transactions with proper tax invoice formatting.
-
-**Depends on**: Phase 1 (Stripe checkout must exist to inject tax logic)
-
-**Research**: Likely (tax compliance, unfamiliar regulatory logic)
-
-**Research topics**:
-- Stripe Tax automatic calculation vs manual 10% GST logic
-- Australian consumer law requirements for GST-inclusive pricing display
-- ABN validation API (Australian Business Register lookup)
-- Tax invoice formatting requirements for B2B transactions (must show GST line item)
-- International user handling (GST not applied)
-
-**Plans**: TBD
-
-Plans:
-- TBD during `/gsd-plan-phase 4`
-
-### Phase 5: YouTube Checklist Review
-**Goal**: Review and implement items from the top 10 checklist video (voice notes stored on tablet).
-
-**Depends on**: Phase 4 (complete monetization foundation first)
-
-**Research**: Unlikely (internal review task)
-
-**Plans**: TBD
-
-Plans:
-- TBD during `/gsd-plan-phase 5`
+- [ ] 09-01: TBD (run `/gsd-plan-phase 9` to break down)
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4
+Phases execute in numeric order: 6 → 7 → 8 → 9
 
-| Phase | Plans Complete | Status | Completed |
-|-------|----------------|--------|-----------|
-| 1. Stripe Foundation | 0/TBD | Not started | - |
-| 2. Usage Metering & Degradation | 0/TBD | Not started | - |
-| 3. Tier-Based Feature Gating | 0/TBD | Not started | - |
-| 4. Australian GST Compliance | 0/TBD | Not started | - |
-| 5. YouTube Checklist Review | 0/TBD | Not started | - |
+| Phase | Milestone | Plans | Status | Completed |
+|-------|-----------|-------|--------|-----------|
+| 1. Stripe Foundation | v1 | 3/3 | Complete | 2026-02-25 |
+| 2. Usage Metering & Degradation | v1 | 0/TBD | Complete | 2026-02-25 |
+| 3. Tier-Based Feature Gating | v1 | 0/TBD | Complete | 2026-02-25 |
+| 4. Australian GST Compliance | v1 | 0/TBD | Complete | 2026-02-25 |
+| 5. YouTube Checklist Review | v1 | 0/TBD | Complete | 2026-02-25 |
+| 6. Advanced UI & Responsiveness | v1.1 | 0/TBD | Not started | - |
+| 7. BuildShip Identity Resolution | v1.1 | 0/TBD | Not started | - |
+| 8. BuildShip LLM Pipeline Migration | v1.1 | 0/TBD | Not started | - |
+| 9. Tier Restrictions & Paywall UI | v1.1 | 0/TBD | Not started | - |
