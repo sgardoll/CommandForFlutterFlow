@@ -4249,6 +4249,9 @@ async function callBuildShip(step, model, prompt, context = {}) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         user_id: identityState.userId,
+        tier: subscriptionState.tier,
+        usage_count: getUsage().count,
+        usage_limit: getRunLimit(),
         step,
         model,
         prompt,
