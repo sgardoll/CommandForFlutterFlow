@@ -691,9 +691,9 @@
           <button
             onclick="openWalkthroughModal()"
             title="Help"
-            style="position:absolute; top:50%; right:16px; transform:translateY(-50%); width:28px; height:28px; border-radius:50%; border:1px solid var(--border); background:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--label);"
+            class="absolute top-1/2 right-4 -translate-y-1/2 w-7 h-7 rounded-full border border-gray-200 bg-white flex items-center justify-center cursor-pointer text-gray-500 hover:text-gray-700"
           >
-            <svg style="width:14px; height:14px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
             </svg>
           </button>
@@ -1260,20 +1260,22 @@
             <div class="border-2 border-blue-400 rounded-xl p-5 bg-blue-50 relative">
               <div class="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-blue-500 text-white text-xs font-semibold px-3 py-0.5 rounded-full">Popular</div>
               <h3 class="font-semibold text-gray-900 mb-1 text-sm">Pro</h3>
-              <p class="text-2xl font-bold text-gray-900 mb-1">$8.99<span class="text-sm font-normal text-gray-400">/mo</span></p>
-              <p class="text-xs text-gray-400 mb-2">USD · billed monthly</p>
-              <ul class="text-xs text-gray-500 space-y-1.5 mb-5"><li>50 generations/month</li><li>Model Selector</li><li>Code Review</li></ul>
+              <p class="text-2xl font-bold text-gray-900 mb-1"><span id="pro-price">$11</span><span class="text-sm font-normal text-gray-400">/mo</span></p>
+              <p id="pro-price-note" class="text-xs text-gray-400 mb-1">AUD · billed monthly</p>
+              <p class="text-xs text-gray-400 mb-2">For FlutterFlow Professionals</p>
+              <ul class="text-xs text-gray-500 space-y-1.5 mb-5"><li>50 generations/month</li><li>All models</li><li>Code Regeneration</li></ul>
               <button id="checkout-btn-professional" onclick="startCheckout('professional')" class="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg text-xs font-semibold transition-colors">Subscribe</button>
             </div>
             <div class="border border-gray-200 rounded-xl p-5 bg-gray-900">
               <h3 class="font-semibold text-white mb-1 text-sm">Power</h3>
-              <p class="text-2xl font-bold text-white mb-1">BYOK<span class="text-sm font-normal text-gray-400"></span></p>
-              <p class="text-xs text-gray-500 mb-2">Bring Your Own Key</p>
-              <ul class="text-xs text-gray-400 space-y-1.5 mb-5"><li>Unlimited generations</li><li>All models</li><li>Full model selector</li><li>Code Review</li></ul>
-              <button id="checkout-btn-power" onclick="startCheckout('power')" class="w-full bg-white hover:bg-gray-100 text-gray-900 py-2 rounded-lg text-xs font-semibold transition-colors">Get Started</button>
+              <p class="text-2xl font-bold text-white mb-1"><span id="power-price">$49</span><span class="text-sm font-normal text-gray-400">/mo</span></p>
+              <p id="power-price-note" class="text-xs text-gray-500 mb-1">AUD · billed monthly</p>
+              <p class="text-xs text-gray-500 mb-2">For FlutterFlow Agencies and Enterprise Users</p>
+              <ul class="text-xs text-gray-400 space-y-1.5 mb-5"><li>2000 generations/month</li><li>All models + early access</li><li>BYOK support</li><li>API & MCP Access</li><li>Code Review</li></ul>
+              <button id="checkout-btn-power" onclick="startCheckout('power')" class="w-full bg-white hover:bg-gray-100 text-gray-900 py-2 rounded-lg text-xs font-semibold transition-colors">Subscribe</button>
             </div>
           </div>
-          <p class="text-xs text-gray-400 text-center mt-5">Pro plan billed in USD. Power plan is free — just add your own API keys.</p>
+          <p class="text-xs text-gray-400 text-center mt-5">Plans billed monthly. Prices vary by region.</p>
         </div>
       </div>
     </div>

@@ -79,6 +79,61 @@ const PROMPT_ARCHITECT_MODEL = "google/gemini-3.1-pro-preview"
 const CODE_REVIEW_MODEL = "google/gemini-3.1-pro-preview"
 const FALLBACK_MODEL = "google/gemini-3.1-pro-preview"
 
+// --- DYNAMIC PRICING ---
+const BASE_PRICES_AUD = { professional: 11, power: 49 }
+
+const LOCALE_CURRENCY_MAP = {
+  en_US: 'USD', en_GB: 'GBP', en_AU: 'AUD', en_NZ: 'NZD', en_CA: 'CAD',
+  en_IN: 'INR', en_SG: 'SGD', en_HK: 'HKD', en_PH: 'PHP', en_ZA: 'ZAR',
+  de: 'EUR', fr: 'EUR', es: 'EUR', it: 'EUR', nl: 'EUR', pt_PT: 'EUR',
+  pt_BR: 'BRL', ja: 'JPY', ko: 'KRW', zh_CN: 'CNY', zh_TW: 'TWD',
+  th: 'THB', vi: 'VND', id: 'IDR', ms_MY: 'MYR', sv: 'SEK', nb: 'NOK',
+  da: 'DKK', pl: 'PLN', cs: 'CZK', hu: 'HUF', ro: 'RON', tr: 'TRY',
+  ar: 'AED', he: 'ILS', ru: 'RUB', uk: 'UAH',
+}
+
+const AUD_EXCHANGE_RATES = {
+  AUD: 1, USD: 0.65, EUR: 0.60, GBP: 0.52, CAD: 0.88,
+  NZD: 1.08, JPY: 97, KRW: 870, INR: 54, SGD: 0.87,
+  HKD: 5.08, BRL: 3.18, CNY: 4.70, TWD: 20.5, THB: 22.5,
+  VND: 16200, IDR: 10200, MYR: 2.88, SEK: 6.80, NOK: 6.95,
+  DKK: 4.48, PLN: 2.60, CZK: 15.2, HUF: 238, RON: 2.98,
+  TRY: 20.9, AED: 2.39, ILS: 2.38, PHP: 36.4, ZAR: 11.8,
+  RUB: 58, UAH: 26.8,
+}
+
+function detectUserCurrency() {
+  const locale = navigator.language || 'en-US'
+  const normalized = locale.replace('-', '_')
+  const exactMatch = LOCALE_CURRENCY_MAP[normalized]
+  if (exactMatch) return exactMatch
+  const langOnly = normalized.split('_')[0]
+  const langMatch = LOCALE_CURRENCY_MAP[langOnly]
+  if (langMatch) return langMatch
+  return 'USD'
+}
+
+function formatPrice(audAmount, currency) {
+  const rate = AUD_EXCHANGE_RATES[currency] ?? AUD_EXCHANGE_RATES.USD
+  const converted = audAmount * rate
+  const locale = navigator.language || 'en-US'
+  try {
+    return new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: converted >= 100 ? 0 : 2,
+    }).format(Math.round(converted * 100) / 100)
+  } catch {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    }).format(audAmount * AUD_EXCHANGE_RATES.USD)
+  }
+}
+
 // --- SHARED FLUTTERFLOW CONSTRAINTS TEMPLATE ---
 // These constraints are shared across all three pipeline agents to ensure consistency.
 // Based on "The Definitive Guide to Integrating Dart Artifacts into FlutterFlow Environments"
@@ -1052,7 +1107,12 @@ let pipelineState = {
 // --- CORE API FUNCTIONS ---
 
 async function checkConnection() {
-  await initializeApiKeys()
+  try {
+    await initializeApiKeys()
+  } catch (error) {
+    console.error('checkConnection: initializeApiKeys failed:', error)
+    return false
+  }
   return true
 }
 
@@ -2668,8 +2728,17 @@ async function runCodeGenerator(masterPrompt, selectedModel) {
   try {
     const result = await callBuildShip("generator", selectedModel, masterPrompt, {})
     return result
-  } catch (error) {
-    throw new Error(`Code Generator failed: ${error.message}`)
+  } catch (primaryError) {
+    if (selectedModel !== FALLBACK_MODEL) {
+      console.warn(`Code Generator failed with ${selectedModel}, retrying with fallback model:`, primaryError.message)
+      try {
+        const result = await callBuildShip("generator", FALLBACK_MODEL, masterPrompt, {})
+        return result
+      } catch (fallbackError) {
+        throw new Error(`Code Generator failed: primary (${selectedModel}): ${primaryError.message} | fallback (${FALLBACK_MODEL}): ${fallbackError.message}`)
+      }
+    }
+    throw new Error(`Code Generator failed: ${primaryError.message}`)
   }
 }
 
@@ -3955,7 +4024,11 @@ async function resolveIdentity() {
       const currentMonth = getCurrentYearMonth()
       const serverMonth = data.usage_month || currentMonth
       const serverCount = serverMonth === currentMonth ? data.usage_count : 0
-      localStorage.setItem(USAGE_STORAGE_KEY, JSON.stringify({ count: serverCount, month: currentMonth }))
+      const local = getUsageData()
+      const localCount = local.month === currentMonth ? local.count : 0
+      if (serverCount >= localCount || serverMonth > local.month) {
+        localStorage.setItem(USAGE_STORAGE_KEY, JSON.stringify({ count: serverCount, month: currentMonth }))
+      }
       updateUsageDisplay()
     }
 
@@ -4020,6 +4093,9 @@ function canRunPipeline() {
 }
 
 function showPaywallExhausted(count, limit) {
+  const walkthroughModal = document.getElementById('walkthrough-modal')
+  if (walkthroughModal) walkthroughModal.classList.remove('open')
+
   const readyState = document.getElementById('ready-state')
   if (readyState) readyState.classList.add('hidden')
 
@@ -4244,10 +4320,14 @@ async function openCustomerPortal() {
 }
 
 async function callBuildShip(step, model, prompt, context = {}) {
+  const BUILDSHIP_TIMEOUT_MS = 120000
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), BUILDSHIP_TIMEOUT_MS)
   try {
     const res = await fetch(PIPELINE_ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
       body: JSON.stringify({
         user_id: identityState.userId,
         step,
@@ -4279,10 +4359,15 @@ async function callBuildShip(step, model, prompt, context = {}) {
     }
     return output
   } catch (error) {
+    if (error.name === 'AbortError') {
+      throw new Error(`BuildShip ${step} timed out after ${BUILDSHIP_TIMEOUT_MS / 1000}s`)
+    }
     if (error instanceof TypeError) {
       throw new Error(`BuildShip unreachable: ${error.message}`)
     }
     throw error
+  } finally {
+    clearTimeout(timeoutId)
   }
 }
 
@@ -4350,7 +4435,21 @@ function updatePricingModalState(tier) {
   if (freeCurrent) freeCurrent.classList.toggle('hidden', tier !== 'free')
 }
 
+function updatePricingDisplay() {
+  const currency = detectUserCurrency()
+  const proEl = document.getElementById('pro-price')
+  const powerEl = document.getElementById('power-price')
+  const proNote = document.getElementById('pro-price-note')
+  const powerNote = document.getElementById('power-price-note')
+  if (proEl) proEl.textContent = formatPrice(BASE_PRICES_AUD.professional, currency)
+  if (powerEl) powerEl.textContent = formatPrice(BASE_PRICES_AUD.power, currency)
+  const isAud = currency === 'AUD'
+  if (proNote) proNote.textContent = isAud ? `AUD · billed monthly` : `~${formatPrice(BASE_PRICES_AUD.professional, 'AUD')} AUD · billed monthly`
+  if (powerNote) powerNote.textContent = isAud ? `AUD · billed monthly` : `~${formatPrice(BASE_PRICES_AUD.power, 'AUD')} AUD · billed monthly`
+}
+
 function openPricingModal() {
+  updatePricingDisplay()
   const modal = document.getElementById('pricing-modal')
   if (modal) modal.classList.add('open')
 }
@@ -4389,6 +4488,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   handleCheckoutRedirect();
   await fetchSubscription();
   updateSubscriptionUI();
+  updatePricingDisplay();
 
   // Initialize API keys and check connection
   await checkConnection();
