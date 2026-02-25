@@ -32,6 +32,8 @@ const STRIPE_PRICE_IDS = {
   power: 'price_1T2le9KszA2slvDXR4mPvw7M'
 }
 
+const proGateAttachedSet = new WeakSet()
+
 let authState = {
   email: null,
   sessionToken: null,
@@ -92,7 +94,7 @@ const LOCALE_CURRENCY_MAP = {
   ar: 'AED', he: 'ILS', ru: 'RUB', uk: 'UAH',
 }
 
-const AUD_EXCHANGE_RATES = {
+const AUD_EXCHANGE_RATES_FALLBACK = {
   AUD: 1, USD: 0.65, EUR: 0.60, GBP: 0.52, CAD: 0.88,
   NZD: 1.08, JPY: 97, KRW: 870, INR: 54, SGD: 0.87,
   HKD: 5.08, BRL: 3.18, CNY: 4.70, TWD: 20.5, THB: 22.5,
@@ -100,6 +102,30 @@ const AUD_EXCHANGE_RATES = {
   DKK: 4.48, PLN: 2.60, CZK: 15.2, HUF: 238, RON: 2.98,
   TRY: 20.9, AED: 2.39, ILS: 2.38, PHP: 36.4, ZAR: 11.8,
   RUB: 58, UAH: 26.8,
+}
+
+let AUD_EXCHANGE_RATES = { ...AUD_EXCHANGE_RATES_FALLBACK }
+
+async function fetchAudExchangeRates() {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 5000)
+  try {
+    const res = await fetch('https://open.er-api.com/v6/latest/AUD', { signal: controller.signal })
+    if (!res.ok) return
+    const data = await res.json()
+    if (data.result !== 'success' || !data.rates) return
+    const rates = data.rates
+    const updated = { AUD: 1 }
+    for (const [code, fallbackRate] of Object.entries(AUD_EXCHANGE_RATES_FALLBACK)) {
+      if (code === 'AUD') continue
+      updated[code] = typeof rates[code] === 'number' && rates[code] > 0 ? rates[code] : fallbackRate
+    }
+    AUD_EXCHANGE_RATES = updated
+  } catch {
+    // Network error or timeout — keep using fallback rates
+  } finally {
+    clearTimeout(timeout)
+  }
 }
 
 function detectUserCurrency() {
@@ -687,48 +713,56 @@ function closeApiKeysModal(event) {
 
 let walkthroughStep = 1;
 
+function getWalkthroughSteps() {
+  const container = document.querySelector('.wt-steps');
+  if (!container) return [];
+  return Array.from(container.querySelectorAll('.wt-step-card'));
+}
+
 function updateWalkthroughUI() {
-  for (let i = 1; i <= 3; i++) {
-    const stepEl = document.getElementById(`walkthrough-step${i}`);
-    if (stepEl) {
-      if (i === walkthroughStep) {
-        stepEl.classList.remove("opacity-60", "bg-gray-50", "border-gray-200");
-        stepEl.classList.add("bg-blue-50", "border-blue-200");
-        const numEl = stepEl.querySelector("div:first-child");
-        if (numEl) {
-          numEl.classList.remove("bg-gray-400");
-          numEl.classList.add("bg-blue-500");
-        }
-      } else if (i < walkthroughStep) {
-        stepEl.classList.remove("opacity-60", "bg-blue-50", "border-blue-200");
-        stepEl.classList.add("bg-green-50", "border-green-200");
-        const numEl = stepEl.querySelector("div:first-child");
-        if (numEl) {
-          numEl.classList.remove("bg-blue-500", "bg-gray-400");
-          numEl.classList.add("bg-green-500");
-          numEl.innerHTML = "✓";
-        }
-      } else {
-        stepEl.classList.add("opacity-60", "bg-gray-50", "border-gray-200");
-        stepEl.classList.remove(
-          "bg-blue-50",
-          "border-blue-200",
-          "bg-green-50",
-          "border-green-200",
-        );
-        const numEl = stepEl.querySelector("div:first-child");
-        if (numEl) {
-          numEl.classList.remove("bg-blue-500", "bg-green-500");
-          numEl.classList.add("bg-gray-400");
-          numEl.innerHTML = i;
-        }
+  const steps = getWalkthroughSteps();
+  if (!steps.length) return;
+  steps.forEach((stepEl, idx) => {
+    const i = idx + 1;
+    if (i === walkthroughStep) {
+      stepEl.classList.remove("opacity-60", "bg-gray-50", "border-gray-200");
+      stepEl.classList.add("bg-blue-50", "border-blue-200");
+      const numEl = stepEl.querySelector("div:first-child");
+      if (numEl) {
+        numEl.classList.remove("bg-gray-400");
+        numEl.classList.add("bg-blue-500");
+        numEl.innerHTML = i;
+      }
+    } else if (i < walkthroughStep) {
+      stepEl.classList.remove("opacity-60", "bg-blue-50", "border-blue-200");
+      stepEl.classList.add("bg-green-50", "border-green-200");
+      const numEl = stepEl.querySelector("div:first-child");
+      if (numEl) {
+        numEl.classList.remove("bg-blue-500", "bg-gray-400");
+        numEl.classList.add("bg-green-500");
+        numEl.innerHTML = "✓";
+      }
+    } else {
+      stepEl.classList.add("opacity-60", "bg-gray-50", "border-gray-200");
+      stepEl.classList.remove(
+        "bg-blue-50",
+        "border-blue-200",
+        "bg-green-50",
+        "border-green-200",
+      );
+      const numEl = stepEl.querySelector("div:first-child");
+      if (numEl) {
+        numEl.classList.remove("bg-blue-500", "bg-green-500");
+        numEl.classList.add("bg-gray-400");
+        numEl.innerHTML = i;
       }
     }
-  }
+  });
 }
 
 function advanceWalkthrough() {
-  if (walkthroughStep < 3) {
+  const totalSteps = getWalkthroughSteps().length;
+  if (totalSteps > 0 && walkthroughStep <= totalSteps) {
     walkthroughStep++;
     updateWalkthroughUI();
   }
@@ -4150,7 +4184,7 @@ function updateModelSelectorGating() {
     const baseLabel = modelLabels[opt.value] || opt.value
     const isPro = PRO_MODELS.includes(opt.value)
     opt.textContent = isPro && isFree ? `${baseLabel} (PRO)` : baseLabel
-    opt.disabled = isPro && isFree
+    opt.disabled = false
   })
 
   if (isFree && PRO_MODELS.includes(select.value)) {
@@ -4158,6 +4192,18 @@ function updateModelSelectorGating() {
   }
 
   select.disabled = false
+
+  // Intercept PRO model selection on free tier → open pricing modal
+  if (!proGateAttachedSet.has(select)) {
+    select.addEventListener('change', () => {
+      if (subscriptionState.tier === 'free' && PRO_MODELS.includes(select.value)) {
+        select.value = FREE_MODEL
+        openPricingModal()
+      }
+      updateModelInfo(select.value)
+    })
+    proGateAttachedSet.add(select)
+  }
 
   let notice = document.getElementById('model-selector-free-notice')
   if (isFree) {
@@ -4259,6 +4305,7 @@ function clearSubscriptionCache() {
 
 async function startCheckout(tierId) {
   if (!authState.isVerified || !authState.sessionToken) {
+    closePricingModal()
     openSignInModal()
     return
   }
@@ -4414,21 +4461,22 @@ function updateSubscriptionUI() {
 }
 
 function updatePricingModalState(tier) {
+  const disabledClasses = ['bg-gray-100', 'text-gray-500', 'cursor-default']
   const configs = {
-    professional: { btnId: 'checkout-btn-professional', defaultText: 'Subscribe', activeClass: 'bg-indigo-600 hover:bg-indigo-700 text-white' },
-    power: { btnId: 'checkout-btn-power', defaultText: 'Subscribe', activeClass: 'bg-gray-900 hover:bg-gray-800 text-white' }
+    professional: { btnId: 'checkout-btn-professional', defaultText: 'Subscribe' },
+    power: { btnId: 'checkout-btn-power', defaultText: 'Subscribe' }
   }
-  Object.entries(configs).forEach(([t, { btnId, defaultText, activeClass }]) => {
+  Object.entries(configs).forEach(([t, { btnId, defaultText }]) => {
     const btn = document.getElementById(btnId)
     if (!btn) return
     if (t === tier) {
       btn.disabled = true
       btn.textContent = 'Current plan'
-      btn.className = `w-full py-1.5 px-3 rounded-md text-xs font-medium bg-gray-100 text-gray-500 cursor-default`
+      btn.classList.add(...disabledClasses)
     } else {
       btn.disabled = false
       btn.textContent = defaultText
-      btn.className = `w-full ${activeClass} py-1.5 px-3 rounded-md text-xs font-medium transition-colors`
+      btn.classList.remove(...disabledClasses)
     }
   })
   const freeCurrent = document.getElementById('free-tier-current')
@@ -4441,17 +4489,21 @@ function updatePricingDisplay() {
   const powerEl = document.getElementById('power-price')
   const proNote = document.getElementById('pro-price-note')
   const powerNote = document.getElementById('power-price-note')
-  if (proEl) proEl.textContent = formatPrice(BASE_PRICES_AUD.professional, currency)
-  if (powerEl) powerEl.textContent = formatPrice(BASE_PRICES_AUD.power, currency)
+
+  // Always show AUD as primary price (Stripe charges in AUD)
+  if (proEl) proEl.textContent = formatPrice(BASE_PRICES_AUD.professional, 'AUD')
+  if (powerEl) powerEl.textContent = formatPrice(BASE_PRICES_AUD.power, 'AUD')
+
   const isAud = currency === 'AUD'
-  if (proNote) proNote.textContent = isAud ? `AUD · billed monthly` : `~${formatPrice(BASE_PRICES_AUD.professional, 'AUD')} AUD · billed monthly`
-  if (powerNote) powerNote.textContent = isAud ? `AUD · billed monthly` : `~${formatPrice(BASE_PRICES_AUD.power, 'AUD')} AUD · billed monthly`
+  if (proNote) proNote.textContent = isAud ? 'AUD · billed monthly' : `~${formatPrice(BASE_PRICES_AUD.professional, currency)} · billed monthly`
+  if (powerNote) powerNote.textContent = isAud ? 'AUD · billed monthly' : `~${formatPrice(BASE_PRICES_AUD.power, currency)} · billed monthly`
 }
 
 function openPricingModal() {
   updatePricingDisplay()
   const modal = document.getElementById('pricing-modal')
   if (modal) modal.classList.add('open')
+  fetchAudExchangeRates().then(() => updatePricingDisplay())
 }
 
 function closePricingModal(event) {
@@ -4534,13 +4586,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
 
-  const modelSelect = document.getElementById("code-generator-model");
-  if (modelSelect) {
-    modelSelect.addEventListener("change", () => {
-      const selectedModel = modelSelect.value;
-      updateModelInfo(selectedModel);
-    });
-  }
 
   window.addEventListener("commitStateChange", (event) => {
     const { state } = event.detail;
