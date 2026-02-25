@@ -4150,7 +4150,7 @@ function updateModelSelectorGating() {
     const baseLabel = modelLabels[opt.value] || opt.value
     const isPro = PRO_MODELS.includes(opt.value)
     opt.textContent = isPro && isFree ? `${baseLabel} (PRO)` : baseLabel
-    opt.disabled = isPro && isFree
+    opt.disabled = false
   })
 
   if (isFree && PRO_MODELS.includes(select.value)) {
@@ -4158,6 +4158,18 @@ function updateModelSelectorGating() {
   }
 
   select.disabled = false
+
+  // Intercept PRO model selection on free tier → open pricing modal
+  if (!select._proGateAttached) {
+    select.addEventListener('change', () => {
+      if (subscriptionState.tier === 'free' && PRO_MODELS.includes(select.value)) {
+        select.value = FREE_MODEL
+        openPricingModal()
+      }
+      updateModelInfo(select.value)
+    })
+    select._proGateAttached = true
+  }
 
   let notice = document.getElementById('model-selector-free-notice')
   if (isFree) {
@@ -4259,6 +4271,7 @@ function clearSubscriptionCache() {
 
 async function startCheckout(tierId) {
   if (!authState.isVerified || !authState.sessionToken) {
+    closePricingModal()
     openSignInModal()
     return
   }
@@ -4415,8 +4428,8 @@ function updateSubscriptionUI() {
 
 function updatePricingModalState(tier) {
   const configs = {
-    professional: { btnId: 'checkout-btn-professional', defaultText: 'Subscribe', activeClass: 'bg-indigo-600 hover:bg-indigo-700 text-white' },
-    power: { btnId: 'checkout-btn-power', defaultText: 'Subscribe', activeClass: 'bg-gray-900 hover:bg-gray-800 text-white' }
+    professional: { btnId: 'checkout-btn-professional', defaultText: 'Subscribe', activeClass: 'bg-blue-500 hover:bg-blue-600 text-white' },
+    power: { btnId: 'checkout-btn-power', defaultText: 'Subscribe', activeClass: 'bg-indigo-600 hover:bg-indigo-700 text-white' }
   }
   Object.entries(configs).forEach(([t, { btnId, defaultText, activeClass }]) => {
     const btn = document.getElementById(btnId)
@@ -4441,11 +4454,14 @@ function updatePricingDisplay() {
   const powerEl = document.getElementById('power-price')
   const proNote = document.getElementById('pro-price-note')
   const powerNote = document.getElementById('power-price-note')
-  if (proEl) proEl.textContent = formatPrice(BASE_PRICES_AUD.professional, currency)
-  if (powerEl) powerEl.textContent = formatPrice(BASE_PRICES_AUD.power, currency)
+
+  // Always show AUD as primary price (Stripe charges in AUD)
+  if (proEl) proEl.textContent = formatPrice(BASE_PRICES_AUD.professional, 'AUD')
+  if (powerEl) powerEl.textContent = formatPrice(BASE_PRICES_AUD.power, 'AUD')
+
   const isAud = currency === 'AUD'
-  if (proNote) proNote.textContent = isAud ? `AUD · billed monthly` : `~${formatPrice(BASE_PRICES_AUD.professional, 'AUD')} AUD · billed monthly`
-  if (powerNote) powerNote.textContent = isAud ? `AUD · billed monthly` : `~${formatPrice(BASE_PRICES_AUD.power, 'AUD')} AUD · billed monthly`
+  if (proNote) proNote.textContent = isAud ? 'AUD · billed monthly' : `~${formatPrice(BASE_PRICES_AUD.professional, currency)} ${currency} · billed monthly`
+  if (powerNote) powerNote.textContent = isAud ? 'AUD · billed monthly' : `~${formatPrice(BASE_PRICES_AUD.power, currency)} ${currency} · billed monthly`
 }
 
 function openPricingModal() {
