@@ -53,6 +53,9 @@ let subscriptionState = {
   periodEnd: null,
 }
 
+// --- PIPELINE ---
+const PIPELINE_ENDPOINT = `${BUILDSHIP_BASE_URL}/service/runpipeline`
+
 // --- IDENTITY RESOLUTION ---
 const IDENTITY_COOKIE_KEY = 'bs_identity'
 const IDENTITY_SESSION_KEY = 'bs_user_id'
@@ -5135,6 +5138,34 @@ async function openCustomerPortal() {
     console.error('openCustomerPortal failed:', err)
     if (btn) { btn.disabled = false; btn.textContent = 'Manage billing' }
     showToast('Could not open billing portal. Please try again.', 'error')
+  }
+}
+
+async function callBuildShip(step, model, prompt, context = {}) {
+  try {
+    const res = await fetch(PIPELINE_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_id: identityState.userId,
+        step,
+        model,
+        prompt,
+        context,
+      }),
+    })
+
+    const data = await res.json()
+    if (!res.ok) {
+      throw new Error(`${data.message || data.error || 'BuildShip pipeline error'} (HTTP ${res.status})`)
+    }
+
+    return data.output
+  } catch (error) {
+    if (error instanceof TypeError) {
+      throw new Error(`BuildShip unreachable: ${error.message}`)
+    }
+    throw error
   }
 }
 
