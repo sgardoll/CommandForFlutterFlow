@@ -3952,9 +3952,10 @@ async function resolveIdentity() {
     sessionStorage.setItem(IDENTITY_SESSION_KEY, data.user_id)
 
     if (data.usage_count !== undefined) {
-      const serverMonth = data.usage_month || getCurrentYearMonth()
-      const serverCount = serverMonth === getCurrentYearMonth() ? data.usage_count : 0
-      localStorage.setItem(USAGE_STORAGE_KEY, JSON.stringify({ count: serverCount, month: serverMonth }))
+      const currentMonth = getCurrentYearMonth()
+      const serverMonth = data.usage_month || currentMonth
+      const serverCount = serverMonth === currentMonth ? data.usage_count : 0
+      localStorage.setItem(USAGE_STORAGE_KEY, JSON.stringify({ count: serverCount, month: currentMonth }))
       updateUsageDisplay()
     }
 
