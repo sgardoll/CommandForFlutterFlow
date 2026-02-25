@@ -816,6 +816,24 @@
         50% { opacity: 1; transform: scale(1.2); }
       }
 
+      @media (prefers-reduced-motion: reduce) {
+        .wt-orbit,
+        .wt-orbit-1,
+        .wt-orbit-2,
+        .wt-orbit-3,
+        .wt-gear,
+        .wt-gear-1,
+        .wt-gear-2,
+        .wt-sparkle,
+        .wt-sparkle-1,
+        .wt-sparkle-2,
+        .wt-sparkle-3,
+        .wt-sparkle-4 {
+          animation: none;
+          transform: none;
+        }
+      }
+
       .wt-free-badge {
         position: absolute;
         top: 8px;
@@ -1214,7 +1232,7 @@
         margin-bottom: 2px;
       }
 
-      .pm-card-price span {
+      .pm-card-price .price-suffix {
         font-size: 14px;
         font-weight: 500;
         color: #94a3b8;
@@ -2013,7 +2031,7 @@
           <!-- Free -->
           <div class="pm-card">
             <div class="pm-card-name">Free</div>
-            <div class="pm-card-price">$0<span>/mo</span></div>
+            <div class="pm-card-price">$0<span class="price-suffix">/mo</span></div>
             <div class="pm-price-note">&nbsp;</div>
             <ul class="pm-features">
               <li>2 generations/month</li>
@@ -2028,7 +2046,7 @@
             <div class="pm-popular-badge">Popular</div>
             <div class="pm-card-name">Pro</div>
             <div class="pm-card-label">For FlutterFlow Professionals</div>
-            <div class="pm-card-price"><span id="pro-price">A$11</span><span>/mo</span></div>
+            <div class="pm-card-price"><span id="pro-price">A$11</span><span class="price-suffix">/mo</span></div>
             <div id="pro-price-note" class="pm-price-note">AUD · billed monthly</div>
             <ul class="pm-features">
               <li>50 generations/month</li>
@@ -2042,7 +2060,7 @@
           <div class="pm-card pm-card-power">
             <div class="pm-card-name">Power</div>
             <div class="pm-card-label">For Agencies &amp; Enterprise</div>
-            <div class="pm-card-price"><span id="power-price">A$49</span><span>/mo</span></div>
+            <div class="pm-card-price"><span id="power-price">A$49</span><span class="price-suffix">/mo</span></div>
             <div id="power-price-note" class="pm-price-note">AUD · billed monthly</div>
             <ul class="pm-features">
               <li>2000 generations/month</li>
