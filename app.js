@@ -53,6 +53,17 @@ let subscriptionState = {
   periodEnd: null,
 }
 
+// --- IDENTITY RESOLUTION ---
+const IDENTITY_COOKIE_KEY = 'bs_identity'
+const IDENTITY_SESSION_KEY = 'bs_user_id'
+const IDENTITY_ENDPOINT = `${BUILDSHIP_BASE_URL}/authUserCheck`
+
+let identityState = {
+  userId: null,
+  status: null, // 'recognized' | 'new' | null
+  resolved: false,
+}
+
 // --- TIER LIMITS ---
 const TIER_LIMITS = {
   free: 50,
@@ -4866,6 +4877,55 @@ function updateAuthUI() {
   updateSubscriptionUI()
 }
 
+function getOrCreateCookieId() {
+  let cookieId = localStorage.getItem(IDENTITY_COOKIE_KEY)
+  if (!cookieId) {
+    cookieId = crypto.randomUUID()
+    localStorage.setItem(IDENTITY_COOKIE_KEY, cookieId)
+  }
+  return cookieId
+}
+
+async function resolveIdentity() {
+  const existing = sessionStorage.getItem(IDENTITY_SESSION_KEY)
+  if (existing) {
+    identityState.userId = existing
+    identityState.resolved = true
+    return
+  }
+
+  try {
+    if (typeof FingerprintJS === 'undefined') {
+      console.warn('resolveIdentity: FingerprintJS not loaded, skipping')
+      return
+    }
+
+    const cookieId = getOrCreateCookieId()
+    const fp = await FingerprintJS.load()
+    const result = await fp.get()
+
+    const response = await fetch(IDENTITY_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fingerprint: result.visitorId, cookie_id: cookieId }),
+    })
+
+    if (!response.ok) {
+      throw new Error(`Identity check HTTP ${response.status}`)
+    }
+
+    const data = await response.json()
+    identityState.userId = data.user_id
+    identityState.status = data.status
+    identityState.resolved = true
+    sessionStorage.setItem(IDENTITY_SESSION_KEY, data.user_id)
+
+    console.log(`Identity resolved: ${data.status} (${data.user_id.slice(0, 8)}...)`)
+  } catch (error) {
+    console.error('resolveIdentity failed:', error)
+  }
+}
+
 // --- USAGE METERING ---
 
 function getUsageData() {
@@ -5196,7 +5256,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   showWalkthroughIfNeeded();
-
+  resolveIdentity();
   // Walkthrough step tracking
   const pipelineInput = document.getElementById("pipeline-input");
   if (pipelineInput) {
