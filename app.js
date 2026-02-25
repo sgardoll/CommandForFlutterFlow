@@ -107,11 +107,10 @@ const AUD_EXCHANGE_RATES_FALLBACK = {
 let AUD_EXCHANGE_RATES = { ...AUD_EXCHANGE_RATES_FALLBACK }
 
 async function fetchAudExchangeRates() {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 5000)
   try {
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 5000)
     const res = await fetch('https://open.er-api.com/v6/latest/AUD', { signal: controller.signal })
-    clearTimeout(timeout)
     if (!res.ok) return
     const data = await res.json()
     if (data.result !== 'success' || !data.rates) return
@@ -124,6 +123,8 @@ async function fetchAudExchangeRates() {
     AUD_EXCHANGE_RATES = updated
   } catch {
     // Network error or timeout — keep using fallback rates
+  } finally {
+    clearTimeout(timeout)
   }
 }
 
@@ -712,48 +713,56 @@ function closeApiKeysModal(event) {
 
 let walkthroughStep = 1;
 
+function getWalkthroughSteps() {
+  const container = document.querySelector('.wt-steps');
+  if (!container) return [];
+  return Array.from(container.querySelectorAll('.wt-step-card'));
+}
+
 function updateWalkthroughUI() {
-  for (let i = 1; i <= 3; i++) {
-    const stepEl = document.getElementById(`walkthrough-step${i}`);
-    if (stepEl) {
-      if (i === walkthroughStep) {
-        stepEl.classList.remove("opacity-60", "bg-gray-50", "border-gray-200");
-        stepEl.classList.add("bg-blue-50", "border-blue-200");
-        const numEl = stepEl.querySelector("div:first-child");
-        if (numEl) {
-          numEl.classList.remove("bg-gray-400");
-          numEl.classList.add("bg-blue-500");
-        }
-      } else if (i < walkthroughStep) {
-        stepEl.classList.remove("opacity-60", "bg-blue-50", "border-blue-200");
-        stepEl.classList.add("bg-green-50", "border-green-200");
-        const numEl = stepEl.querySelector("div:first-child");
-        if (numEl) {
-          numEl.classList.remove("bg-blue-500", "bg-gray-400");
-          numEl.classList.add("bg-green-500");
-          numEl.innerHTML = "✓";
-        }
-      } else {
-        stepEl.classList.add("opacity-60", "bg-gray-50", "border-gray-200");
-        stepEl.classList.remove(
-          "bg-blue-50",
-          "border-blue-200",
-          "bg-green-50",
-          "border-green-200",
-        );
-        const numEl = stepEl.querySelector("div:first-child");
-        if (numEl) {
-          numEl.classList.remove("bg-blue-500", "bg-green-500");
-          numEl.classList.add("bg-gray-400");
-          numEl.innerHTML = i;
-        }
+  const steps = getWalkthroughSteps();
+  if (!steps.length) return;
+  steps.forEach((stepEl, idx) => {
+    const i = idx + 1;
+    if (i === walkthroughStep) {
+      stepEl.classList.remove("opacity-60", "bg-gray-50", "border-gray-200");
+      stepEl.classList.add("bg-blue-50", "border-blue-200");
+      const numEl = stepEl.querySelector("div:first-child");
+      if (numEl) {
+        numEl.classList.remove("bg-gray-400");
+        numEl.classList.add("bg-blue-500");
+        numEl.innerHTML = i;
+      }
+    } else if (i < walkthroughStep) {
+      stepEl.classList.remove("opacity-60", "bg-blue-50", "border-blue-200");
+      stepEl.classList.add("bg-green-50", "border-green-200");
+      const numEl = stepEl.querySelector("div:first-child");
+      if (numEl) {
+        numEl.classList.remove("bg-blue-500", "bg-gray-400");
+        numEl.classList.add("bg-green-500");
+        numEl.innerHTML = "✓";
+      }
+    } else {
+      stepEl.classList.add("opacity-60", "bg-gray-50", "border-gray-200");
+      stepEl.classList.remove(
+        "bg-blue-50",
+        "border-blue-200",
+        "bg-green-50",
+        "border-green-200",
+      );
+      const numEl = stepEl.querySelector("div:first-child");
+      if (numEl) {
+        numEl.classList.remove("bg-blue-500", "bg-green-500");
+        numEl.classList.add("bg-gray-400");
+        numEl.innerHTML = i;
       }
     }
-  }
+  });
 }
 
 function advanceWalkthrough() {
-  if (walkthroughStep < 3) {
+  const totalSteps = getWalkthroughSteps().length;
+  if (totalSteps > 0 && walkthroughStep <= totalSteps) {
     walkthroughStep++;
     updateWalkthroughUI();
   }
@@ -4452,21 +4461,22 @@ function updateSubscriptionUI() {
 }
 
 function updatePricingModalState(tier) {
+  const disabledClasses = ['bg-gray-100', 'text-gray-500', 'cursor-default']
   const configs = {
-    professional: { btnId: 'checkout-btn-professional', defaultText: 'Subscribe', activeClass: 'bg-blue-500 hover:bg-blue-600 text-white' },
-    power: { btnId: 'checkout-btn-power', defaultText: 'Subscribe', activeClass: 'bg-indigo-600 hover:bg-indigo-700 text-white' }
+    professional: { btnId: 'checkout-btn-professional', defaultText: 'Subscribe' },
+    power: { btnId: 'checkout-btn-power', defaultText: 'Subscribe' }
   }
-  Object.entries(configs).forEach(([t, { btnId, defaultText, activeClass }]) => {
+  Object.entries(configs).forEach(([t, { btnId, defaultText }]) => {
     const btn = document.getElementById(btnId)
     if (!btn) return
     if (t === tier) {
       btn.disabled = true
       btn.textContent = 'Current plan'
-      btn.className = `w-full py-1.5 px-3 rounded-md text-xs font-medium bg-gray-100 text-gray-500 cursor-default`
+      btn.classList.add(...disabledClasses)
     } else {
       btn.disabled = false
       btn.textContent = defaultText
-      btn.className = `w-full ${activeClass} py-1.5 px-3 rounded-md text-xs font-medium transition-colors`
+      btn.classList.remove(...disabledClasses)
     }
   })
   const freeCurrent = document.getElementById('free-tier-current')
