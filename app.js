@@ -74,7 +74,7 @@ const USAGE_STORAGE_KEY = 'ccc_usage'
 
 // Model Configuration
 const PROMPT_ARCHITECT_MODEL = "gemini-3.1-pro-preview";
-const CODE_DISSECTOR_MODEL = "gemini-3.1-pro-preview";
+const CODE_REVIEW_MODEL = "gemini-3.1-pro-preview";
 const FALLBACK_MODEL = "gemini-3-flash-preview";
 
 // --- SHARED FLUTTERFLOW CONSTRAINTS TEMPLATE ---
@@ -3480,9 +3480,9 @@ Remember: Output ONLY the raw Dart code. No markdown, no explanations.`;
   }
 }
 
-async function runCodeDissector(code) {
+async function runCodeReview(code) {
   // Code Review specific instructions that extend the shared template
-  const dissectorSpecificInstructions = `## YOUR ROLE
+  const reviewSpecificInstructions = `## YOUR ROLE
 
 You are an expert FlutterFlow Code Auditor. Your job is to ruthlessly analyze Dart code for compatibility with FlutterFlow's constrained custom code environment.
 
@@ -3624,7 +3624,7 @@ Be ruthless. FlutterFlow is unforgiving - if the code has ANY critical issue, it
 
 ---
 
-${dissectorSpecificInstructions}`;
+${reviewSpecificInstructions}`;
 
   const prompt = `Perform a comprehensive FlutterFlow integration audit on this Dart code:
 
@@ -3634,12 +3634,12 @@ ${code}
 
 Check against ALL FlutterFlow constraints. Be thorough and specific.`;
 
-  console.log(`[Pipeline] Step 3 - Code Review using model: ${CODE_DISSECTOR_MODEL}`)
+  console.log(`[Pipeline] Step 3 - Code Review using model: ${CODE_REVIEW_MODEL}`)
   try {
     const result = await callGemini(
       prompt,
       systemInstruction,
-      CODE_DISSECTOR_MODEL,
+      CODE_REVIEW_MODEL,
     );
     return result;
   } catch (error) {
@@ -4024,10 +4024,10 @@ function updateModelInfo(selectedModel) {
     }
   }
 
-  // Update step 3 (Code Review) model label - uses CODE_DISSECTOR_MODEL
+  // Update step 3 (Code Review) model label - uses CODE_REVIEW_MODEL
   const step3Label = document.getElementById("step3-model-label")
   if (step3Label) {
-    step3Label.textContent = getDisplayName(CODE_DISSECTOR_MODEL)
+    step3Label.textContent = getDisplayName(CODE_REVIEW_MODEL)
   }
 
   console.log(`Step 1 (Prompt Architect): ${getDisplayName(PROMPT_ARCHITECT_MODEL)}`)
@@ -4036,7 +4036,7 @@ function updateModelInfo(selectedModel) {
   } else {
     console.log(`Step 2 (Code Generator): ${getDisplayName(selectedModel)}`)
   }
-  console.log(`Step 3 (Code Review): ${getDisplayName(CODE_DISSECTOR_MODEL)}`)
+  console.log(`Step 3 (Code Review): ${getDisplayName(CODE_REVIEW_MODEL)}`)
 }
 
 async function runRefinement() {
@@ -4098,7 +4098,7 @@ Ensure it still adheres to the ORIGINAL SPECIFICATION.
     selectWorkflowStep(3);
     showStepLoading(3, true);
 
-    pipelineState.step3Result = await runCodeDissector(
+    pipelineState.step3Result = await runCodeReview(
       pipelineState.step2Result,
     );
 
@@ -4220,7 +4220,7 @@ Maintain the original specification and intent.`
     selectWorkflowStep(3)
     showStepLoading(3, true)
 
-    pipelineState.step3Result = await runCodeDissector(pipelineState.step2Result)
+    pipelineState.step3Result = await runCodeReview(pipelineState.step2Result)
 
     const auditOutput = document.getElementById("step3-output")
     auditOutput.innerHTML = renderMarkdownAudit(pipelineState.step3Result)
@@ -4333,10 +4333,10 @@ async function runThinkingPipeline() {
     selectWorkflowStep(3);
     showStepLoading(3, true);
 
-    pipelineState.step3Result = await runCodeDissector(
+    pipelineState.step3Result = await runCodeReview(
       pipelineState.step2Result,
     );
-    trackEvent("Code Dissector Completed");
+    trackEvent("Code Review Completed");
 
     const auditOutput = document.getElementById("step3-output");
     auditOutput.innerHTML = renderMarkdownAudit(pipelineState.step3Result);
@@ -4624,7 +4624,7 @@ Please regenerate the code to fix these errors while maintaining the original sp
     selectWorkflowStep(3);
     showStepLoading(3, true);
 
-    pipelineState.step3Result = await runCodeDissector(
+    pipelineState.step3Result = await runCodeReview(
       pipelineState.step2Result,
     );
 
