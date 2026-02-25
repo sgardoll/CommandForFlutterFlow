@@ -3925,13 +3925,6 @@ function getOrCreateCookieId() {
 }
 
 async function resolveIdentity() {
-  const existing = sessionStorage.getItem(IDENTITY_SESSION_KEY)
-  if (existing) {
-    identityState.userId = existing
-    identityState.resolved = true
-    return
-  }
-
   try {
     if (typeof FingerprintJS === 'undefined') {
       console.warn('resolveIdentity: FingerprintJS not loaded, skipping')
@@ -3958,7 +3951,14 @@ async function resolveIdentity() {
     identityState.resolved = true
     sessionStorage.setItem(IDENTITY_SESSION_KEY, data.user_id)
 
-    console.log(`Identity resolved: ${data.status} (${data.user_id.slice(0, 8)}...)`)
+    if (data.usage_count !== undefined) {
+      const serverMonth = data.usage_month || getCurrentYearMonth()
+      const serverCount = serverMonth === getCurrentYearMonth() ? data.usage_count : 0
+      localStorage.setItem(USAGE_STORAGE_KEY, JSON.stringify({ count: serverCount, month: serverMonth }))
+      updateUsageDisplay()
+    }
+
+    console.log(`Identity resolved: ${data.status} (${data.user_id.slice(0, 8)}...) usage: ${data.usage_count ?? 'n/a'}`)
   } catch (error) {
     console.error('resolveIdentity failed:', error)
   }
@@ -4112,7 +4112,7 @@ function updateUsageDisplay() {
       : 'text-xs text-gray-500'
   updateGuestUsageCounter()
 
-  if (pct >= 1 && !pipelineState.isRunning) {
+  if (count >= limit && !pipelineState.isRunning) {
     showPaywallExhausted(count, limit)
   }
 }
@@ -4249,9 +4249,6 @@ async function callBuildShip(step, model, prompt, context = {}) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         user_id: identityState.userId,
-        tier: subscriptionState.tier,
-        usage_count: getUsage().count,
-        usage_limit: getRunLimit(),
         step,
         model,
         prompt,
@@ -4261,16 +4258,6 @@ async function callBuildShip(step, model, prompt, context = {}) {
 
     const data = await res.json()
     console.log(`[BuildShip] ${step} response keys:`, Object.keys(data), 'content type:', typeof data.content)
-
-    if (res.status === 429) {
-      if (data.serverCount !== undefined) {
-        const month = getCurrentYearMonth()
-        localStorage.setItem(USAGE_STORAGE_KEY, JSON.stringify({ count: data.serverCount, month }))
-        updateUsageDisplay()
-      }
-      throw new Error(data.message || 'Monthly usage limit reached. Upgrade to continue.')
-    }
-
     if (!res.ok) {
       throw new Error(`${data.message || data.error || 'BuildShip pipeline error'} (HTTP ${res.status})`)
     }

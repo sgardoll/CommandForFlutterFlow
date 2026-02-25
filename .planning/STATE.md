@@ -6,32 +6,32 @@ See: .planning/PROJECT.md (updated 2026-02-20)
 
 **Core value:** Users can subscribe, pay, and immediately get metered access to frontier AI models — with limits enforced, graceful fallback when exhausted, and correct Australian tax applied at checkout.
 
-**Current focus:** Phase 6 — Advanced UI & Responsiveness
+**Current focus:** Phase 8 — BuildShip LLM Pipeline Migration (Plan 08-02: BYOK Registration next)
 
 ## Current Position
 
-Phase: 6 of 9 (Advanced UI & Responsiveness)
-Plan: PLAN-A (sidebar restructure), PLAN-B (modal sticky footer), PLAN-C (mobile responsiveness), PLAN-D (pricing modal)
-Status: Complete — all 4 plans executed
-Last activity: 2026-02-25 — Phase 6 executed
+Phase: 8 of 9 (BuildShip LLM Pipeline Migration)
+Plan: 08-01 (Pipeline Migration) ✅ Complete, 08-02 (BYOK Registration) pending
+Status: Plan 08-01 complete — all LLM calls route through BuildShip, AI keys removed from browser
+Last activity: 2026-02-25 — Plan 08-01 executed + UAT fix
 
-Progress: ███░░░░░░░ 33%
+Progress: █████░░░░░ 50%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 0
-- Average duration: —
-- Total execution time: 0 hours
+- Total plans completed: 1
+- Average duration: ~120min
+- Total execution time: ~2 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| — | — | — | — |
+| 08 | 1/2 | ~120min | ~120min |
 
 **Recent Trend:**
-- Last 5 plans: —
+- Last 5 plans: 08-01 (~120min)
 - Trend: —
 
 ## Accumulated Context
@@ -48,6 +48,9 @@ Recent decisions affecting current work:
 - GST-inclusive consumer pricing — Australian consumer law
 - **BuildShip for backend** — Visual workflow builder for serverless endpoints (2026-02-20)
 - Move LLM API logic to BuildShip `runpipeline` to centralize model execution (2026-02-25)
+- BuildShip returns raw OpenRouter response shape — client handles `data.output || data.content` (2026-02-25)
+- All model IDs use OpenRouter format with provider prefix (2026-02-25)
+- GPT-5.2-Codex upgraded to GPT-5.3-Codex, Gemini 3.0 Flash removed (2026-02-25)
 
 ### Deferred Issues
 
@@ -68,6 +71,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-25 18:14
-Stopped at: Phase 6 fully executed — sidebar restructured, modal sticky footer, mobile responsiveness CSS, pricing modal updated
-Resume file: None
+Last session: 2026-02-25 18:50
+Stopped at: Plan 08-01 complete — callBuildShip() working, all 3 pipeline steps verified, UAT fix committed. Next: Plan 08-02 (BYOK Registration)
+Resume file: .planning/phases/08-buildship-llm-pipeline-migration/08-01-SUMMARY.md
