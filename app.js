@@ -32,6 +32,8 @@ const STRIPE_PRICE_IDS = {
   power: 'price_1T2le9KszA2slvDXR4mPvw7M'
 }
 
+const proGateAttachedSet = new WeakSet()
+
 let authState = {
   email: null,
   sessionToken: null,
@@ -92,7 +94,7 @@ const LOCALE_CURRENCY_MAP = {
   ar: 'AED', he: 'ILS', ru: 'RUB', uk: 'UAH',
 }
 
-const AUD_EXCHANGE_RATES = {
+const AUD_EXCHANGE_RATES_FALLBACK = {
   AUD: 1, USD: 0.65, EUR: 0.60, GBP: 0.52, CAD: 0.88,
   NZD: 1.08, JPY: 97, KRW: 870, INR: 54, SGD: 0.87,
   HKD: 5.08, BRL: 3.18, CNY: 4.70, TWD: 20.5, THB: 22.5,
@@ -100,6 +102,29 @@ const AUD_EXCHANGE_RATES = {
   DKK: 4.48, PLN: 2.60, CZK: 15.2, HUF: 238, RON: 2.98,
   TRY: 20.9, AED: 2.39, ILS: 2.38, PHP: 36.4, ZAR: 11.8,
   RUB: 58, UAH: 26.8,
+}
+
+let AUD_EXCHANGE_RATES = { ...AUD_EXCHANGE_RATES_FALLBACK }
+
+async function fetchAudExchangeRates() {
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 5000)
+    const res = await fetch('https://open.er-api.com/v6/latest/AUD', { signal: controller.signal })
+    clearTimeout(timeout)
+    if (!res.ok) return
+    const data = await res.json()
+    if (data.result !== 'success' || !data.rates) return
+    const rates = data.rates
+    const updated = { AUD: 1 }
+    for (const [code, fallbackRate] of Object.entries(AUD_EXCHANGE_RATES_FALLBACK)) {
+      if (code === 'AUD') continue
+      updated[code] = typeof rates[code] === 'number' && rates[code] > 0 ? rates[code] : fallbackRate
+    }
+    AUD_EXCHANGE_RATES = updated
+  } catch {
+    // Network error or timeout — keep using fallback rates
+  }
 }
 
 function detectUserCurrency() {
@@ -4160,7 +4185,7 @@ function updateModelSelectorGating() {
   select.disabled = false
 
   // Intercept PRO model selection on free tier → open pricing modal
-  if (!select._proGateAttached) {
+  if (!proGateAttachedSet.has(select)) {
     select.addEventListener('change', () => {
       if (subscriptionState.tier === 'free' && PRO_MODELS.includes(select.value)) {
         select.value = FREE_MODEL
@@ -4168,7 +4193,7 @@ function updateModelSelectorGating() {
       }
       updateModelInfo(select.value)
     })
-    select._proGateAttached = true
+    proGateAttachedSet.add(select)
   }
 
   let notice = document.getElementById('model-selector-free-notice')
@@ -4460,14 +4485,15 @@ function updatePricingDisplay() {
   if (powerEl) powerEl.textContent = formatPrice(BASE_PRICES_AUD.power, 'AUD')
 
   const isAud = currency === 'AUD'
-  if (proNote) proNote.textContent = isAud ? 'AUD · billed monthly' : `~${formatPrice(BASE_PRICES_AUD.professional, currency)} ${currency} · billed monthly`
-  if (powerNote) powerNote.textContent = isAud ? 'AUD · billed monthly' : `~${formatPrice(BASE_PRICES_AUD.power, currency)} ${currency} · billed monthly`
+  if (proNote) proNote.textContent = isAud ? 'AUD · billed monthly' : `~${formatPrice(BASE_PRICES_AUD.professional, currency)} · billed monthly`
+  if (powerNote) powerNote.textContent = isAud ? 'AUD · billed monthly' : `~${formatPrice(BASE_PRICES_AUD.power, currency)} · billed monthly`
 }
 
 function openPricingModal() {
   updatePricingDisplay()
   const modal = document.getElementById('pricing-modal')
   if (modal) modal.classList.add('open')
+  fetchAudExchangeRates().then(() => updatePricingDisplay())
 }
 
 function closePricingModal(event) {
@@ -4550,13 +4576,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
 
-  const modelSelect = document.getElementById("code-generator-model");
-  if (modelSelect) {
-    modelSelect.addEventListener("change", () => {
-      const selectedModel = modelSelect.value;
-      updateModelInfo(selectedModel);
-    });
-  }
 
   window.addEventListener("commitStateChange", (event) => {
     const { state } = event.detail;
