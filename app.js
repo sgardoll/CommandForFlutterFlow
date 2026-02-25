@@ -3040,9 +3040,10 @@ async function runCodeGenerator(masterPrompt, selectedModel) {
   }
 }
 
-async function runCodeReview(code) {
+async function runCodeReview(code, architectOutput = null) {
+  const context = architectOutput ? { architect_output: architectOutput } : {}
   try {
-    const result = await callBuildShip("review", "gemini-3.1-pro-preview", code, {})
+    const result = await callBuildShip("review", "gemini-3.1-pro-preview", code, context)
     return result
   } catch (error) {
     throw new Error(`Code Review failed: ${error.message}`)
@@ -3501,6 +3502,7 @@ Ensure it still adheres to the ORIGINAL SPECIFICATION.
 
     pipelineState.step3Result = await runCodeReview(
       pipelineState.step2Result,
+      pipelineState.step1Result,
     );
 
     const auditOutput = document.getElementById("step3-output");
@@ -3621,7 +3623,7 @@ Maintain the original specification and intent.`
     selectWorkflowStep(3)
     showStepLoading(3, true)
 
-    pipelineState.step3Result = await runCodeReview(pipelineState.step2Result)
+    pipelineState.step3Result = await runCodeReview(pipelineState.step2Result, pipelineState.step1Result)
 
     const auditOutput = document.getElementById("step3-output")
     auditOutput.innerHTML = renderMarkdownAudit(pipelineState.step3Result)
@@ -3736,6 +3738,7 @@ async function runThinkingPipeline() {
 
     pipelineState.step3Result = await runCodeReview(
       pipelineState.step2Result,
+      pipelineState.step1Result,
     );
     trackEvent("Code Review Completed");
 
@@ -4027,6 +4030,7 @@ Please regenerate the code to fix these errors while maintaining the original sp
 
     pipelineState.step3Result = await runCodeReview(
       pipelineState.step2Result,
+      pipelineState.step1Result,
     );
 
     const auditOutput = document.getElementById("step3-output");
