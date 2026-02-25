@@ -385,9 +385,7 @@
         flex: 1;
         background: var(--main-bg);
         height: 100vh;
-        display: flex;
-        align-items: center;
-        justify-content: center;
+        display: block;
         padding: 36px;
         position: relative;
         overflow: hidden;
@@ -440,6 +438,10 @@
         height: 100%;
         object-fit: cover;
         display: block;
+      }
+
+      .no-scrollbar::-webkit-scrollbar {
+        display: none;
       }
 
       /* ── Main stage (output overlay) ───────────────────── */
@@ -821,15 +823,33 @@
       </aside>
 
       <main class="main-content">
-        <div id="preview-frame-container" class="preview-frame-wrapper">
-          <div class="preview-frame">
-            <video id="welcome-video-player" autoplay muted loop playsinline>
-              <source src="/CCC.mp4" type="video/mp4" />
-            </video>
+        <div class="w-full h-full overflow-y-auto no-scrollbar px-4" style="scrollbar-width: none;">
+          <div class="flex flex-col items-center justify-start min-h-full">
+            <div class="w-full max-w-[820px] py-12 my-auto flex-shrink-0">
+              <div id="preview-frame-container" class="preview-frame-wrapper w-full">
+              <div class="preview-frame">
+                <video id="welcome-video-player" autoplay muted loop playsinline>
+                  <source src="/CCC.mp4" type="video/mp4" />
+                </video>
+              </div>
+            </div>
+
+            <div id="tutorials-section" class="w-full mt-12 opacity-90 transition-opacity hover:opacity-100 relative z-0">
+              <h3 class="text-xs font-bold text-gray-400 tracking-widest mb-4 uppercase text-center" style="font-family: 'Delight', 'Outfit', sans-serif;">Watch the Tutorials</h3>
+              <div class="grid grid-cols-2 gap-6">
+                <div class="aspect-video rounded-xl overflow-hidden shadow-md border border-[#e2e8f0] bg-white transform transition duration-300 hover:-translate-y-1 hover:shadow-xl">
+                  <iframe width="100%" height="100%" src="https://www.youtube.com/embed/aFTUqLSkAGY" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                </div>
+                <div class="aspect-video rounded-xl overflow-hidden shadow-md border border-[#e2e8f0] bg-white transform transition duration-300 hover:-translate-y-1 hover:shadow-xl">
+                  <iframe width="100%" height="100%" src="https://www.youtube.com/embed/zRjexvW58IQ?start=4" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
+      </div>
 
-        <div class="main-stage" id="main-stage-container">
+      <div class="main-stage" id="main-stage-container">
           <div class="main-stage-header">
             <h2 id="stage-title">Active Workflow Stage</h2>
           </div>
@@ -1090,7 +1110,19 @@
           </button>
         </div>
         <div class="p-6">
-          <p class="text-sm text-gray-400 mb-5">Get started in 4 simple steps:</p>
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+            <p class="text-sm text-gray-400">Get started in 4 simple steps:</p>
+            <div class="flex items-center gap-4">
+              <a href="https://www.youtube.com/watch?v=aFTUqLSkAGY" target="_blank" rel="noopener noreferrer" class="flex items-center gap-1.5 text-xs text-blue-500 hover:text-blue-600 font-medium transition-colors">
+                <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/></svg>
+                Setup Guide
+              </a>
+              <a href="https://youtu.be/zRjexvW58IQ?si=IKoyaCW14ElMmkL8&t=4" target="_blank" rel="noopener noreferrer" class="flex items-center gap-1.5 text-xs text-blue-500 hover:text-blue-600 font-medium transition-colors">
+                <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/></svg>
+                Full Tutorial
+              </a>
+            </div>
+          </div>
           <div class="space-y-3">
             <div id="walkthrough-step1" class="flex items-start gap-3 p-4 bg-blue-50 rounded-lg border border-blue-100">
               <div class="w-7 h-7 bg-blue-500 text-white rounded-full flex items-center justify-center flex-shrink-0 font-semibold text-xs">1</div>
