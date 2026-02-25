@@ -4261,6 +4261,16 @@ async function callBuildShip(step, model, prompt, context = {}) {
 
     const data = await res.json()
     console.log(`[BuildShip] ${step} response keys:`, Object.keys(data), 'content type:', typeof data.content)
+
+    if (res.status === 429) {
+      if (data.serverCount !== undefined) {
+        const month = getCurrentYearMonth()
+        localStorage.setItem(USAGE_STORAGE_KEY, JSON.stringify({ count: data.serverCount, month }))
+        updateUsageDisplay()
+      }
+      throw new Error(data.message || 'Monthly usage limit reached. Upgrade to continue.')
+    }
+
     if (!res.ok) {
       throw new Error(`${data.message || data.error || 'BuildShip pipeline error'} (HTTP ${res.status})`)
     }
