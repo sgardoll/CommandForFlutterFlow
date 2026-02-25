@@ -1,16 +1,7 @@
 import posthog from "posthog-js";
 
 // --- CONFIGURATION ---
-// Environment keys (fallback)
-const envGeminiApiKey = import.meta.env.VITE_GEMINI_API_KEY || "";
-const envAnthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY || "";
-const envOpenaiApiKey = import.meta.env.VITE_OPENAI_API_KEY || "";
-const envOpenRouterApiKey = import.meta.env.VITE_OPENROUTER_API_KEY || "";
-
 const IS_DEV = import.meta.env.DEV
-const GEMINI_BASE_URL = IS_DEV ? '/api/gemini' : 'https://generativelanguage.googleapis.com'
-const ANTHROPIC_BASE_URL = IS_DEV ? '/api/anthropic' : 'https://api.anthropic.com'
-const OPENAI_BASE_URL = IS_DEV ? '/api/openai' : 'https://api.openai.com'
 
 // --- ANALYTICS ---
 const POSTHOG_KEY = import.meta.env.VITE_PUBLIC_POSTHOG_KEY;
@@ -589,93 +580,22 @@ function setFlutterFlowEndpoint(endpoint) {
 }
 
 function hasStoredKey(provider) {
-  // Check if we actually have a usable (decrypted) key, not just encrypted data
   const keys = {
-    gemini: geminiApiKey,
-    anthropic: anthropicApiKey,
-    openai: openaiApiKey,
-    openrouter: openRouterApiKey,
     flutterflow: flutterflowApiKey,
     flutterflow_project_id: flutterflowProjectId,
-  };
-  return keys[provider] && keys[provider].length > 0;
-}
-
-function checkRequiredApiKeys(selectedModel) {
-  // Map models to their required API key providers
-  const MODEL_KEY_REQUIREMENTS = {
-    "gemini-3-flash-preview": "gemini",
-    "gemini-3.1-pro-preview": "gemini",
-    "claude-4.6-opus": "anthropic",
-    "gpt-5.2-codex": "openai",
-    "openrouter-auto": "openrouter",
-    "openrouter-free": "openrouter",
-  };
-
-  const requiredProvider = MODEL_KEY_REQUIREMENTS[selectedModel];
-  if (!requiredProvider) {
-    return { valid: false, message: "Unknown model selected" };
   }
-
-  if (!hasStoredKey(requiredProvider)) {
-    const PROVIDER_NAMES = {
-      gemini: "Gemini",
-      anthropic: "Anthropic (Claude)",
-      openai: "OpenAI",
-      openrouter: "OpenRouter",
-    };
-    return {
-      valid: false,
-      message: `${PROVIDER_NAMES[requiredProvider]} API key is required to use this model. Please configure your API keys in the settings.`,
-      provider: requiredProvider,
-    };
-  }
-
-  return { valid: true };
-}
-
-function updateRunPipelineButtonState() {
-  const btn = document.getElementById("btn-run-pipeline");
-  const modelSelect = document.getElementById("code-generator-model");
-  if (!btn || !modelSelect) return;
-
-  const selectedModel = modelSelect.value;
-  const keyCheck = checkRequiredApiKeys(selectedModel);
-
-  if (!keyCheck.valid) {
-    btn.disabled = true;
-    btn.classList.add("opacity-50", "cursor-not-allowed");
-    btn.title = keyCheck.message;
-  } else {
-    btn.disabled = false;
-    btn.classList.remove("opacity-50", "cursor-not-allowed");
-    btn.title = "";
-  }
-}
-
-function hasEnvKey(provider) {
-  // Environment keys are not used by default
-  return false;
+  return keys[provider] && keys[provider].length > 0
 }
 
 // Get current active API keys (for use in API calls)
-let geminiApiKey = "";
-let anthropicApiKey = "";
-let openaiApiKey = "";
-let openRouterApiKey = "";
 let flutterflowApiKey = "";
 let flutterflowProjectId = "";
 
 async function initializeApiKeys() {
-  geminiApiKey = await getApiKey("gemini");
-  anthropicApiKey = await getApiKey("anthropic");
-  openaiApiKey = await getApiKey("openai");
-  openRouterApiKey = await getApiKey("openrouter");
   flutterflowApiKey = await getApiKey("flutterflow");
   flutterflowProjectId = await getApiKey("flutterflow_project_id");
   updateApiKeyStatusIndicators();
   updateDeployButtonVisibility();
-  updateRunPipelineButtonState();
 }
 
 // --- API KEY UI FUNCTIONS ---
@@ -786,43 +706,10 @@ function showWalkthroughIfNeeded() {
 }
 
 async function loadApiKeyInputs() {
-  const geminiInput = document.getElementById("gemini-api-key-input");
-  const anthropicInput = document.getElementById("anthropic-api-key-input");
-  const openaiInput = document.getElementById("openai-api-key-input");
-  const openRouterInput = document.getElementById("openrouter-api-key-input");
   const flutterflowInput = document.getElementById("flutterflow-api-key-input");
   const projectIdInput = document.getElementById(
     "flutterflow-project-id-input",
   );
-
-  // Show masked value if key is actually usable (decrypted successfully)
-  if (geminiApiKey) {
-    geminiInput.value = "";
-    geminiInput.placeholder = "Key saved (enter new to replace)";
-  } else {
-    geminiInput.placeholder = "Enter your Gemini API key";
-  }
-
-  if (anthropicApiKey) {
-    anthropicInput.value = "";
-    anthropicInput.placeholder = "Key saved (enter new to replace)";
-  } else {
-    anthropicInput.placeholder = "Enter your Claude API key";
-  }
-
-  if (openaiApiKey) {
-    openaiInput.value = "";
-    openaiInput.placeholder = "Key saved (enter new to replace)";
-  } else {
-    openaiInput.placeholder = "Enter your OpenAI API key";
-  }
-
-  if (openRouterApiKey) {
-    openRouterInput.value = "";
-    openRouterInput.placeholder = "Key saved (enter new to replace)";
-  } else {
-    openRouterInput.placeholder = "Enter your OpenRouter API key";
-  }
 
   if (flutterflowApiKey) {
     flutterflowInput.value = "";
@@ -842,10 +729,6 @@ async function loadApiKeyInputs() {
 }
 
 function updateModalKeyStatuses() {
-  updateKeyStatus("gemini", "gemini-key-status");
-  updateKeyStatus("anthropic", "anthropic-key-status");
-  updateKeyStatus("openai", "openai-key-status");
-  updateKeyStatus("openrouter", "openrouter-key-status");
   updateKeyStatus("flutterflow", "flutterflow-key-status");
   updateKeyStatus("flutterflow_project_id", "flutterflow-project-status");
 }
@@ -892,10 +775,6 @@ function updateApiKeyStatusIndicators() {
 
   const dots = container.querySelectorAll(".key-status-dot");
   const providers = [
-    "gemini",
-    "anthropic",
-    "openai",
-    "openrouter",
     "flutterflow",
   ];
 
@@ -937,28 +816,12 @@ function updateApiKeyStatusIndicators() {
 }
 
 async function saveApiKeys() {
-  const geminiInput = document.getElementById("gemini-api-key-input");
-  const anthropicInput = document.getElementById("anthropic-api-key-input");
-  const openaiInput = document.getElementById("openai-api-key-input");
-  const openRouterInput = document.getElementById("openrouter-api-key-input");
   const flutterflowInput = document.getElementById("flutterflow-api-key-input");
   const projectIdInput = document.getElementById(
     "flutterflow-project-id-input",
   );
 
   // Only save if user entered a new value
-  if (geminiInput.value.trim()) {
-    await saveApiKey("gemini", geminiInput.value);
-  }
-  if (anthropicInput.value.trim()) {
-    await saveApiKey("anthropic", anthropicInput.value);
-  }
-  if (openaiInput.value.trim()) {
-    await saveApiKey("openai", openaiInput.value);
-  }
-  if (openRouterInput.value.trim()) {
-    await saveApiKey("openrouter", openRouterInput.value);
-  }
   if (flutterflowInput.value.trim()) {
     await saveApiKey("flutterflow", flutterflowInput.value);
   }
@@ -995,14 +858,10 @@ async function saveApiKeys() {
 async function clearAllApiKeys() {
   if (!confirm("Are you sure you want to clear all stored API keys?")) return;
 
-  localStorage.removeItem(STORAGE_KEY_PREFIX + "gemini");
-  localStorage.removeItem(STORAGE_KEY_PREFIX + "anthropic");
-  localStorage.removeItem(STORAGE_KEY_PREFIX + "openai");
-  localStorage.removeItem(STORAGE_KEY_PREFIX + "openrouter");
   localStorage.removeItem(STORAGE_KEY_PREFIX + "flutterflow");
   localStorage.removeItem(STORAGE_KEY_PREFIX + "flutterflow_project_id");
 
-  // Reinitialize keys (will fall back to env keys)
+  // Reinitialize keys
   await initializeApiKeys();
 
   // Update UI
@@ -1185,242 +1044,8 @@ let pipelineState = {
 // --- CORE API FUNCTIONS ---
 
 async function checkConnection() {
-  // Initialize API keys from storage/env
-  await initializeApiKeys();
-
-  if (!geminiApiKey) {
-    console.warn(
-      "Gemini API Key not found. Configure via API Keys settings or .env file",
-    );
-    return false;
-  }
-  return true;
-}
-
-async function callGemini(
-  prompt,
-  systemInstruction,
-  modelId = PROMPT_ARCHITECT_MODEL,
-) {
-  const url = `${GEMINI_BASE_URL}/v1beta/models/${modelId}:generateContent`;
-  const payload = {
-    contents: [{ parts: [{ text: prompt }] }],
-    systemInstruction: { parts: [{ text: systemInstruction }] },
-    generationConfig: {
-      maxOutputTokens: 16384,
-    },
-  };
-
-  try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": geminiApiKey,
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Gemini API Error:", response.status, errorText);
-      throw new Error(`Gemini API failed: ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text;
-  } catch (error) {
-    console.error("Gemini call failed:", error);
-    if (modelId !== FALLBACK_MODEL) {
-      console.log("Trying fallback model...");
-      return callGemini(prompt, systemInstruction, FALLBACK_MODEL);
-    }
-    throw error;
-  }
-}
-
-async function callClaude(prompt, systemInstruction) {
-  if (!anthropicApiKey) {
-    throw new Error("Anthropic API key not found");
-  }
-
-  const url = `${ANTHROPIC_BASE_URL}/v1/messages`;
-  const payload = {
-    model: "claude-opus-4-6",
-    max_tokens: 16384,
-    system: systemInstruction,
-    messages: [{ role: "user", content: prompt }],
-  };
-
-  try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": anthropicApiKey,
-        "anthropic-version": "2023-06-01",
-        "anthropic-dangerous-direct-browser-access": "true",
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Claude API Error:", response.status, errorText);
-
-      // Handle specific error types
-      if (errorText.includes("image") || errorText.includes("media")) {
-        throw new Error(
-          "Claude API error: This model doesn't support image input. Please use Gemini 3.1 Pro for image-based requests.",
-        );
-      }
-
-      if (response.status === 401) {
-        throw new Error(
-          "Claude API authentication failed. Please check your Anthropic API key in the .env file.",
-        );
-      }
-
-      throw new Error(`Claude API failed: ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data.content?.[0]?.text;
-  } catch (error) {
-    console.error("Claude call failed, falling back to Gemini:", error);
-    // Fallback to Gemini if Claude fails
-    return callGemini(prompt, systemInstruction, FALLBACK_MODEL);
-  }
-}
-
-async function callOpenAI(prompt, systemInstruction) {
-  if (!openaiApiKey) {
-    throw new Error("OpenAI API key not found");
-  }
-
-  const url = `${OPENAI_BASE_URL}/v1/responses`;
-
-  // Responses API uses 'input' with instructions, not messages array
-  // Note: temperature is not supported with codex models
-  const payload = {
-    model: "gpt-5.2-codex",
-    instructions: systemInstruction,
-    input: prompt,
-    max_output_tokens: 16384,
-  };
-
-  try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-openai-api-key": openaiApiKey,
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("OpenAI API Error:", response.status, errorText);
-
-      // Handle specific error types
-      if (
-        errorText.includes("image") ||
-        errorText.includes("vision") ||
-        errorText.includes("media")
-      ) {
-        throw new Error(
-          "OpenAI API error: This model doesn't support image input. Please use Gemini 3.1 Pro for image-based requests.",
-        );
-      }
-
-      if (response.status === 401) {
-        throw new Error(
-          "OpenAI API authentication failed. Please check your OpenAI API key in the .env file.",
-        );
-      }
-
-      throw new Error(`OpenAI API failed: ${response.status}`);
-    }
-
-    const data = await response.json();
-    // Responses API returns output array with reasoning and message objects
-    // Find the message object and extract text from content
-    const messageOutput = data.output?.find((item) => item.type === "message");
-    const textContent = messageOutput?.content?.find(
-      (c) => c.type === "output_text",
-    );
-    return textContent?.text || "";
-  } catch (error) {
-    console.error("OpenAI call failed, falling back to Gemini:", error);
-    // Fallback to Gemini if OpenAI fails
-    return callGemini(prompt, systemInstruction, FALLBACK_MODEL);
-  }
-}
-
-async function callOpenRouter(prompt, systemInstruction, modelId) {
-  if (!openRouterApiKey) {
-    throw new Error("OpenRouter API key not found");
-  }
-
-  // Handle model mapping
-  let actualModel = "openrouter/auto"; // Default for auto-router
-
-  if (modelId === "openrouter-free") {
-    actualModel = "openrouter/free";
-  } else if (modelId === "openrouter-auto") {
-    actualModel = "openrouter/auto";
-  } else if (modelId.startsWith("openrouter/")) {
-    actualModel = modelId;
-  }
-
-  const url = "https://openrouter.ai/api/v1/chat/completions";
-
-  const payload = {
-    model: actualModel,
-    messages: [
-      { role: "system", content: systemInstruction },
-      { role: "user", content: prompt },
-    ],
-    max_tokens: 16384,
-    temperature: 0.7,
-    // Add HTTP referer and X-Title for OpenRouter rankings/stats
-    // These are recommended by OpenRouter
-  };
-
-  try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${openRouterApiKey}`,
-        "HTTP-Referer": window.location.href, // Site URL for rankings
-        "X-Title": "FlutterFlow Custom Code Connect", // Site title for rankings
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("OpenRouter API Error:", response.status, errorText);
-
-      if (response.status === 401) {
-        throw new Error(
-          "OpenRouter API authentication failed. Please check your OpenRouter API key.",
-        );
-      }
-
-      throw new Error(
-        `OpenRouter API failed: ${response.status} - ${errorText}`,
-      );
-    }
-
-    const data = await response.json();
-    return data.choices?.[0]?.message?.content || "";
-  } catch (error) {
-    console.error("OpenRouter call failed:", error);
-    throw error;
-  }
+  await initializeApiKeys()
+  return true
 }
 
 // --- FLUTTERFLOW API CLIENT ---
@@ -3672,14 +3297,6 @@ async function runThinkingPipeline() {
     inputLength: userInput.length
   });
 
-  // Check for required API keys before running
-  const keyCheck = checkRequiredApiKeys(effectiveModel);
-  if (!keyCheck.valid) {
-    showToast(`${keyCheck.message} Open API Keys to configure.`, "error");
-    openApiKeysModal();
-    return;
-  }
-
   const btn = document.getElementById("btn-run-pipeline");
 
   // Reset state
@@ -4724,12 +4341,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     modelSelect.addEventListener("change", () => {
       const selectedModel = modelSelect.value;
       updateModelInfo(selectedModel);
-      updateRunPipelineButtonState();
     });
   }
-
-  // Initial button state check after API keys are loaded
-  updateRunPipelineButtonState();
 
   window.addEventListener("commitStateChange", (event) => {
     const { state } = event.detail;
