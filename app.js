@@ -1,16 +1,7 @@
 import posthog from "posthog-js";
 
 // --- CONFIGURATION ---
-// Environment keys (fallback)
-const envGeminiApiKey = import.meta.env.VITE_GEMINI_API_KEY || "";
-const envAnthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY || "";
-const envOpenaiApiKey = import.meta.env.VITE_OPENAI_API_KEY || "";
-const envOpenRouterApiKey = import.meta.env.VITE_OPENROUTER_API_KEY || "";
-
 const IS_DEV = import.meta.env.DEV
-const GEMINI_BASE_URL = IS_DEV ? '/api/gemini' : 'https://generativelanguage.googleapis.com'
-const ANTHROPIC_BASE_URL = IS_DEV ? '/api/anthropic' : 'https://api.anthropic.com'
-const OPENAI_BASE_URL = IS_DEV ? '/api/openai' : 'https://api.openai.com'
 
 // --- ANALYTICS ---
 const POSTHOG_KEY = import.meta.env.VITE_PUBLIC_POSTHOG_KEY;
@@ -53,18 +44,95 @@ let subscriptionState = {
   periodEnd: null,
 }
 
+// --- PIPELINE ---
+const PIPELINE_ENDPOINT = `${BUILDSHIP_BASE_URL}/service/runpipeline`
+
+// --- IDENTITY RESOLUTION ---
+const IDENTITY_COOKIE_KEY = 'bs_identity'
+const IDENTITY_SESSION_KEY = 'bs_user_id'
+const IDENTITY_ENDPOINT = `${BUILDSHIP_BASE_URL}/authUserCheck`
+
+let identityState = {
+  userId: null,
+  status: null, // 'recognized' | 'new' | null
+  resolved: false,
+}
+
 // --- TIER LIMITS ---
 const TIER_LIMITS = {
-  free: 50,
-  professional: 500,
+  free: 2,
+  professional: 50,
   power: 2000,
 }
+
+const FREE_MODEL = 'google/gemini-3.1-pro-preview'
+const PRO_MODELS = [
+  'anthropic/claude-4.6-opus',
+  'openai/gpt-5.3-codex',
+  'openrouter/auto',
+  'openrouter/free',
+]
 const USAGE_STORAGE_KEY = 'ccc_usage'
 
 // Model Configuration
-const PROMPT_ARCHITECT_MODEL = "gemini-3.1-pro-preview";
-const CODE_DISSECTOR_MODEL = "gemini-3.1-pro-preview";
-const FALLBACK_MODEL = "gemini-3-flash-preview";
+const PROMPT_ARCHITECT_MODEL = "google/gemini-3.1-pro-preview"
+const CODE_REVIEW_MODEL = "google/gemini-3.1-pro-preview"
+const FALLBACK_MODEL = "google/gemini-3.1-pro-preview"
+
+// --- DYNAMIC PRICING ---
+const BASE_PRICES_AUD = { professional: 11, power: 49 }
+
+const LOCALE_CURRENCY_MAP = {
+  en_US: 'USD', en_GB: 'GBP', en_AU: 'AUD', en_NZ: 'NZD', en_CA: 'CAD',
+  en_IN: 'INR', en_SG: 'SGD', en_HK: 'HKD', en_PH: 'PHP', en_ZA: 'ZAR',
+  de: 'EUR', fr: 'EUR', es: 'EUR', it: 'EUR', nl: 'EUR', pt_PT: 'EUR',
+  pt_BR: 'BRL', ja: 'JPY', ko: 'KRW', zh_CN: 'CNY', zh_TW: 'TWD',
+  th: 'THB', vi: 'VND', id: 'IDR', ms_MY: 'MYR', sv: 'SEK', nb: 'NOK',
+  da: 'DKK', pl: 'PLN', cs: 'CZK', hu: 'HUF', ro: 'RON', tr: 'TRY',
+  ar: 'AED', he: 'ILS', ru: 'RUB', uk: 'UAH',
+}
+
+const AUD_EXCHANGE_RATES = {
+  AUD: 1, USD: 0.65, EUR: 0.60, GBP: 0.52, CAD: 0.88,
+  NZD: 1.08, JPY: 97, KRW: 870, INR: 54, SGD: 0.87,
+  HKD: 5.08, BRL: 3.18, CNY: 4.70, TWD: 20.5, THB: 22.5,
+  VND: 16200, IDR: 10200, MYR: 2.88, SEK: 6.80, NOK: 6.95,
+  DKK: 4.48, PLN: 2.60, CZK: 15.2, HUF: 238, RON: 2.98,
+  TRY: 20.9, AED: 2.39, ILS: 2.38, PHP: 36.4, ZAR: 11.8,
+  RUB: 58, UAH: 26.8,
+}
+
+function detectUserCurrency() {
+  const locale = navigator.language || 'en-US'
+  const normalized = locale.replace('-', '_')
+  const exactMatch = LOCALE_CURRENCY_MAP[normalized]
+  if (exactMatch) return exactMatch
+  const langOnly = normalized.split('_')[0]
+  const langMatch = LOCALE_CURRENCY_MAP[langOnly]
+  if (langMatch) return langMatch
+  return 'USD'
+}
+
+function formatPrice(audAmount, currency) {
+  const rate = AUD_EXCHANGE_RATES[currency] ?? AUD_EXCHANGE_RATES.USD
+  const converted = audAmount * rate
+  const locale = navigator.language || 'en-US'
+  try {
+    return new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: converted >= 100 ? 0 : 2,
+    }).format(Math.round(converted * 100) / 100)
+  } catch {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    }).format(audAmount * AUD_EXCHANGE_RATES.USD)
+  }
+}
 
 // --- SHARED FLUTTERFLOW CONSTRAINTS TEMPLATE ---
 // These constraints are shared across all three pipeline agents to ensure consistency.
@@ -575,93 +643,22 @@ function setFlutterFlowEndpoint(endpoint) {
 }
 
 function hasStoredKey(provider) {
-  // Check if we actually have a usable (decrypted) key, not just encrypted data
   const keys = {
-    gemini: geminiApiKey,
-    anthropic: anthropicApiKey,
-    openai: openaiApiKey,
-    openrouter: openRouterApiKey,
     flutterflow: flutterflowApiKey,
     flutterflow_project_id: flutterflowProjectId,
-  };
-  return keys[provider] && keys[provider].length > 0;
-}
-
-function checkRequiredApiKeys(selectedModel) {
-  // Map models to their required API key providers
-  const MODEL_KEY_REQUIREMENTS = {
-    "gemini-3-flash-preview": "gemini",
-    "gemini-3.1-pro-preview": "gemini",
-    "claude-4.6-opus": "anthropic",
-    "gpt-5.2-codex": "openai",
-    "openrouter-auto": "openrouter",
-    "openrouter-free": "openrouter",
-  };
-
-  const requiredProvider = MODEL_KEY_REQUIREMENTS[selectedModel];
-  if (!requiredProvider) {
-    return { valid: false, message: "Unknown model selected" };
   }
-
-  if (!hasStoredKey(requiredProvider)) {
-    const PROVIDER_NAMES = {
-      gemini: "Gemini",
-      anthropic: "Anthropic (Claude)",
-      openai: "OpenAI",
-      openrouter: "OpenRouter",
-    };
-    return {
-      valid: false,
-      message: `${PROVIDER_NAMES[requiredProvider]} API key is required to use this model. Please configure your API keys in the settings.`,
-      provider: requiredProvider,
-    };
-  }
-
-  return { valid: true };
-}
-
-function updateRunPipelineButtonState() {
-  const btn = document.getElementById("btn-run-pipeline");
-  const modelSelect = document.getElementById("code-generator-model");
-  if (!btn || !modelSelect) return;
-
-  const selectedModel = modelSelect.value;
-  const keyCheck = checkRequiredApiKeys(selectedModel);
-
-  if (!keyCheck.valid) {
-    btn.disabled = true;
-    btn.classList.add("opacity-50", "cursor-not-allowed");
-    btn.title = keyCheck.message;
-  } else {
-    btn.disabled = false;
-    btn.classList.remove("opacity-50", "cursor-not-allowed");
-    btn.title = "";
-  }
-}
-
-function hasEnvKey(provider) {
-  // Environment keys are not used by default
-  return false;
+  return keys[provider] && keys[provider].length > 0
 }
 
 // Get current active API keys (for use in API calls)
-let geminiApiKey = "";
-let anthropicApiKey = "";
-let openaiApiKey = "";
-let openRouterApiKey = "";
 let flutterflowApiKey = "";
 let flutterflowProjectId = "";
 
 async function initializeApiKeys() {
-  geminiApiKey = await getApiKey("gemini");
-  anthropicApiKey = await getApiKey("anthropic");
-  openaiApiKey = await getApiKey("openai");
-  openRouterApiKey = await getApiKey("openrouter");
   flutterflowApiKey = await getApiKey("flutterflow");
   flutterflowProjectId = await getApiKey("flutterflow_project_id");
   updateApiKeyStatusIndicators();
   updateDeployButtonVisibility();
-  updateRunPipelineButtonState();
 }
 
 // --- API KEY UI FUNCTIONS ---
@@ -691,7 +688,7 @@ function closeApiKeysModal(event) {
 let walkthroughStep = 1;
 
 function updateWalkthroughUI() {
-  for (let i = 1; i <= 4; i++) {
+  for (let i = 1; i <= 3; i++) {
     const stepEl = document.getElementById(`walkthrough-step${i}`);
     if (stepEl) {
       if (i === walkthroughStep) {
@@ -731,9 +728,18 @@ function updateWalkthroughUI() {
 }
 
 function advanceWalkthrough() {
-  if (walkthroughStep < 4) {
+  if (walkthroughStep < 3) {
     walkthroughStep++;
     updateWalkthroughUI();
+  }
+}
+
+function openWalkthroughModal() {
+  const modal = document.getElementById("walkthrough-modal");
+  if (modal) {
+    walkthroughStep = 1;
+    updateWalkthroughUI();
+    modal.classList.add("open");
   }
 }
 
@@ -763,43 +769,10 @@ function showWalkthroughIfNeeded() {
 }
 
 async function loadApiKeyInputs() {
-  const geminiInput = document.getElementById("gemini-api-key-input");
-  const anthropicInput = document.getElementById("anthropic-api-key-input");
-  const openaiInput = document.getElementById("openai-api-key-input");
-  const openRouterInput = document.getElementById("openrouter-api-key-input");
   const flutterflowInput = document.getElementById("flutterflow-api-key-input");
   const projectIdInput = document.getElementById(
     "flutterflow-project-id-input",
   );
-
-  // Show masked value if key is actually usable (decrypted successfully)
-  if (geminiApiKey) {
-    geminiInput.value = "";
-    geminiInput.placeholder = "Key saved (enter new to replace)";
-  } else {
-    geminiInput.placeholder = "Enter your Gemini API key";
-  }
-
-  if (anthropicApiKey) {
-    anthropicInput.value = "";
-    anthropicInput.placeholder = "Key saved (enter new to replace)";
-  } else {
-    anthropicInput.placeholder = "Enter your Claude API key";
-  }
-
-  if (openaiApiKey) {
-    openaiInput.value = "";
-    openaiInput.placeholder = "Key saved (enter new to replace)";
-  } else {
-    openaiInput.placeholder = "Enter your OpenAI API key";
-  }
-
-  if (openRouterApiKey) {
-    openRouterInput.value = "";
-    openRouterInput.placeholder = "Key saved (enter new to replace)";
-  } else {
-    openRouterInput.placeholder = "Enter your OpenRouter API key";
-  }
 
   if (flutterflowApiKey) {
     flutterflowInput.value = "";
@@ -819,10 +792,6 @@ async function loadApiKeyInputs() {
 }
 
 function updateModalKeyStatuses() {
-  updateKeyStatus("gemini", "gemini-key-status");
-  updateKeyStatus("anthropic", "anthropic-key-status");
-  updateKeyStatus("openai", "openai-key-status");
-  updateKeyStatus("openrouter", "openrouter-key-status");
   updateKeyStatus("flutterflow", "flutterflow-key-status");
   updateKeyStatus("flutterflow_project_id", "flutterflow-project-status");
 }
@@ -869,10 +838,6 @@ function updateApiKeyStatusIndicators() {
 
   const dots = container.querySelectorAll(".key-status-dot");
   const providers = [
-    "gemini",
-    "anthropic",
-    "openai",
-    "openrouter",
     "flutterflow",
   ];
 
@@ -914,28 +879,12 @@ function updateApiKeyStatusIndicators() {
 }
 
 async function saveApiKeys() {
-  const geminiInput = document.getElementById("gemini-api-key-input");
-  const anthropicInput = document.getElementById("anthropic-api-key-input");
-  const openaiInput = document.getElementById("openai-api-key-input");
-  const openRouterInput = document.getElementById("openrouter-api-key-input");
   const flutterflowInput = document.getElementById("flutterflow-api-key-input");
   const projectIdInput = document.getElementById(
     "flutterflow-project-id-input",
   );
 
   // Only save if user entered a new value
-  if (geminiInput.value.trim()) {
-    await saveApiKey("gemini", geminiInput.value);
-  }
-  if (anthropicInput.value.trim()) {
-    await saveApiKey("anthropic", anthropicInput.value);
-  }
-  if (openaiInput.value.trim()) {
-    await saveApiKey("openai", openaiInput.value);
-  }
-  if (openRouterInput.value.trim()) {
-    await saveApiKey("openrouter", openRouterInput.value);
-  }
   if (flutterflowInput.value.trim()) {
     await saveApiKey("flutterflow", flutterflowInput.value);
   }
@@ -972,14 +921,10 @@ async function saveApiKeys() {
 async function clearAllApiKeys() {
   if (!confirm("Are you sure you want to clear all stored API keys?")) return;
 
-  localStorage.removeItem(STORAGE_KEY_PREFIX + "gemini");
-  localStorage.removeItem(STORAGE_KEY_PREFIX + "anthropic");
-  localStorage.removeItem(STORAGE_KEY_PREFIX + "openai");
-  localStorage.removeItem(STORAGE_KEY_PREFIX + "openrouter");
   localStorage.removeItem(STORAGE_KEY_PREFIX + "flutterflow");
   localStorage.removeItem(STORAGE_KEY_PREFIX + "flutterflow_project_id");
 
-  // Reinitialize keys (will fall back to env keys)
+  // Reinitialize keys
   await initializeApiKeys();
 
   // Update UI
@@ -1162,242 +1107,13 @@ let pipelineState = {
 // --- CORE API FUNCTIONS ---
 
 async function checkConnection() {
-  // Initialize API keys from storage/env
-  await initializeApiKeys();
-
-  if (!geminiApiKey) {
-    console.warn(
-      "Gemini API Key not found. Configure via API Keys settings or .env file",
-    );
-    return false;
-  }
-  return true;
-}
-
-async function callGemini(
-  prompt,
-  systemInstruction,
-  modelId = PROMPT_ARCHITECT_MODEL,
-) {
-  const url = `${GEMINI_BASE_URL}/v1beta/models/${modelId}:generateContent`;
-  const payload = {
-    contents: [{ parts: [{ text: prompt }] }],
-    systemInstruction: { parts: [{ text: systemInstruction }] },
-    generationConfig: {
-      maxOutputTokens: 16384,
-    },
-  };
-
   try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": geminiApiKey,
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Gemini API Error:", response.status, errorText);
-      throw new Error(`Gemini API failed: ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text;
+    await initializeApiKeys()
   } catch (error) {
-    console.error("Gemini call failed:", error);
-    if (modelId !== FALLBACK_MODEL) {
-      console.log("Trying fallback model...");
-      return callGemini(prompt, systemInstruction, FALLBACK_MODEL);
-    }
-    throw error;
+    console.error('checkConnection: initializeApiKeys failed:', error)
+    return false
   }
-}
-
-async function callClaude(prompt, systemInstruction) {
-  if (!anthropicApiKey) {
-    throw new Error("Anthropic API key not found");
-  }
-
-  const url = `${ANTHROPIC_BASE_URL}/v1/messages`;
-  const payload = {
-    model: "claude-opus-4-6",
-    max_tokens: 16384,
-    system: systemInstruction,
-    messages: [{ role: "user", content: prompt }],
-  };
-
-  try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": anthropicApiKey,
-        "anthropic-version": "2023-06-01",
-        "anthropic-dangerous-direct-browser-access": "true",
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Claude API Error:", response.status, errorText);
-
-      // Handle specific error types
-      if (errorText.includes("image") || errorText.includes("media")) {
-        throw new Error(
-          "Claude API error: This model doesn't support image input. Please use Gemini 3.1 Pro for image-based requests.",
-        );
-      }
-
-      if (response.status === 401) {
-        throw new Error(
-          "Claude API authentication failed. Please check your Anthropic API key in the .env file.",
-        );
-      }
-
-      throw new Error(`Claude API failed: ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data.content?.[0]?.text;
-  } catch (error) {
-    console.error("Claude call failed, falling back to Gemini:", error);
-    // Fallback to Gemini if Claude fails
-    return callGemini(prompt, systemInstruction, FALLBACK_MODEL);
-  }
-}
-
-async function callOpenAI(prompt, systemInstruction) {
-  if (!openaiApiKey) {
-    throw new Error("OpenAI API key not found");
-  }
-
-  const url = `${OPENAI_BASE_URL}/v1/responses`;
-
-  // Responses API uses 'input' with instructions, not messages array
-  // Note: temperature is not supported with codex models
-  const payload = {
-    model: "gpt-5.2-codex",
-    instructions: systemInstruction,
-    input: prompt,
-    max_output_tokens: 16384,
-  };
-
-  try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-openai-api-key": openaiApiKey,
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("OpenAI API Error:", response.status, errorText);
-
-      // Handle specific error types
-      if (
-        errorText.includes("image") ||
-        errorText.includes("vision") ||
-        errorText.includes("media")
-      ) {
-        throw new Error(
-          "OpenAI API error: This model doesn't support image input. Please use Gemini 3.1 Pro for image-based requests.",
-        );
-      }
-
-      if (response.status === 401) {
-        throw new Error(
-          "OpenAI API authentication failed. Please check your OpenAI API key in the .env file.",
-        );
-      }
-
-      throw new Error(`OpenAI API failed: ${response.status}`);
-    }
-
-    const data = await response.json();
-    // Responses API returns output array with reasoning and message objects
-    // Find the message object and extract text from content
-    const messageOutput = data.output?.find((item) => item.type === "message");
-    const textContent = messageOutput?.content?.find(
-      (c) => c.type === "output_text",
-    );
-    return textContent?.text || "";
-  } catch (error) {
-    console.error("OpenAI call failed, falling back to Gemini:", error);
-    // Fallback to Gemini if OpenAI fails
-    return callGemini(prompt, systemInstruction, FALLBACK_MODEL);
-  }
-}
-
-async function callOpenRouter(prompt, systemInstruction, modelId) {
-  if (!openRouterApiKey) {
-    throw new Error("OpenRouter API key not found");
-  }
-
-  // Handle model mapping
-  let actualModel = "openrouter/auto"; // Default for auto-router
-
-  if (modelId === "openrouter-free") {
-    actualModel = "openrouter/free";
-  } else if (modelId === "openrouter-auto") {
-    actualModel = "openrouter/auto";
-  } else if (modelId.startsWith("openrouter/")) {
-    actualModel = modelId;
-  }
-
-  const url = "https://openrouter.ai/api/v1/chat/completions";
-
-  const payload = {
-    model: actualModel,
-    messages: [
-      { role: "system", content: systemInstruction },
-      { role: "user", content: prompt },
-    ],
-    max_tokens: 16384,
-    temperature: 0.7,
-    // Add HTTP referer and X-Title for OpenRouter rankings/stats
-    // These are recommended by OpenRouter
-  };
-
-  try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${openRouterApiKey}`,
-        "HTTP-Referer": window.location.href, // Site URL for rankings
-        "X-Title": "FlutterFlow Custom Code Connect", // Site title for rankings
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("OpenRouter API Error:", response.status, errorText);
-
-      if (response.status === 401) {
-        throw new Error(
-          "OpenRouter API authentication failed. Please check your OpenRouter API key.",
-        );
-      }
-
-      throw new Error(
-        `OpenRouter API failed: ${response.status} - ${errorText}`,
-      );
-    }
-
-    const data = await response.json();
-    return data.choices?.[0]?.message?.content || "";
-  } catch (error) {
-    console.error("OpenRouter call failed:", error);
-    throw error;
-  }
+  return true
 }
 
 // --- FLUTTERFLOW API CLIENT ---
@@ -3000,631 +2716,39 @@ async function executeCommit(code, options = {}) {
 // --- PIPELINE FUNCTIONS ---
 
 async function runPromptArchitect(userInput) {
-  // Derive system instruction from shared template + architect-specific additions
-  const architectSpecificInstructions = `## YOUR ROLE
-
-You are a FlutterFlow Integration Architect. Your job is to analyze a user's request and produce a comprehensive, structured JSON specification for a code generator that will create FlutterFlow-compatible Dart code.
-
-You understand the "Parser Gap" - valid Dart can still be invalid to FlutterFlow's stricter parser.
-
----
-
-## YOUR TASK
-
-Analyze the user's request and output a JSON specification with this exact structure:
-
-{
-  "artifactType": "CustomWidget" | "CustomAction" | "CustomFunction" | "CodeFile",
-  "artifactName": "ExactNameInPascalCase",
-  "rationale": "Why this artifact type is appropriate for this request",
-  
-  "parameters": [
-    {
-      "name": "paramName",
-      "ffType": "FlutterFlow UI type (e.g., Double, String, Data Type - GaugeZone)",
-      "dartType": "Dart type (e.g., double?, String, List<GaugeZoneStruct>)",
-      "required": true | false,
-      "isList": true | false,
-      "defaultHandling": "How null/missing values should be handled"
-    }
-  ],
-  
-  "dataTypesRequired": [
-    {
-      "structName": "NameOfStruct",
-      "fields": [
-        {"name": "fieldName", "type": "String | int | double | bool | Color | DateTime | List<T>"}
-      ],
-      "purpose": "What this struct represents"
-    }
-  ],
-  
-  "dependencies": {
-    "allowed": true | false,
-    "packages": ["package_name: ^version"] | [],
-    "dartImports": ["dart:math", "dart:convert"] | [],
-    "nativeConfigRequired": "Description of any AndroidManifest/Info.plist changes needed, or null",
-    "note": "Explanation if dependencies are restricted"
-  },
-  
-  "implementationSpec": {
-    "description": "Detailed description of what the code should do",
-    "visualRequirements": "For widgets: appearance, colors, layout behavior",
-    "behavioralRequirements": "Interactions, animations, state changes",
-    "edgeCases": ["List of edge cases to handle"],
-    "flutterFlowPatterns": ["Use FlutterFlowTheme.of(context).primary for colors", "other FF-specific patterns"],
-    "stateAccessPattern": "none | readonly | reactive (using FFAppState().update())"
-  },
-  
-  "constraints": {
-    "artifactSpecific": ["Constraints specific to this artifact type"],
-    "nullSafety": ["Null handling requirements"],
-    "layoutSafety": ["For widgets: overflow prevention, size handling"],
-    "parserSafety": ["For Code Files: no generics, no extensions, no function-typed params"]
-  },
-  
-  "antiPatterns": {
-    "mustNotInclude": ["main()", "runApp()", "MaterialApp", "Scaffold", "import statements"],
-    "mustNotUse": ["FFAppState() direct access without parameter passing", "hardcoded Colors.*", "ValueChanged<T> callbacks", "parameter named 'key' (conflicts with Widget.key)", "storing Bytes/Uint8List/FFUploadedFile in FFAppState (not supported — use Page State or callbacks)", "anonymous (unnamed) callback parameters — FlutterFlow parser requires all callback params to have names"],
-    "reasoning": ["Why each anti-pattern is forbidden in FlutterFlow context"]
-  },
-  
-  "userActionsRequired": {
-    "inFlutterFlowUI": ["Create Custom Widget named X", "Add parameters Y, Z in UI", "Add dependency P in Project Settings"],
-    "dataTypesToCreate": ["Create Struct named X with fields A, B, C"],
-    "configFilesIfNeeded": ["Edit AndroidManifest for permission X"]
-  }
-}
-
----
-
-## ARTIFACT-SPECIFIC CONSTRAINT RULES
-
-When artifactType is "CustomFunction":
-- dependencies.allowed MUST be false
-- dependencies.packages MUST be empty []
-- dependencies.note MUST explain "Custom Functions cannot use external packages - pure Dart only"
-- antiPatterns.mustNotInclude MUST include any async/await keywords
-- No Future return types allowed
-
-When artifactType is "CustomAction":
-- Return type MUST be Future<T>
-- constraints.artifactSpecific MUST mention "Must use async/await pattern"
-- constraints.artifactSpecific MUST mention "Return type is always Future"
-- dependencies.allowed is true
-
-When artifactType is "CustomWidget":
-- parameters MUST include width (double?, not required) and height (double?, not required) FIRST
-- NEVER name a parameter "key" — it conflicts with Widget.key (auto-injected via super.key). Use "keyLabel", "keyValue", "keyText", etc. Also avoid "context", "widget", "state", "mounted" as parameter names.
-- constraints.layoutSafety MUST address null width/height handling
-- constraints.layoutSafety MUST mention overflow prevention
-- constraints.layoutSafety MUST mention using LayoutBuilder if size-dependent rendering
-- implementationSpec.flutterFlowPatterns MUST include FlutterFlowTheme usage
-- If stateful, antiPatterns MUST mention proper disposal of controllers
-- antiPatterns.mustNotUse MUST include "navigation inside widget" and "database writes inside widget"
-- If the widget produces byte data (images, files, signatures, etc.): Bytes/Uint8List/FFUploadedFile CANNOT be stored in App State — only Page State supports Bytes. The PREFERRED approach is to pass the data directly as a callback parameter: \`Future Function(FFUploadedFile? file)? onFileReady\` — this is the primary pattern for surfacing byte data from custom code. Multiple params are supported: \`Future Function(FFUploadedFile? bytes, String? filename)? onComplete\`. The user then wires the Action in FlutterFlow and stores the file in Page State.
-
-### RESERVED PARAMETER NAMES (applies to ALL artifact types)
-- NEVER use "key" as a parameter name (conflicts with Widget.key)
-- NEVER use "context", "widget", "state", "mounted" as parameter names (conflict with Flutter framework)
-- These MUST be flagged in antiPatterns.mustNotUse if encountered
-
-### APP STATE TYPE RESTRICTIONS (applies when stateAccessPattern is "reactive")
-App State supports ONLY: Integer, Double, String, Boolean, Color, ImagePath, VideoPath, AudioPath, DocumentReference, DateTime, JSON, LatLng, Data Type (Structs), Enum, CustomClass, CustomEnum.
-App State does NOT support: Bytes (Uint8List), FFUploadedFile, or arbitrary Dart objects.
-Page State supports all of the above PLUS Bytes (Uint8List).
-If the artifact needs to store byte data, specify callbacks as the preferred pattern and note the Page State limitation.
-
-When artifactType is "CodeFile":
-- constraints.parserSafety MUST include "No generics", "No extensions", "No function-typed params"
-- Note that Code Files are for parse-friendly utilities only
-
----
-
-Output ONLY the raw JSON object. No markdown code fences, no explanatory text, no preamble. Just valid JSON.`;
-
-  const systemInstruction = `${FF_SHARED_CONSTRAINTS}
-
----
-
-${architectSpecificInstructions}`;
-
-  const prompt = `Analyze this FlutterFlow custom code request and produce a JSON specification:
-
-"${userInput}"
-
-Remember: Output ONLY valid JSON matching the specified structure.`;
-
-  console.log(`[Pipeline] Step 1 - Prompt Architect using model: ${PROMPT_ARCHITECT_MODEL}`)
   try {
-    const result = await callGemini(
-      prompt,
-      systemInstruction,
-      PROMPT_ARCHITECT_MODEL,
-    );
-    return result;
+    const result = await callBuildShip("architect", PROMPT_ARCHITECT_MODEL, userInput, {})
+    return result
   } catch (error) {
-    console.error("Prompt Architect failed:", error);
-    throw error;
+    throw new Error(`Prompt Architect failed: ${error.message}`)
   }
 }
 
 async function runCodeGenerator(masterPrompt, selectedModel) {
-  let result;
-
-  // Code Generator specific instructions that extend the shared template
-  const codeGeneratorSpecificInstructions = `## YOUR ROLE
-
-You are a Senior Flutter/Dart Engineer specializing in FlutterFlow custom code production. You receive a JSON specification and output ONLY production-ready Dart code that compiles immediately when pasted into FlutterFlow.
-
-You understand that FlutterFlow is the host organism - your code must conform to its rules, not the other way around.
-
----
-
-## HARD CONSTRAINTS (NON-NEGOTIABLE)
-
-### Import Rules
-- **External packages (package:xxx)**: MUST be included in generated code - user needs these to add to FF Dependencies
-- **FlutterFlow-managed imports**: Do NOT include these - they are added automatically at commit time:
-  - /flutter_flow/flutter_flow_theme.dart
-  - /flutter_flow/flutter_flow_util.dart
-  - index.dart (relative)
-  - /custom_code/actions/index.dart
-  - /flutter_flow/custom_functions.dart
-  - package:flutter/material.dart
-- Do NOT include comments like "// Automatic FlutterFlow imports" or "// Do not edit above"
-- Class/function name MUST match the "artifactName" from the specification EXACTLY (case-sensitive)
-
-### External Dependencies
-- Only use packages explicitly listed in the specification's "dependencies" section
-- For Custom Functions: NO external packages whatsoever - this is enforced by FlutterFlow
-- All packages must be FlutterFlow-compatible and available on pub.dev
-- Allowed Dart SDK imports: dart:math, dart:convert, dart:async, dart:collection, dart:ui
-- Remember: user must manually add dependencies in FlutterFlow's Project Dependencies
-
-### External Package API Safety (CRITICAL)
-- NEVER assume mutable setters exist on controller/configuration objects from external packages
-- Package APIs vary between versions — only use constructor parameters you are certain about
-- When updating controller properties in \`didUpdateWidget()\`: ALWAYS dispose and re-create the controller — do NOT attempt to set properties directly (setters may not exist)
-- NEVER hallucinate package APIs — if unsure whether a method/setter exists, use the safer pattern (dispose + re-create)
-
-### ⛔ Reserved Parameter Names (INSTANT COMPILATION FAILURE — MOST COMMON BUG)
-
-**THE #1 BUG IN FLUTTERFLOW CODE GENERATION: Naming a widget parameter \`key\`**
-
-This ALWAYS causes two errors:
-1. "Duplicated parameter name 'key'" — because \`super.key\` and \`this.key\` are both present
-2. "The return type 'String?' does not match 'Key?'" — your \`String? key\` conflicts with Flutter's \`Key? key\`
-
-**❌ WRONG — WILL FAIL:**
-\`\`\`dart
-class KeyboardHintWidget extends StatelessWidget {
-  final String? key;   // ❌ FORBIDDEN - conflicts with Widget.key
-  const KeyboardHintWidget({super.key, this.key}); // ❌ Duplicated parameter
-}
-\`\`\`
-
-**✅ CORRECT — ALWAYS RENAME:**
-\`\`\`dart
-class KeyboardHintWidget extends StatelessWidget {
-  final String? keyLabel;  // ✅ Renamed!
-  const KeyboardHintWidget({super.key, this.keyLabel}); // ✅ Works
-}
-\`\`\`
-
-**Valid alternatives for \`key\`:** \`keyLabel\`, \`keyValue\`, \`keyText\`, \`keyChar\`, \`keyCode\`, \`apiKey\`, \`dictKey\`, \`mapKey\`, \`buttonLabel\`
-
-**⚠️ CONCEPT TRAP:** When your widget concept IS a "key" (keyboard key, API key, map key), you WILL feel \`key\` is the perfect name. IT IS NOT. Rename it. There are ZERO exceptions.
-
-**Also avoid:** \`context\`, \`widget\`, \`state\`, \`mounted\` as parameter names — these conflict with Flutter internals.
-
-### Callback Parameter Types (CRITICAL — primary data return mechanism)
-Callbacks are the **primary way** to pass data from custom widgets/actions back to FlutterFlow. Callbacks CAN carry typed parameters — as long as they are standard FlutterFlow data types and every parameter has a name.
-
-**Multi-param callback example (canonical pattern):**
-\`\`\`dart
-final Future Function(
-    FFUploadedFile? bytes, dynamic jsonObject, String? string)?
-    onValueChanged;
-\`\`\`
-
-**Supported callback parameter types:**
-\`String\`, \`int\`, \`double\`, \`bool\`, \`Color\`, \`DateTime\`, \`LatLng\`, \`FFPlace\`, \`FFUploadedFile\`, \`dynamic\` (JSON object), \`DocumentReference\`, FlutterFlow Struct types (e.g. \`SomeNameStruct\`)
-
-**Rules:**
-- Every parameter MUST have a name — FlutterFlow's parser rejects anonymous params
-- Parameter types MUST be standard FF data types — no raw \`Uint8List\`, \`CustomClass\`, \`Offset\`, etc.
-- Both directions (widget→FF and FF→widget) use the same syntax
-
-**❌ WRONG — using non-FF type or anonymous param:**
-\`\`\`dart
-final Future<dynamic> Function(Uint8List?)? onDone;   // ❌ raw Uint8List, no name
-final Future<dynamic> Function(String)? onResult;     // ❌ missing parameter name
-\`\`\`
-
-**✅ CORRECT:**
-\`\`\`dart
-final Future Function(FFUploadedFile? file)? onDone;              // ✅ FF type, named
-final Future Function(String result)? onResult;                   // ✅ named
-final Future Function(FFUploadedFile? bytes, dynamic json, String? label)? onValueChanged; // ✅ multi-param
-\`\`\`
-
-**⛔ NAMED CALLBACK PARAMETERS (FlutterFlow Parser Requirement):**
-When a callback HAS parameters (FF→widget direction), the parameter MUST have a name. FlutterFlow's parser rejects anonymous parameters with error: *"Widget has a parameter with action parameter that is missing a name."*
-
-**❌ WRONG — Anonymous parameter (parser will reject):**
-\`\`\`dart
-final Future<dynamic> Function(String)? onDrawingComplete;  // ❌ Missing name
-final Future<dynamic> Function(int)? onPageChanged;         // ❌ Missing name
-\`\`\`
-
-**✅ CORRECT — Named parameters:**
-\`\`\`dart
-final Future<dynamic> Function(String drawing)? onDrawingComplete;  // ✅ Has name
-final Future<dynamic> Function(int pageIndex)? onPageChanged;       // ✅ Has name
-\`\`\`
-
-Always add a descriptive name: \`Function(String value)\`, \`Function(int index)\`, \`Function(bool isValid)\`, \`Function(String result)\`, etc.
-
-### FFAppState Access Rules (CRITICAL)
-- NEVER invent or assume specific FFAppState variable names — you cannot know what exists in the user's project
-- Prefer callback parameters with typed named params over direct FFAppState writes
-- If FFAppState access is unavoidable, add a comment: \`// REQUIRED: Create App State variable 'name' (type) in FlutterFlow\`
-
-### Widget Structure Rules
-- Prefer StatelessWidget when no internal state is needed
-- Use StatefulWidget ONLY for: AnimationController, gesture tracking, local transient UI state
-- State class naming convention: \`_ArtifactNameState\` (private, with underscore prefix)
-- Use \`with SingleTickerProviderStateMixin\` or \`TickerProviderStateMixin\` for animations
-- **⛔ MANDATORY dispose() for StatefulWidgets:** Every StatefulWidget's State class MUST override \`dispose()\` to clean up resources. This prevents memory leaks and is required for FlutterFlow compatibility.
-
-**Required dispose() pattern:**
-\`\`\`dart
-class _MyWidgetState extends State<MyWidget> with SingleTickerProviderStateMixin {
-  late AnimationController _animationController;
-  TextEditingController? _textController;
-  StreamSubscription? _subscription;
-  
-  @override
-  void initState() {
-    super.initState();
-    _animationController = AnimationController(...);
-  }
-  
-  @override
-  void dispose() {
-    _animationController.dispose();  // ✅ Always dispose controllers
-    _textController?.dispose();       // ✅ Null-safe dispose
-    _subscription?.cancel();          // ✅ Cancel subscriptions
-    super.dispose();                  // ✅ Always call super.dispose()
-  }
-}
-\`\`\`
-
-**Resources requiring dispose():**
-- AnimationController, TextEditingController, ScrollController, FocusNode
-- StreamSubscription, Timer
-- Any controller from external packages (signature_pad, etc.)
-
-### Layout Safety (Custom Widgets)
-- Must render correctly when width and height are null
-- Must NOT cause overflow errors - use Flexible, Expanded, or constrained containers
-- Clamp values to prevent negative sizes: \`size.clamp(0.0, maxSize)\`
-- For CustomPainter, handle edge cases where size is zero
-
-### Animation Best Practices
-- Initialize AnimationController in initState(), not in build()
-- Always set vsync: this (requires TickerProviderStateMixin)
-- Use didUpdateWidget() to respond to parameter changes from FlutterFlow
-- Prefer Curves.easeInOut or physics-based curves for natural motion
-- Duration should be reasonable (150-500ms for UI, up to 1200ms for dramatic effects)
-
-### Inversion of Control Pattern
-- Do NOT navigate inside custom widgets
-- Do NOT write to Firestore/databases inside widgets
-- Do NOT embed authentication logic in UI components
-- Instead: expose Action Parameters (callbacks) so the widget triggers FlutterFlow Action Flows
-
----
-
-## OUTPUT FORMAT
-
-Output ONLY the complete Dart code. Nothing else.
-- No markdown code fences (\`\`\`)
-- No "Here's the code:" or similar preamble
-- No explanatory comments outside the code
-- No trailing explanation
-- Just raw, valid Dart code that compiles
-
-The code should paste directly into FlutterFlow's custom code editor and compile without modification.`;
-
-  // Base system instruction derived from shared template
-  const baseSystemInstruction = `${FF_SHARED_CONSTRAINTS}
-
----
-
-${codeGeneratorSpecificInstructions}`;
-
-  // Model-specific instruction adjustments
-  const getModelSpecificInstruction = (baseInstruction, model) => {
-    const modelTweaks = {
-      "claude-4.6-opus": `
-ADDITIONAL GUIDANCE FOR THIS MODEL:
-- Be extremely precise with Dart syntax
-- Prefer explicit type annotations over inference
-- Use comprehensive null checks`,
-
-      "gpt-5.2-codex": `
-ADDITIONAL GUIDANCE FOR THIS MODEL:  
-- Focus on code correctness over verbosity
-- Ensure all edge cases from the spec are handled
-- Double-check parameter types match exactly`,
-
-      "openrouter-auto": `
-ADDITIONAL GUIDANCE FOR OPENROUTER AUTO:
-- Focus on efficient, clean code
-- Follow best practices for Flutter performance`,
-
-      "openrouter-free": `
-ADDITIONAL GUIDANCE FOR FREE MODELS:
-- Keep implementations simple and standard
-- Avoid experimental features unless necessary`,
-
-      "gemini-3.1-pro-preview": `
-ADDITIONAL GUIDANCE FOR THIS MODEL:
-- Strictly follow the JSON specification structure
-- Do not add features not specified in the requirements
-- Keep the implementation focused and minimal`,
-    };
-
-    const tweak = modelTweaks[model] || modelTweaks["gemini-3.1-pro-preview"];
-    return baseInstruction + "\n\n---\n" + tweak;
-  };
-
-  const systemInstruction = getModelSpecificInstruction(
-    baseSystemInstruction,
-    selectedModel,
-  );
-
-  // Format the master prompt to clearly present the JSON spec
-  const formattedPrompt = `Generate FlutterFlow-compatible Dart code based on this specification:
-
-${masterPrompt}
-
-Remember: Output ONLY the raw Dart code. No markdown, no explanations.`;
-
-  console.log(`[Pipeline] Step 2 - Code Generator using model: ${selectedModel}`)
   try {
-    switch (selectedModel) {
-      case "claude-4.6-opus":
-        result = await callClaude(formattedPrompt, systemInstruction);
-        break;
-      case "gpt-5.2-codex":
-        result = await callOpenAI(formattedPrompt, systemInstruction);
-        break;
-      case "openrouter-auto":
-        result = await callOpenRouter(
-          formattedPrompt,
-          systemInstruction,
-          "openrouter-auto",
-        );
-        break;
-      case "openrouter-free":
-        result = await callOpenRouter(
-          formattedPrompt,
-          systemInstruction,
-          "openrouter-free",
-        );
-        break;
-      case "gemini-3.1-pro-preview":
-      default:
-        result = await callGemini(
-          formattedPrompt,
-          systemInstruction,
-          "gemini-3.1-pro-preview",
-        );
-        break;
-    }
-    return result;
-  } catch (error) {
-    console.error("Code Generator failed:", error);
-
-    // If selected model failed due to API key issues, fallback to Gemini
-    if (
-      error.message.includes("authentication") ||
-      error.message.includes("401")
-    ) {
-      console.log(
-        "Selected model failed due to API key issues, falling back to Gemini 3.0 Flash...",
-      );
+    const result = await callBuildShip("generator", selectedModel, masterPrompt, {})
+    return result
+  } catch (primaryError) {
+    if (selectedModel !== FALLBACK_MODEL) {
+      console.warn(`Code Generator failed with ${selectedModel}, retrying with fallback model:`, primaryError.message)
       try {
-        const fallbackInstruction = getModelSpecificInstruction(
-          baseSystemInstruction,
-          "gemini-3-flash-preview",
-        );
-        result = await callGemini(
-          formattedPrompt,
-          fallbackInstruction,
-          "gemini-3-flash-preview",
-        );
-        return result;
+        const result = await callBuildShip("generator", FALLBACK_MODEL, masterPrompt, {})
+        return result
       } catch (fallbackError) {
-        console.error("Gemini fallback also failed:", fallbackError);
-        throw new Error(
-          `All models failed. Original error: ${error.message}. Fallback error: ${fallbackError.message}`,
-        );
+        throw new Error(`Code Generator failed: primary (${selectedModel}): ${primaryError.message} | fallback (${FALLBACK_MODEL}): ${fallbackError.message}`)
       }
     }
-
-    throw error;
+    throw new Error(`Code Generator failed: ${primaryError.message}`)
   }
 }
 
-async function runCodeDissector(code) {
-  // Code Review specific instructions that extend the shared template
-  const dissectorSpecificInstructions = `## YOUR ROLE
-
-You are an expert FlutterFlow Code Auditor. Your job is to ruthlessly analyze Dart code for compatibility with FlutterFlow's constrained custom code environment.
-
-You understand the "Parser Gap" - FlutterFlow's parser is stricter than Dart itself, and valid Dart can still fail in FlutterFlow.
-
----
-
-### CRITICAL FAILURES (Score: 0 - Will not compile)
-Check for and flag:
-1. \`void main()\` or \`main()\` function - TOXIC, must be removed
-2. \`runApp()\` call - TOXIC, must be removed
-3. \`MaterialApp\` widget - TOXIC, this is harness code
-4. \`CupertinoApp\` or \`WidgetsApp\` - TOXIC
-5. \`Scaffold\` widget (unless spec explicitly requires it) - Usually TOXIC
-7. Custom Dart classes for data (e.g., \`class User {}\`) - Should use FF Structs or create a separate custom code file
-8. Missing \`width\`/\`height\` parameters for Custom Widgets
-9. Generics, extensions, or function-typed params in Code Files (Parser Gap)
-10. **⛔ RESERVED PARAMETER NAME \`key\` — #1 BUG**: Check if ANY widget parameter is named \`key\`. This is THE MOST COMMON compilation error. Look for patterns like \`final String? key;\` or \`this.key\` in widget constructors. It conflicts with \`Widget.key\` (auto-injected via \`super.key\`), causing:
-    - "Duplicated parameter name 'key'"
-    - "The return type 'String?' does not match 'Key?'"
-    
-    **Example error to detect:**
-    \`\`\`dart
-    // ❌ WRONG - will fail
-    class KeyboardHintWidget extends StatelessWidget {
-      final String? key;  // ← DETECT THIS
-      const KeyboardHintWidget({super.key, this.key}); // ← DETECT this.key
-    }
-    \`\`\`
-    
-    **Fix:** Rename to \`keyLabel\`, \`keyValue\`, \`keyText\`, \`keyChar\`, \`keyCode\`, \`apiKey\`, etc. Also flag: \`context\`, \`widget\`, \`state\`, \`mounted\`.
-11. **Bytes/FFUploadedFile stored in App State**: Check if the code writes Uint8List, Bytes, or FFUploadedFile to \`FFAppState()\`. App State does NOT support Bytes — only Page State does. **Fix:** Use a callback to pass bytes back to FlutterFlow (user stores in Page State), convert to base64 String for App State, or upload to storage and store the URL (ImagePath) in App State.
-12. **Invalid callback parameter type**: Callbacks CAN carry typed, named parameters — this is the primary data-return pattern. However, parameter types MUST be standard FlutterFlow data types: \`String\`, \`int\`, \`double\`, \`bool\`, \`Color\`, \`DateTime\`, \`LatLng\`, \`FFPlace\`, \`FFUploadedFile\`, \`dynamic\` (JSON), \`DocumentReference\`, or FF Struct types. **Flag if:** a callback uses raw Dart types that FF doesn't understand (e.g., \`Uint8List\`, \`Offset\`, \`CustomClass\`, arbitrary Dart objects). **Fix:** Replace with the equivalent FF type (e.g., \`Uint8List\` → \`FFUploadedFile?\`) or convert to a supported type before passing.
-13. **⛔ Unnamed callback parameter (FlutterFlow parser error)**: Check if any callback with parameters has an anonymous (unnamed) parameter. FlutterFlow's parser requires all callback parameters to have names, otherwise throws: *"Widget has a parameter with action parameter that is missing a name."*
-    
-    **Example error to detect:**
-    \`\`\`dart
-    // ❌ WRONG - anonymous parameter
-    final Future<dynamic> Function(String)? onDrawingComplete;
-    
-    // ✅ CORRECT - named parameter  
-    final Future<dynamic> Function(String drawing)? onDrawingComplete;
-    \`\`\`
-    
-    **Pattern to find:** \`Function(String)?\`, \`Function(int)?\`, \`Function(bool)?\` without a parameter name after the type.
-    **Fix:** Add a descriptive name: \`Function(String drawing)\`, \`Function(int index)\`, \`Function(bool isValid)\`.
-
-### SEVERE WARNINGS (Score: -20 each)
-11. External package usage without noting user must add to FF Dependencies
-12. Unsafe \`!\` operator usage without null check
-13. Direct \`FFAppState()\` access without using \`FFAppState().update()\` for writes
-14. Hardcoded \`Colors.*\` instead of \`FlutterFlowTheme.of(context).*\`
-15. ~~Promoted to Critical Failure~~ — see item 12 above (non-primitive callback parameter type).
-16. Missing \`dispose()\` for AnimationController, StreamSubscription, etc.
-17. Navigation or database writes embedded inside widget (should use Action callbacks)
-18. **Callback Signature Mismatch**: FF Actions are asynchronous. Use \`Future Function(T)?\` instead of \`VoidCallback\`, \`ValueChanged<T>\`, or \`void Function(T)\`.
-19. **Assumed FFAppState Variables**: Check if the code references specific FFAppState variable names (e.g., \`FFAppState().uploadedSignature\`, \`FFAppState().someCustomVar\`). These will cause "setter not defined" errors if the user hasn't created the variable in FlutterFlow. **Fix:** Replace with callback parameters, or add explicit comments documenting the required App State variables the user must create.
-20. **Direct Property Mutation on External Controllers**: Check if the code directly sets properties on external package controller objects (e.g., \`_controller.penColor = value\`). Many packages use immutable controllers where properties are set only via the constructor. **Fix:** Dispose and re-create the controller with new values instead of mutating properties.
-
-### WARNINGS (Score: -10 each)
-21. Deprecated Flutter APIs (e.g., \`WillPopScope\` instead of \`PopScope\`)
-22. Potential package hallucinations (non-existent or outdated package APIs) — look for setter/method calls on package objects that might not exist in the specified version
-23. No null handling for nullable parameters
-24. No \`LayoutBuilder\` for size-dependent widget rendering
-25. Potential overflow situations (unbounded sizes)
-26. Using \`setState\` in Custom Action (should only be in Widgets)
-27. Name mismatch risk (class/function name might not match FF UI expectation)
-
-### GOOD PRACTICES (Score: +5 each)
-- Uses \`FlutterFlowTheme.of(context)\` for colors
-- Proper null safety with \`??\` and \`?.\` operators  
-- Uses FF Struct types (e.g., \`SomeNameStruct\`)
-- Proper \`dispose()\` implementation
-- Uses \`LayoutBuilder\` for safe sizing
-- Correct callback signature for FF Actions (Correct usage of primitive params vs AppState proxies)
-- Uses \`FFAppState().update()\` for reactive state writes
-- Follows inversion-of-control pattern (callbacks for actions)
-
----
-
-## OUTPUT FORMAT
-
-Return your audit in this exact markdown format:
-
-## Overall Score: [0-100]/100
-[One sentence summary of code quality for FF integration]
-
-## Critical Issues
-[List each critical failure with line reference if possible]
-[For each: explain WHY it fails in FlutterFlow and HOW to fix it]
-
-## Warnings
-[List each warning with severity]
-[Include specific code snippets that need changing]
-
-## Required User Actions in FlutterFlow
-[List what the user MUST do in the FlutterFlow UI before this code will work:]
-- Dependencies to add (with exact versions if packages are used)
-- Data Types/Structs to create (with field names and types)
-- Parameters to define in the Custom Code UI (with nullability and isList flags)
-- Any Configuration Files to edit (AndroidManifest, Info.plist)
-
-## Code Transformation Recommendations
-[Show before/after for any code that needs changing]
-
-Example (Complex Type Mismatch):
-\`\`\`dart
-// BEFORE (Unsupported in FF UI)
-final Future Function(Uint8List?)? onDrawingComplete;
-
-// AFTER (State Proxy Pattern)
-// 1. Change type to void callback
-final Future Function()? onDrawingComplete;
-// 2. In code: Store Uint8List to FFAppState().drawingBuffer
-// 3. In code: widget.onDrawingComplete?.call();
-\`\`\`
-
-Example (Supported Type):
-\`\`\`dart
-// BEFORE (Wrong Signature)
-final ValueChanged<String>? onTextChanged;
-
-// AFTER (Supported Callback Parameter)
-final Future Function(String)? onTextChanged;
-\`\`\`
-
-## Recommendations
-[Prioritized list of fixes, most critical first]
-
----
-
-${FF_TROUBLESHOOTING_CHECKLIST}
-
----
-
-Be ruthless. FlutterFlow is unforgiving - if the code has ANY critical issue, it will not compile. Your job is to catch everything before the user wastes time debugging in FlutterFlow.`;
-
-  const systemInstruction = `${FF_SHARED_CONSTRAINTS}
-
----
-
-${dissectorSpecificInstructions}`;
-
-  const prompt = `Perform a comprehensive FlutterFlow integration audit on this Dart code:
-
-\`\`\`dart
-${code}
-\`\`\`
-
-Check against ALL FlutterFlow constraints. Be thorough and specific.`;
-
-  console.log(`[Pipeline] Step 3 - Code Review using model: ${CODE_DISSECTOR_MODEL}`)
+async function runCodeReview(code, architectOutput = null) {
+  const context = architectOutput ? { architect_output: architectOutput } : {}
   try {
-    const result = await callGemini(
-      prompt,
-      systemInstruction,
-      CODE_DISSECTOR_MODEL,
-    );
-    return result;
+    const result = await callBuildShip("review", CODE_REVIEW_MODEL, code, context)
+    return result
   } catch (error) {
-    console.error("Code Review failed:", error);
-    throw error;
+    throw new Error(`Code Review failed: ${error.message}`)
   }
 }
 
@@ -3971,12 +3095,11 @@ function copyCode(elementId) {
 
 function updateModelInfo(selectedModel) {
   const modelNames = {
-    "gemini-3.1-pro-preview": "Gemini 3.1 Pro",
-    "gemini-3-flash-preview": "Gemini 3.0 Flash",
-    "claude-4.6-opus": "Claude 4.6 Opus",
-    "gpt-5.2-codex": "GPT-5.2-Codex",
-    "openrouter-auto": "OpenRouter: Auto",
-    "openrouter-free": "OpenRouter: Free Models",
+    "google/gemini-3.1-pro-preview": "Gemini 3.1 Pro",
+    "anthropic/claude-4.6-opus": "Claude 4.6 Opus",
+    "openai/gpt-5.3-codex": "GPT-5.3-Codex",
+    "openrouter/auto": "OpenRouter: Auto",
+    "openrouter/free": "OpenRouter: Free Models",
   }
 
   // Helper function to get display name
@@ -4004,10 +3127,10 @@ function updateModelInfo(selectedModel) {
     }
   }
 
-  // Update step 3 (Code Review) model label - uses CODE_DISSECTOR_MODEL
+  // Update step 3 (Code Review) model label - uses CODE_REVIEW_MODEL
   const step3Label = document.getElementById("step3-model-label")
   if (step3Label) {
-    step3Label.textContent = getDisplayName(CODE_DISSECTOR_MODEL)
+    step3Label.textContent = getDisplayName(CODE_REVIEW_MODEL)
   }
 
   console.log(`Step 1 (Prompt Architect): ${getDisplayName(PROMPT_ARCHITECT_MODEL)}`)
@@ -4016,7 +3139,7 @@ function updateModelInfo(selectedModel) {
   } else {
     console.log(`Step 2 (Code Generator): ${getDisplayName(selectedModel)}`)
   }
-  console.log(`Step 3 (Code Review): ${getDisplayName(CODE_DISSECTOR_MODEL)}`)
+  console.log(`Step 3 (Code Review): ${getDisplayName(CODE_REVIEW_MODEL)}`)
 }
 
 async function runRefinement() {
@@ -4078,8 +3201,9 @@ Ensure it still adheres to the ORIGINAL SPECIFICATION.
     selectWorkflowStep(3);
     showStepLoading(3, true);
 
-    pipelineState.step3Result = await runCodeDissector(
+    pipelineState.step3Result = await runCodeReview(
       pipelineState.step2Result,
+      pipelineState.step1Result,
     );
 
     const auditOutput = document.getElementById("step3-output");
@@ -4200,7 +3324,7 @@ Maintain the original specification and intent.`
     selectWorkflowStep(3)
     showStepLoading(3, true)
 
-    pipelineState.step3Result = await runCodeDissector(pipelineState.step2Result)
+    pipelineState.step3Result = await runCodeReview(pipelineState.step2Result, pipelineState.step1Result)
 
     const auditOutput = document.getElementById("step3-output")
     auditOutput.innerHTML = renderMarkdownAudit(pipelineState.step3Result)
@@ -4249,14 +3373,6 @@ async function runThinkingPipeline() {
     inputLength: userInput.length
   });
 
-  // Check for required API keys before running
-  const keyCheck = checkRequiredApiKeys(effectiveModel);
-  if (!keyCheck.valid) {
-    showToast(`${keyCheck.message} Open API Keys to configure.`, "error");
-    openApiKeysModal();
-    return;
-  }
-
   const btn = document.getElementById("btn-run-pipeline");
 
   // Reset state
@@ -4279,6 +3395,8 @@ async function runThinkingPipeline() {
     dismissWelcomeVideo();
     const readyState = document.getElementById("ready-state");
     if (readyState) readyState.classList.add("hidden");
+    const paywallEl = document.getElementById("paywall-exhausted");
+    if (paywallEl) paywallEl.classList.add("hidden");
 
     // Step 1: Prompt Architect
     selectWorkflowStep(1);
@@ -4287,11 +3405,14 @@ async function runThinkingPipeline() {
     pipelineState.step1Result = await runPromptArchitect(userInput);
     trackEvent("Prompt Architect Completed");
 
-    const step1Output = document.getElementById("step1-output");
-    const cleanStep1 = extractCodeFromMarkdown(pipelineState.step1Result);
-    step1Output.innerHTML = highlightCode(cleanStep1);
-    step1Output.dataset.raw = cleanStep1; // Store raw for copy
-    showStepLoading(1, false);
+    const step1Output = document.getElementById("step1-output")
+    const cleanStep1 = extractCodeFromMarkdown(pipelineState.step1Result)
+    step1Output.innerHTML = highlightCode(cleanStep1, 'json')
+    if (cleanStep1 && !step1Output.innerHTML.trim()) {
+      step1Output.textContent = cleanStep1
+    }
+    step1Output.dataset.raw = cleanStep1
+    showStepLoading(1, false)
 
     // Step 2: Code Generator
     selectWorkflowStep(2);
@@ -4313,10 +3434,11 @@ async function runThinkingPipeline() {
     selectWorkflowStep(3);
     showStepLoading(3, true);
 
-    pipelineState.step3Result = await runCodeDissector(
+    pipelineState.step3Result = await runCodeReview(
       pipelineState.step2Result,
+      pipelineState.step1Result,
     );
-    trackEvent("Code Dissector Completed");
+    trackEvent("Code Review Completed");
 
     const auditOutput = document.getElementById("step3-output");
     auditOutput.innerHTML = renderMarkdownAudit(pipelineState.step3Result);
@@ -4395,9 +3517,9 @@ function retryWithDifferentModel() {
   // Show model selection dialog
   const currentModel = document.getElementById("code-generator-model").value;
   const otherModels = [
-    "gemini-3.1-pro-preview",
-    "claude-4.6-opus",
-    "gpt-5.2-codex",
+    "google/gemini-3.1-pro-preview",
+    "anthropic/claude-4.6-opus",
+    "openai/gpt-5.3-codex",
   ].filter((model) => model !== currentModel);
 
   const selectedModel = prompt(
@@ -4604,8 +3726,9 @@ Please regenerate the code to fix these errors while maintaining the original sp
     selectWorkflowStep(3);
     showStepLoading(3, true);
 
-    pipelineState.step3Result = await runCodeDissector(
+    pipelineState.step3Result = await runCodeReview(
       pipelineState.step2Result,
+      pipelineState.step1Result,
     );
 
     const auditOutput = document.getElementById("step3-output");
@@ -4667,7 +3790,8 @@ async function updateFlutterFlowCredentialStatus() {
 
 // Extract code from markdown code blocks (strips ```dart ... ```)
 function extractCodeFromMarkdown(text) {
-  if (!text) return text;
+  if (!text) return ''
+  if (typeof text !== 'string') return String(text)
 
   // Match ```language\n...code...\n``` pattern
   const codeBlockRegex = /```(?:\w+)?\n?([\s\S]*?)```/;
@@ -4682,14 +3806,17 @@ function extractCodeFromMarkdown(text) {
 }
 
 function highlightCode(code, language = "dart") {
-  if (!code) return "";
+  if (!code) return ""
   try {
-    // Strip markdown code fences before highlighting
-    const cleanCode = extractCodeFromMarkdown(code);
-    return hljs.highlight(cleanCode, { language: language }).value;
+    const cleanCode = extractCodeFromMarkdown(code)
+    return hljs.highlight(cleanCode, { language }).value
   } catch (error) {
-    console.warn("Syntax highlighting failed:", error);
-    return extractCodeFromMarkdown(code) || "";
+    console.warn("Syntax highlighting failed:", error)
+    try {
+      return hljs.highlight(extractCodeFromMarkdown(code), { language: 'json' }).value
+    } catch {
+      return extractCodeFromMarkdown(code) || ""
+    }
   }
 }
 
@@ -4847,11 +3974,68 @@ function updateAuthUI() {
   const signedIn = authState.isVerified && !!authState.email
   const signedout = document.getElementById('auth-signedout')
   const signedin = document.getElementById('auth-signedin')
+  const guestUsage = document.getElementById('auth-guest-usage')
   if (signedout) signedout.classList.toggle('hidden', signedIn)
   if (signedin) signedin.classList.toggle('hidden', !signedIn)
+  if (guestUsage) guestUsage.classList.toggle('hidden', signedIn)
   const emailEl = document.getElementById('auth-user-email')
   if (emailEl) emailEl.textContent = authState.email || ''
+  updateGuestUsageCounter()
   updateSubscriptionUI()
+}
+
+function getOrCreateCookieId() {
+  let cookieId = localStorage.getItem(IDENTITY_COOKIE_KEY)
+  if (!cookieId) {
+    cookieId = crypto.randomUUID()
+    localStorage.setItem(IDENTITY_COOKIE_KEY, cookieId)
+  }
+  return cookieId
+}
+
+async function resolveIdentity() {
+  try {
+    if (typeof FingerprintJS === 'undefined') {
+      console.warn('resolveIdentity: FingerprintJS not loaded, skipping')
+      return
+    }
+
+    const cookieId = getOrCreateCookieId()
+    const fp = await FingerprintJS.load()
+    const result = await fp.get()
+
+    const response = await fetch(IDENTITY_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fingerprint: result.visitorId, cookie_id: cookieId }),
+    })
+
+    if (!response.ok) {
+      throw new Error(`Identity check HTTP ${response.status}`)
+    }
+
+    const data = await response.json()
+    identityState.userId = data.user_id
+    identityState.status = data.status
+    identityState.resolved = true
+    sessionStorage.setItem(IDENTITY_SESSION_KEY, data.user_id)
+
+    if (data.usage_count !== undefined) {
+      const currentMonth = getCurrentYearMonth()
+      const serverMonth = data.usage_month || currentMonth
+      const serverCount = serverMonth === currentMonth ? data.usage_count : 0
+      const local = getUsageData()
+      const localCount = local.month === currentMonth ? local.count : 0
+      if (serverCount >= localCount || serverMonth > local.month) {
+        localStorage.setItem(USAGE_STORAGE_KEY, JSON.stringify({ count: serverCount, month: currentMonth }))
+      }
+      updateUsageDisplay()
+    }
+
+    console.log(`Identity resolved: ${data.status} (${data.user_id.slice(0, 8)}...) usage: ${data.usage_count ?? 'n/a'}`)
+  } catch (error) {
+    console.error('resolveIdentity failed:', error)
+  }
 }
 
 // --- USAGE METERING ---
@@ -4897,8 +4081,7 @@ function canRunPipeline() {
   const { count } = getUsage()
   const limit = getRunLimit()
   if (count >= limit) {
-    showToast(`You've used all ${limit} runs for this month. Upgrade to continue.`, 'error')
-    openPricingModal()
+    showPaywallExhausted(count, limit)
     return false
   }
   const warningThreshold = Math.floor(limit * 0.8)
@@ -4909,7 +4092,41 @@ function canRunPipeline() {
   return true
 }
 
+function showPaywallExhausted(count, limit) {
+  const walkthroughModal = document.getElementById('walkthrough-modal')
+  if (walkthroughModal) walkthroughModal.classList.remove('open')
+
+  const readyState = document.getElementById('ready-state')
+  if (readyState) readyState.classList.add('hidden')
+
+  const paywall = document.getElementById('paywall-exhausted')
+  if (!paywall) {
+    showToast(`You've used all ${limit} runs for this month. Upgrade to continue.`, 'error')
+    openPricingModal()
+    return
+  }
+
+  const textEl = document.getElementById('paywall-exhausted-text')
+  if (textEl) {
+    const tier = subscriptionState.tier
+    if (tier === 'free') {
+      textEl.textContent = `You've used all ${limit} free generations this month. Upgrade to Pro for 50 generations/month and access to all AI models.`
+    } else {
+      textEl.textContent = `You've used all ${limit} generations this month on your ${tier} plan. Your limit resets next month.`
+    }
+  }
+
+  const signInBtn = document.getElementById('paywall-signin-btn')
+  if (signInBtn) signInBtn.classList.toggle('hidden', authState.isVerified)
+
+  paywall.classList.remove('hidden')
+}
+
 function getEffectiveModel(selectedModel) {
+  const tier = subscriptionState.tier
+  if (tier === 'free' && PRO_MODELS.includes(selectedModel)) {
+    return FREE_MODEL
+  }
   return selectedModel
 }
 
@@ -4918,12 +4135,43 @@ function updateModelSelectorGating() {
   const select = document.getElementById('code-generator-model')
   if (!container || !select) return
 
+  const tier = subscriptionState.tier
+  const isFree = tier === 'free'
+
+  const modelLabels = {
+    'google/gemini-3.1-pro-preview': 'Gemini 3.1 Pro',
+    'anthropic/claude-4.6-opus': 'Claude 4.6 Opus',
+    'openai/gpt-5.3-codex': 'GPT-5.3-Codex',
+    'openrouter/auto': 'OpenRouter: Auto Router',
+    'openrouter/free': 'OpenRouter: Free Models',
+  }
+
+  Array.from(select.options).forEach(opt => {
+    const baseLabel = modelLabels[opt.value] || opt.value
+    const isPro = PRO_MODELS.includes(opt.value)
+    opt.textContent = isPro && isFree ? `${baseLabel} (PRO)` : baseLabel
+    opt.disabled = isPro && isFree
+  })
+
+  if (isFree && PRO_MODELS.includes(select.value)) {
+    select.value = FREE_MODEL
+  }
+
   select.disabled = false
 
   let notice = document.getElementById('model-selector-free-notice')
-  if (notice) notice.remove()
+  if (isFree) {
+    if (!notice) {
+      notice = document.createElement('p')
+      notice.id = 'model-selector-free-notice'
+      notice.className = 'text-xs text-gray-400 mt-1'
+      container.appendChild(notice)
+    }
+    notice.innerHTML = `Free plan — Gemini only. <button onclick="openPricingModal()" style="color:#3b82f6;background:none;border:none;cursor:pointer;font:inherit;padding:0;text-decoration:underline;">Upgrade for all models</button>`
+  } else if (notice) {
+    notice.remove()
+  }
 
-  // Sync sidebar model label with effective model
   updateModelInfo(select.value)
 }
 
@@ -4939,6 +4187,20 @@ function updateUsageDisplay() {
     : pct >= 0.8
       ? 'text-xs text-yellow-600 font-medium'
       : 'text-xs text-gray-500'
+  updateGuestUsageCounter()
+
+  if (count >= limit && !pipelineState.isRunning) {
+    showPaywallExhausted(count, limit)
+  }
+}
+
+function updateGuestUsageCounter() {
+  const el = document.getElementById('guest-usage-text')
+  if (!el) return
+  const usage = getUsageData()
+  const count = usage.month === getCurrentYearMonth() ? (usage.count ?? 0) : 0
+  const limit = TIER_LIMITS.free
+  el.textContent = `${count} / ${limit} generations used`
 }
 
 // --- STRIPE FUNCTIONS ---
@@ -5057,6 +4319,58 @@ async function openCustomerPortal() {
   }
 }
 
+async function callBuildShip(step, model, prompt, context = {}) {
+  const BUILDSHIP_TIMEOUT_MS = 120000
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), BUILDSHIP_TIMEOUT_MS)
+  try {
+    const res = await fetch(PIPELINE_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify({
+        user_id: identityState.userId,
+        step,
+        model,
+        prompt,
+        context,
+      }),
+    })
+
+    const data = await res.json()
+    console.log(`[BuildShip] ${step} response keys:`, Object.keys(data), 'content type:', typeof data.content)
+    if (!res.ok) {
+      throw new Error(`${data.message || data.error || 'BuildShip pipeline error'} (HTTP ${res.status})`)
+    }
+
+    let output = data.output || data.content
+    if (!output) {
+      throw new Error(`BuildShip returned no output for step "${step}"`)
+    }
+
+    // Coerce non-string content (OpenRouter may return array of content parts)
+    if (Array.isArray(output)) {
+      output = output
+        .map(part => typeof part === 'string' ? part : part.text || '')
+        .join('')
+    }
+    if (typeof output !== 'string') {
+      output = JSON.stringify(output)
+    }
+    return output
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw new Error(`BuildShip ${step} timed out after ${BUILDSHIP_TIMEOUT_MS / 1000}s`)
+    }
+    if (error instanceof TypeError) {
+      throw new Error(`BuildShip unreachable: ${error.message}`)
+    }
+    throw error
+  } finally {
+    clearTimeout(timeoutId)
+  }
+}
+
 function handleCheckoutRedirect() {
   const params = new URLSearchParams(window.location.search)
   const checkout = params.get('checkout')
@@ -5121,7 +4435,21 @@ function updatePricingModalState(tier) {
   if (freeCurrent) freeCurrent.classList.toggle('hidden', tier !== 'free')
 }
 
+function updatePricingDisplay() {
+  const currency = detectUserCurrency()
+  const proEl = document.getElementById('pro-price')
+  const powerEl = document.getElementById('power-price')
+  const proNote = document.getElementById('pro-price-note')
+  const powerNote = document.getElementById('power-price-note')
+  if (proEl) proEl.textContent = formatPrice(BASE_PRICES_AUD.professional, currency)
+  if (powerEl) powerEl.textContent = formatPrice(BASE_PRICES_AUD.power, currency)
+  const isAud = currency === 'AUD'
+  if (proNote) proNote.textContent = isAud ? `AUD · billed monthly` : `~${formatPrice(BASE_PRICES_AUD.professional, 'AUD')} AUD · billed monthly`
+  if (powerNote) powerNote.textContent = isAud ? `AUD · billed monthly` : `~${formatPrice(BASE_PRICES_AUD.power, 'AUD')} AUD · billed monthly`
+}
+
 function openPricingModal() {
+  updatePricingDisplay()
   const modal = document.getElementById('pricing-modal')
   if (modal) modal.classList.add('open')
 }
@@ -5160,6 +4488,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   handleCheckoutRedirect();
   await fetchSubscription();
   updateSubscriptionUI();
+  updatePricingDisplay();
 
   // Initialize API keys and check connection
   await checkConnection();
@@ -5175,7 +4504,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   showWalkthroughIfNeeded();
-
+  resolveIdentity();
   // Walkthrough step tracking
   const pipelineInput = document.getElementById("pipeline-input");
   if (pipelineInput) {
@@ -5210,17 +4539,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     modelSelect.addEventListener("change", () => {
       const selectedModel = modelSelect.value;
       updateModelInfo(selectedModel);
-      updateRunPipelineButtonState();
-
-      if (walkthroughStep === 3) {
-        advanceWalkthrough();
-        updateWalkthroughUI();
-      }
     });
   }
-
-  // Initial button state check after API keys are loaded
-  updateRunPipelineButtonState();
 
   window.addEventListener("commitStateChange", (event) => {
     const { state } = event.detail;
@@ -5580,6 +4900,7 @@ window.retryWithDifferentModel = retryWithDifferentModel;
 window.openApiKeysModal = openApiKeysModal;
 window.closeApiKeysModal = closeApiKeysModal;
 window.closeWalkthroughModal = closeWalkthroughModal;
+window.openWalkthroughModal = openWalkthroughModal;
 window.advanceWalkthrough = advanceWalkthrough;
 window.commitToFlutterFlow = commitToFlutterFlow;
 
@@ -5591,8 +4912,11 @@ function focusPromptInput() {
 }
 
 function openModelSelector() {
+  const details = document.getElementById("advanced-settings");
+  if (details) details.open = true;
   const select = document.getElementById("code-generator-model");
   if (select) {
+    select.scrollIntoView({ behavior: "smooth", block: "center" });
     select.focus();
     select.click();
   }

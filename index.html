@@ -7,8 +7,9 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha512-XMVd28F1oH/O71fzwBnV7HucLxVwtxf26XV8P4wPk26EDxuGZ91N8bsOttmnomcCD3CS5ZMRL50H0GgOHvegtg==" crossorigin="anonymous"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/dart.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/dart.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@4/dist/fp.umd.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300&family=DM+Mono:wght@400;500&family=Outfit:wght@200;300;400;500;600&display=swap" rel="stylesheet">
@@ -78,6 +79,7 @@
       .sidebar-scroll::-webkit-scrollbar-thumb { background: #ddd; border-radius: 2px; }
 
       .sidebar-header {
+        position: relative;
         padding: 24px 28px 20px;
         border-bottom: 1px solid var(--border);
       }
@@ -167,6 +169,31 @@
         text-transform: uppercase;
         color: var(--sublabel);
         margin-bottom: 8px;
+      }
+
+      .sb-advanced > summary {
+        list-style: none;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        cursor: pointer;
+        margin-bottom: 0;
+      }
+      .sb-advanced > summary::-webkit-details-marker { display: none; }
+
+      .sb-advanced[open] .advanced-chevron { transform: rotate(180deg); }
+      .advanced-chevron { transition: transform 0.2s ease; }
+
+      .sb-advanced-summary { display: flex; align-items: center; justify-content: space-between; width: 100%; }
+
+      .sb-advanced-sub { margin-top: 16px; }
+      .sb-advanced-sub:first-of-type { margin-top: 18px; }
+
+      @media (max-width: 768px) {
+        body { overflow-y: auto; height: auto; min-height: 100dvh; }
+        .app-shell { flex-direction: column; }
+        .sidebar { width: 100%; max-width: 100%; height: auto; min-height: 100dvh; overflow-y: visible; border-right: none; }
+        .main-content { display: none; }
       }
 
       textarea {
@@ -661,37 +688,24 @@
             </div>
             <div class="sidebar-brand-text">Custom Code <span>Connect</span></div>
           </div>
+          <button
+            onclick="openWalkthroughModal()"
+            title="Help"
+            class="absolute top-1/2 right-4 -translate-y-1/2 w-7 h-7 rounded-full border border-gray-200 bg-white flex items-center justify-center cursor-pointer text-gray-500 hover:text-gray-700"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+          </button>
         </div>
 
         <div class="sidebar-scroll">
 
-          <!-- 1. API Keys -->
-          <div class="sb-section">
-            <div class="sb-section-head">
-              <span class="sb-section-title">API Keys</span>
-              <span class="sb-section-badge">01</span>
-            </div>
-            <button class="settings-btn" onclick="openApiKeysModal()">
-              <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
-              </svg>
-              <span>Configure Keys</span>
-              <div id="api-keys-status" class="ml-auto flex gap-1">
-                <div class="key-status-dot missing" title="Gemini"></div>
-                <div class="key-status-dot missing" title="Claude"></div>
-                <div class="key-status-dot missing" title="OpenAI"></div>
-                <div class="key-status-dot missing" title="FlutterFlow"></div>
-                <div class="key-status-dot missing" title="OpenRouter"></div>
-              </div>
-            </button>
-
-          </div>
-
-          <!-- 2. Prompt FlutterFlow Custom Code -->
+          <!-- 01. Prompt FlutterFlow Custom Code -->
           <div class="sb-section">
             <div class="sb-section-head">
               <span class="sb-section-title">Prompt FlutterFlow Custom Code</span>
-              <span class="sb-section-badge">02</span>
+              <span class="sb-section-badge">01</span>
             </div>
             <textarea
               id="pipeline-input"
@@ -700,28 +714,49 @@
             ></textarea>
           </div>
 
-          <!-- 3. Code Generation Model -->
-          <div class="sb-section">
-            <div class="sb-section-head">
-              <span class="sb-section-title">Code Generation Model</span>
-              <span class="sb-section-badge">03</span>
-            </div>
-            <span class="sb-sublabel">Model Selector</span>
-            <select id="code-generator-model">
-              <option value="gemini-3.1-pro-preview" selected>Gemini 3.1 Pro</option>
-              <option value="gemini-3-flash-preview">Gemini 3.0 Flash (Free)</option>
-              <option value="claude-4.6-opus">Claude 4.6 Opus</option>
-              <option value="gpt-5.2-codex">GPT-5.2-Codex</option>
-              <option value="openrouter-auto">OpenRouter: Auto Router</option>
-              <option value="openrouter-free">OpenRouter: Free Models</option>
-            </select>
-          </div>
+          <!-- Advanced Settings (collapsible) -->
+          <details id="advanced-settings" class="sb-section sb-advanced">
+            <summary class="sb-advanced-summary">
+              <span class="sb-section-title">Advanced</span>
+              <svg class="advanced-chevron w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+              </svg>
+            </summary>
 
-          <!-- 4. Workflow -->
+            <!-- API Keys subsection -->
+            <div class="sb-advanced-sub">
+              <span class="sb-sublabel">API Keys</span>
+              <button class="settings-btn" onclick="openApiKeysModal()">
+                <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+                </svg>
+                <span>Configure Keys</span>
+                <div id="api-keys-status" class="ml-auto flex gap-1">
+                  <div class="key-status-dot missing" title="FlutterFlow"></div>
+                </div>
+              </button>
+            </div>
+
+            <!-- Code Generation Model subsection -->
+            <div class="sb-advanced-sub">
+              <span class="sb-sublabel">Code Generation Model</span>
+              <div id="code-options-content">
+                <select id="code-generator-model">
+                  <option value="google/gemini-3.1-pro-preview" selected>Gemini 3.1 Pro</option>
+                  <option value="anthropic/claude-4.6-opus">Claude 4.6 Opus</option>
+                  <option value="openai/gpt-5.3-codex">GPT-5.3-Codex</option>
+                  <option value="openrouter/auto">OpenRouter: Auto Router</option>
+                  <option value="openrouter/free">OpenRouter: Free Models</option>
+                </select>
+              </div>
+            </div>
+          </details>
+
+          <!-- 02. Workflow -->
           <div class="sb-section" style="border-bottom:none; padding-top:16px; padding-bottom:16px;">
             <div class="sb-section-head" style="margin-bottom:10px;">
               <span class="sb-section-title">Workflow</span>
-              <span class="sb-section-badge">04</span>
+              <span class="sb-section-badge">02</span>
             </div>
 
             <div id="step1-item" class="workflow-item" onclick="selectWorkflowStep(1)">
@@ -803,6 +838,13 @@
               Sign in for usage tracking
             </button>
           </div>
+          <div id="auth-guest-usage" style="margin-top:8px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
+              <span style="font-size:11px; color:#8a8f9c;"><span id="guest-usage-text">0 / 2 generations used</span></span>
+              <span style="font-size:11px; font-weight:500; color:#64748b;">Free</span>
+            </div>
+            <button onclick="openPricingModal()" style="width:100%; text-align:center; font-size:11px; background:#3b82f6; color:white; padding:5px 12px; border-radius:6px; border:none; cursor:pointer; font-family:inherit; font-weight:500;">Upgrade →</button>
+          </div>
           <div id="auth-signedin" class="hidden" style="margin-top: 10px;">
             <div style="display:flex; align-items:center; justify-content:space-between;">
               <span id="auth-user-email" style="font-size:11px; color:#8a8f9c; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></span>
@@ -863,6 +905,21 @@
               </div>
               <h3 class="text-base font-semibold text-gray-800 mb-2">Ready to Generate</h3>
               <p class="text-sm text-gray-400 text-center max-w-sm">Enter a prompt and click "Run Pipeline" to start.</p>
+            </div>
+
+            <div id="paywall-exhausted" class="hidden flex flex-col items-center justify-center" style="padding:60px 24px;">
+              <div style="width:48px;height:48px;border-radius:50%;background:#fef2f2;display:flex;align-items:center;justify-content:center;margin-bottom:16px;">
+                <svg class="w-6 h-6" style="color:#ef4444;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+                </svg>
+              </div>
+              <h3 class="text-base font-semibold text-gray-800 mb-2">Free generations used</h3>
+              <p id="paywall-exhausted-text" class="text-sm text-gray-400 text-center max-w-sm mb-4">You've used all your free generations this month. Upgrade to Pro for 50 generations/month and access to all AI models.</p>
+              <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">
+                <button onclick="openPricingModal()" style="background:#3b82f6;color:white;padding:10px 24px;border-radius:8px;border:none;cursor:pointer;font-family:inherit;font-size:14px;font-weight:600;">View Plans</button>
+                <button onclick="openSignInModal()" id="paywall-signin-btn" style="background:none;color:#3b82f6;padding:10px 24px;border-radius:8px;border:1px solid #3b82f6;cursor:pointer;font-family:inherit;font-size:14px;font-weight:500;">Sign In</button>
+              </div>
+              <p class="text-xs text-gray-300 mt-4">Generations reset at the start of each month.</p>
             </div>
 
             <div id="step1-content" class="hidden">
@@ -953,79 +1010,15 @@
 
     <!-- API Keys Modal -->
     <div id="api-keys-modal" class="modal-overlay" onclick="closeApiKeysModal(event)">
-      <div class="modal-content" onclick="event.stopPropagation()">
-        <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+      <div class="modal-content" onclick="event.stopPropagation()" style="display:flex; flex-direction:column; max-height:calc(100vh - 64px);">
+        <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between" style="flex-shrink:0;">
           <h2 class="font-semibold text-base text-gray-900">API Keys</h2>
           <button onclick="closeApiKeysModal()" class="modal-close">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
-        <div class="p-6 space-y-5">
+        <div class="p-6 space-y-5" style="overflow-y:auto; flex:1;">
           <p class="text-sm text-gray-400">Configure your API keys. Keys are encrypted and stored locally in your browser.</p>
-
-          <div>
-            <label class="block text-sm font-medium text-gray-600 mb-1.5">
-              <span class="flex items-center gap-2">
-                <svg class="w-4 h-4 text-blue-500" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-                Google Gemini API Key
-              </span>
-            </label>
-            <div class="relative">
-              <input type="password" id="gemini-api-key-input" class="api-key-input pr-10" placeholder="Enter your Gemini API key"/>
-              <button onclick="toggleKeyVisibility('gemini-api-key-input')" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                <svg class="w-4 h-4 eye-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-              </button>
-            </div>
-            <div id="gemini-key-status" class="key-status"><div class="key-status-dot missing"></div><span class="text-gray-400">Not configured</span></div>
-          </div>
-
-          <div>
-            <label class="block text-sm font-medium text-gray-600 mb-1.5">
-              <span class="flex items-center gap-2">
-                <svg class="w-4 h-4 text-orange-500" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
-                Anthropic Claude API Key
-              </span>
-            </label>
-            <div class="relative">
-              <input type="password" id="anthropic-api-key-input" class="api-key-input pr-10" placeholder="Enter your Claude API key"/>
-              <button onclick="toggleKeyVisibility('anthropic-api-key-input')" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                <svg class="w-4 h-4 eye-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-              </button>
-            </div>
-            <div id="anthropic-key-status" class="key-status"><div class="key-status-dot missing"></div><span class="text-gray-400">Not configured</span></div>
-          </div>
-
-          <div>
-            <label class="block text-sm font-medium text-gray-600 mb-1.5">
-              <span class="flex items-center gap-2">
-                <svg class="w-4 h-4 text-green-500" viewBox="0 0 24 24" fill="currentColor"><path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.8956zm16.5963 3.8558L13.1038 8.364l2.0201-1.1638a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.4091-.6813zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z"/></svg>
-                OpenAI API Key
-              </span>
-            </label>
-            <div class="relative">
-              <input type="password" id="openai-api-key-input" class="api-key-input pr-10" placeholder="Enter your OpenAI API key"/>
-              <button onclick="toggleKeyVisibility('openai-api-key-input')" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                <svg class="w-4 h-4 eye-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-              </button>
-            </div>
-            <div id="openai-key-status" class="key-status"><div class="key-status-dot missing"></div><span class="text-gray-400">Not configured</span></div>
-          </div>
-
-          <div>
-            <label class="block text-sm font-medium text-gray-600 mb-1.5">
-              <span class="flex items-center gap-2">
-                <svg class="w-4 h-4 text-purple-600" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-                OpenRouter API Key
-              </span>
-            </label>
-            <div class="relative">
-              <input type="password" id="openrouter-api-key-input" class="api-key-input pr-10" placeholder="Enter your OpenRouter API key"/>
-              <button onclick="toggleKeyVisibility('openrouter-api-key-input')" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                <svg class="w-4 h-4 eye-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-              </button>
-            </div>
-            <div id="openrouter-key-status" class="key-status"><div class="key-status-dot missing"></div><span class="text-gray-400">Not configured</span></div>
-          </div>
 
           <div>
             <label class="block text-sm font-medium text-gray-600 mb-1.5">
@@ -1086,14 +1079,9 @@
             <div id="flutterflow-project-id-error" class="text-xs text-red-500 mt-1 hidden">Project ID should be at least 5 characters with only letters, numbers, and dashes</div>
           </div>
 
-          <div class="bg-orange-50 border border-orange-100 rounded-lg p-3">
-            <p class="text-xs text-orange-600"><strong>FlutterFlow Direct Commit:</strong> Configures direct commit from Step 3.</p>
-          </div>
-          <div class="bg-blue-50 border border-blue-100 rounded-lg p-3">
-            <p class="text-xs text-blue-600"><strong>Security:</strong> Keys are encrypted locally (AES-256) and never stored on our servers.</p>
-          </div>
+
         </div>
-        <div class="px-6 py-4 border-t border-gray-100 flex gap-3 justify-end">
+        <div class="px-6 py-4 border-t border-gray-100 flex gap-3 justify-end" style="flex-shrink:0;background:#fff;border-radius:0 0 16px 16px;">
           <button onclick="clearAllApiKeys()" class="px-4 py-2 text-sm font-medium text-red-500 hover:bg-red-50 rounded-lg transition-colors">Clear All Keys</button>
           <button onclick="saveApiKeys()" class="px-4 py-2 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors">Save & Close</button>
         </div>
@@ -1111,7 +1099,7 @@
         </div>
         <div class="p-6">
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
-            <p class="text-sm text-gray-400">Get started in 4 simple steps:</p>
+            <p class="text-sm text-gray-400">Get started in 3 simple steps:</p>
             <div class="flex items-center gap-4">
               <a href="https://www.youtube.com/watch?v=aFTUqLSkAGY" target="_blank" rel="noopener noreferrer" class="flex items-center gap-1.5 text-xs text-blue-500 hover:text-blue-600 font-medium transition-colors">
                 <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/></svg>
@@ -1134,10 +1122,6 @@
             </div>
             <div id="walkthrough-step3" class="flex items-start gap-3 p-4 bg-gray-50 rounded-lg border border-gray-100 opacity-50">
               <div class="w-7 h-7 bg-gray-300 text-white rounded-full flex items-center justify-center flex-shrink-0 font-semibold text-xs">3</div>
-              <div><h3 class="font-medium text-gray-800 text-sm mb-1">Choose a Model</h3><p class="text-xs text-gray-500 mb-1">Select your preferred AI model.</p><button onclick="closeWalkthroughModal(); openModelSelector();" class="text-xs text-blue-500 font-medium">Select Model →</button></div>
-            </div>
-            <div id="walkthrough-step4" class="flex items-start gap-3 p-4 bg-gray-50 rounded-lg border border-gray-100 opacity-50">
-              <div class="w-7 h-7 bg-gray-300 text-white rounded-full flex items-center justify-center flex-shrink-0 font-semibold text-xs">4</div>
               <div><h3 class="font-medium text-gray-800 text-sm mb-1">Hit Run!</h3><p class="text-xs text-gray-500 mb-1">Click Run Pipeline and watch the magic.</p><button onclick="closeWalkthroughModal(); runThinkingPipeline();" class="text-xs text-blue-500 font-medium">Run Pipeline →</button></div>
             </div>
           </div>
@@ -1270,26 +1254,28 @@
             <div class="border border-gray-200 rounded-xl p-5">
               <h3 class="font-semibold text-gray-900 mb-1 text-sm">Free</h3>
               <p class="text-2xl font-bold text-gray-900 mb-1">$0<span class="text-sm font-normal text-gray-400">/mo</span></p>
-              <ul class="text-xs text-gray-400 space-y-1.5 mb-5"><li>50 requests/month</li><li>Fallback model only</li><li>Code Dissector</li></ul>
+              <ul class="text-xs text-gray-400 space-y-1.5 mb-5"><li>2 generations/month</li><li>Gemini model only</li><li>Code Review</li></ul>
               <div id="free-tier-current" class="w-full text-center text-xs text-gray-300 py-2 border border-gray-100 rounded-lg">Current plan</div>
             </div>
             <div class="border-2 border-blue-400 rounded-xl p-5 bg-blue-50 relative">
               <div class="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-blue-500 text-white text-xs font-semibold px-3 py-0.5 rounded-full">Popular</div>
-              <h3 class="font-semibold text-gray-900 mb-1 text-sm">Professional</h3>
-              <p class="text-2xl font-bold text-gray-900 mb-1">$19<span class="text-sm font-normal text-gray-400">/mo</span></p>
-              <p class="text-xs text-gray-400 mb-2">$20.90 inc. GST for AU</p>
-              <ul class="text-xs text-gray-500 space-y-1.5 mb-5"><li>500 requests/month</li><li>Model Selector</li><li>Code Dissector</li></ul>
+              <h3 class="font-semibold text-gray-900 mb-1 text-sm">Pro</h3>
+              <p class="text-2xl font-bold text-gray-900 mb-1"><span id="pro-price">$11</span><span class="text-sm font-normal text-gray-400">/mo</span></p>
+              <p id="pro-price-note" class="text-xs text-gray-400 mb-1">AUD · billed monthly</p>
+              <p class="text-xs text-gray-400 mb-2">For FlutterFlow Professionals</p>
+              <ul class="text-xs text-gray-500 space-y-1.5 mb-5"><li>50 generations/month</li><li>All models</li><li>Code Regeneration</li></ul>
               <button id="checkout-btn-professional" onclick="startCheckout('professional')" class="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg text-xs font-semibold transition-colors">Subscribe</button>
             </div>
             <div class="border border-gray-200 rounded-xl p-5 bg-gray-900">
-              <h3 class="font-semibold text-white mb-1 text-sm">Power Developer</h3>
-              <p class="text-2xl font-bold text-white mb-1">$49<span class="text-sm font-normal text-gray-400">/mo</span></p>
-              <p class="text-xs text-gray-500 mb-2">$53.90 inc. GST for AU</p>
-              <ul class="text-xs text-gray-400 space-y-1.5 mb-5"><li>2000 requests/month</li><li>Extended context</li><li>Multi-file Dissector</li><li>BYOK option</li></ul>
+              <h3 class="font-semibold text-white mb-1 text-sm">Power</h3>
+              <p class="text-2xl font-bold text-white mb-1"><span id="power-price">$49</span><span class="text-sm font-normal text-gray-400">/mo</span></p>
+              <p id="power-price-note" class="text-xs text-gray-500 mb-1">AUD · billed monthly</p>
+              <p class="text-xs text-gray-500 mb-2">For FlutterFlow Agencies and Enterprise Users</p>
+              <ul class="text-xs text-gray-400 space-y-1.5 mb-5"><li>2000 generations/month</li><li>All models + early access</li><li>BYOK support</li><li>API & MCP Access</li><li>Code Review</li></ul>
               <button id="checkout-btn-power" onclick="startCheckout('power')" class="w-full bg-white hover:bg-gray-100 text-gray-900 py-2 rounded-lg text-xs font-semibold transition-colors">Subscribe</button>
             </div>
           </div>
-          <p class="text-xs text-gray-400 text-center mt-5">Prices in AUD. 10% GST applied for Australian customers.</p>
+          <p class="text-xs text-gray-400 text-center mt-5">Plans billed monthly. Prices vary by region.</p>
         </div>
       </div>
     </div>
