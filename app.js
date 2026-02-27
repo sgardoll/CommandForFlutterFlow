@@ -87,10 +87,13 @@ const BASE_PRICES_AUD = { professional: 11, power: 49 }
 const LOCALE_CURRENCY_MAP = {
   en_US: 'USD', en_GB: 'GBP', en_AU: 'AUD', en_NZ: 'NZD', en_CA: 'CAD',
   en_IN: 'INR', en_SG: 'SGD', en_HK: 'HKD', en_PH: 'PHP', en_ZA: 'ZAR',
+  en: 'USD',
   de: 'EUR', fr: 'EUR', es: 'EUR', it: 'EUR', nl: 'EUR', pt_PT: 'EUR',
-  pt_BR: 'BRL', ja: 'JPY', ko: 'KRW', zh_CN: 'CNY', zh_TW: 'TWD',
-  th: 'THB', vi: 'VND', id: 'IDR', ms_MY: 'MYR', sv: 'SEK', nb: 'NOK',
-  da: 'DKK', pl: 'PLN', cs: 'CZK', hu: 'HUF', ro: 'RON', tr: 'TRY',
+  pt_BR: 'BRL', pt: 'BRL',
+  ja: 'JPY', ko: 'KRW', zh_CN: 'CNY', zh_TW: 'TWD', zh: 'CNY',
+  th: 'THB', vi: 'VND', id: 'IDR', ms_MY: 'MYR', ms: 'MYR',
+  sv: 'SEK', nb: 'NOK', da: 'DKK', pl: 'PLN', cs: 'CZK',
+  hu: 'HUF', ro: 'RON', tr: 'TRY',
   ar: 'AED', he: 'ILS', ru: 'RUB', uk: 'UAH',
 }
 
@@ -101,7 +104,8 @@ const AUD_EXCHANGE_RATES_FALLBACK = {
   VND: 16200, IDR: 10200, MYR: 2.88, SEK: 6.80, NOK: 6.95,
   DKK: 4.48, PLN: 2.60, CZK: 15.2, HUF: 238, RON: 2.98,
   TRY: 20.9, AED: 2.39, ILS: 2.38, PHP: 36.4, ZAR: 11.8,
-  RUB: 58, UAH: 26.8,
+  RUB: 58, UAH: 26.8, CHF: 0.57, MXN: 11.1, ARS: 580,
+  CLP: 610, COP: 2700, PEN: 2.44,
 }
 
 let AUD_EXCHANGE_RATES = { ...AUD_EXCHANGE_RATES_FALLBACK }
@@ -116,19 +120,68 @@ async function fetchAudExchangeRates() {
     if (data.result !== 'success' || !data.rates) return
     const rates = data.rates
     const updated = { AUD: 1 }
-    for (const [code, fallbackRate] of Object.entries(AUD_EXCHANGE_RATES_FALLBACK)) {
+    const allCurrencies = new Set([
+      ...Object.keys(AUD_EXCHANGE_RATES_FALLBACK),
+      ...Object.values(TIMEZONE_CURRENCY_MAP),
+      ...Object.values(LOCALE_CURRENCY_MAP),
+    ])
+    for (const code of allCurrencies) {
       if (code === 'AUD') continue
-      updated[code] = typeof rates[code] === 'number' && rates[code] > 0 ? rates[code] : fallbackRate
+      if (typeof rates[code] === 'number' && rates[code] > 0) {
+        updated[code] = rates[code]
+      } else if (AUD_EXCHANGE_RATES_FALLBACK[code]) {
+        updated[code] = AUD_EXCHANGE_RATES_FALLBACK[code]
+      }
     }
     AUD_EXCHANGE_RATES = updated
   } catch {
-    // Network error or timeout — keep using fallback rates
   } finally {
     clearTimeout(timeout)
   }
 }
 
+const TIMEZONE_CURRENCY_MAP = {
+  'America/Sao_Paulo': 'BRL', 'America/Fortaleza': 'BRL', 'America/Recife': 'BRL',
+  'America/Bahia': 'BRL', 'America/Belem': 'BRL', 'America/Manaus': 'BRL',
+  'America/Cuiaba': 'BRL', 'America/Campo_Grande': 'BRL', 'America/Araguaina': 'BRL',
+  'America/Noronha': 'BRL', 'America/Rio_Branco': 'BRL', 'America/Porto_Velho': 'BRL',
+  'America/Boa_Vista': 'BRL', 'America/Maceio': 'BRL', 'America/Santarem': 'BRL',
+  'America/Eirunepe': 'BRL',
+  'Europe/London': 'GBP', 'Europe/Paris': 'EUR', 'Europe/Berlin': 'EUR',
+  'Europe/Madrid': 'EUR', 'Europe/Rome': 'EUR', 'Europe/Amsterdam': 'EUR',
+  'Europe/Brussels': 'EUR', 'Europe/Vienna': 'EUR', 'Europe/Lisbon': 'EUR',
+  'Europe/Dublin': 'EUR', 'Europe/Helsinki': 'EUR', 'Europe/Athens': 'EUR',
+  'Europe/Bucharest': 'RON', 'Europe/Budapest': 'HUF', 'Europe/Warsaw': 'PLN',
+  'Europe/Prague': 'CZK', 'Europe/Copenhagen': 'DKK', 'Europe/Stockholm': 'SEK',
+  'Europe/Oslo': 'NOK', 'Europe/Zurich': 'CHF', 'Europe/Istanbul': 'TRY',
+  'Europe/Moscow': 'RUB', 'Europe/Kiev': 'UAH', 'Europe/Kyiv': 'UAH',
+  'Asia/Tokyo': 'JPY', 'Asia/Seoul': 'KRW', 'Asia/Shanghai': 'CNY',
+  'Asia/Taipei': 'TWD', 'Asia/Hong_Kong': 'HKD', 'Asia/Singapore': 'SGD',
+  'Asia/Kolkata': 'INR', 'Asia/Calcutta': 'INR', 'Asia/Bangkok': 'THB',
+  'Asia/Ho_Chi_Minh': 'VND', 'Asia/Jakarta': 'IDR', 'Asia/Kuala_Lumpur': 'MYR',
+  'Asia/Dubai': 'AED', 'Asia/Jerusalem': 'ILS', 'Asia/Tel_Aviv': 'ILS',
+  'Asia/Manila': 'PHP',
+  'Pacific/Auckland': 'NZD',
+  'Australia/Sydney': 'AUD', 'Australia/Melbourne': 'AUD', 'Australia/Brisbane': 'AUD',
+  'Australia/Perth': 'AUD', 'Australia/Adelaide': 'AUD', 'Australia/Hobart': 'AUD',
+  'Australia/Darwin': 'AUD', 'Australia/Lord_Howe': 'AUD',
+  'America/Toronto': 'CAD', 'America/Vancouver': 'CAD', 'America/Edmonton': 'CAD',
+  'America/Winnipeg': 'CAD', 'America/Halifax': 'CAD', 'America/St_Johns': 'CAD',
+  'America/Regina': 'CAD',
+  'America/New_York': 'USD', 'America/Chicago': 'USD', 'America/Denver': 'USD',
+  'America/Los_Angeles': 'USD', 'America/Phoenix': 'USD', 'America/Anchorage': 'USD',
+  'Pacific/Honolulu': 'USD',
+  'America/Mexico_City': 'MXN', 'America/Cancun': 'MXN', 'America/Tijuana': 'MXN',
+  'America/Argentina/Buenos_Aires': 'ARS',
+  'America/Santiago': 'CLP', 'America/Bogota': 'COP', 'America/Lima': 'PEN',
+  'Africa/Johannesburg': 'ZAR',
+}
+
 function detectUserCurrency() {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+    if (tz && TIMEZONE_CURRENCY_MAP[tz]) return TIMEZONE_CURRENCY_MAP[tz]
+  } catch {}
   const locale = navigator.language || 'en-US'
   const normalized = locale.replace('-', '_')
   const exactMatch = LOCALE_CURRENCY_MAP[normalized]
@@ -142,14 +195,14 @@ function detectUserCurrency() {
 function formatPrice(audAmount, currency) {
   const rate = AUD_EXCHANGE_RATES[currency] ?? AUD_EXCHANGE_RATES.USD
   const converted = audAmount * rate
-  const locale = navigator.language || 'en-US'
+  const rounded = Math.round(converted * 100) / 100
   try {
-    return new Intl.NumberFormat(locale, {
+    return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency,
       minimumFractionDigits: 0,
-      maximumFractionDigits: converted >= 100 ? 0 : 2,
-    }).format(Math.round(converted * 100) / 100)
+      maximumFractionDigits: rounded >= 100 ? 0 : rounded % 1 === 0 ? 0 : 2,
+    }).format(rounded)
   } catch {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -4319,10 +4372,10 @@ async function startCheckout(tierId) {
   if (btn) { btn.disabled = true; btn.textContent = 'Redirecting…' }
 
   try {
-    const res = await fetch(`${BUILDSHIP_BASE_URL}/stripe/create-checkout-session`, {
+    const res = await fetch(`${BUILDSHIP_BASE_URL}/stripe/create-checkout-session-intl`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tierId, sessionToken: authState.sessionToken })
+      body: JSON.stringify({ tierId, sessionToken: authState.sessionToken, currency: detectUserCurrency() })
     })
 
     const checkoutData = await res.json()
@@ -4490,13 +4543,14 @@ function updatePricingDisplay() {
   const proNote = document.getElementById('pro-price-note')
   const powerNote = document.getElementById('power-price-note')
 
-  // Always show AUD as primary price (Stripe charges in AUD)
-  if (proEl) proEl.textContent = formatPrice(BASE_PRICES_AUD.professional, 'AUD')
-  if (powerEl) powerEl.textContent = formatPrice(BASE_PRICES_AUD.power, 'AUD')
-
   const isAud = currency === 'AUD'
-  if (proNote) proNote.textContent = isAud ? 'AUD · billed monthly' : `~${formatPrice(BASE_PRICES_AUD.professional, currency)} · billed monthly`
-  if (powerNote) powerNote.textContent = isAud ? 'AUD · billed monthly' : `~${formatPrice(BASE_PRICES_AUD.power, currency)} · billed monthly`
+
+  if (proEl) proEl.textContent = formatPrice(BASE_PRICES_AUD.professional, currency)
+  if (powerEl) powerEl.textContent = formatPrice(BASE_PRICES_AUD.power, currency)
+
+  const note = isAud ? 'billed monthly' : 'approximate · billed monthly in AUD'
+  if (proNote) proNote.textContent = note
+  if (powerNote) powerNote.textContent = note
 }
 
 function openPricingModal() {
