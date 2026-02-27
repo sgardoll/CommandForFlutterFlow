@@ -4543,8 +4543,6 @@ function updatePricingDisplay() {
   const proNote = document.getElementById('pro-price-note')
   const powerNote = document.getElementById('power-price-note')
 
-  const isAud = currency === 'AUD'
-
   if (proEl) proEl.textContent = formatPrice(BASE_PRICES_AUD.professional, currency)
   if (powerEl) powerEl.textContent = formatPrice(BASE_PRICES_AUD.power, currency)
 
