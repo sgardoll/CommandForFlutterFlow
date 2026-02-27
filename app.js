@@ -4548,7 +4548,7 @@ function updatePricingDisplay() {
   if (proEl) proEl.textContent = formatPrice(BASE_PRICES_AUD.professional, currency)
   if (powerEl) powerEl.textContent = formatPrice(BASE_PRICES_AUD.power, currency)
 
-  const note = isAud ? 'billed monthly' : 'approximate · billed monthly in AUD'
+  const note = 'billed monthly'
   if (proNote) proNote.textContent = note
   if (powerNote) powerNote.textContent = note
 }
