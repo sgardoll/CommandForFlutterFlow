@@ -4227,6 +4227,7 @@ function canRunPipeline() {
   const limit = getRunLimit()
   if (count >= limit) {
     showPaywallExhausted(count, limit)
+    openPricingModal()
     return false
   }
   const warningThreshold = Math.floor(limit * 0.8)
@@ -4243,6 +4244,7 @@ function showPaywallExhausted(count, limit) {
 
   hideReadyState()
   hideWorkflowAccordions()
+  hideNextStepsBanner()
 
   const paywall = document.getElementById('paywall-exhausted')
   if (!paywall) {
@@ -4250,6 +4252,8 @@ function showPaywallExhausted(count, limit) {
     openPricingModal()
     return
   }
+
+  paywall.classList.remove('hidden')
 
   const textEl = document.getElementById('paywall-exhausted-text')
   if (textEl) {
