@@ -77,8 +77,8 @@ const PRO_MODELS = [
 const USAGE_STORAGE_KEY = 'ccc_usage'
 
 // Model Configuration
-const PROMPT_ARCHITECT_MODEL = "google/gemini-3.1-pro-preview"
-const CODE_REVIEW_MODEL = "google/gemini-3.1-pro-preview"
+const PROMPT_ARCHITECT_MODEL = "google/gemini-3-flash-preview"
+const CODE_REVIEW_MODEL = "google/gemini-3-flash-preview"
 const FALLBACK_MODEL = "google/gemini-3.1-pro-preview"
 
 // --- DYNAMIC PRICING ---
@@ -822,37 +822,12 @@ function advanceWalkthrough() {
 }
 
 function openWalkthroughModal() {
-  const modal = document.getElementById("walkthrough-modal");
-  if (modal) {
-    walkthroughStep = 1;
-    updateWalkthroughUI();
-    modal.classList.add("open");
-  }
 }
 
 function closeWalkthroughModal(event) {
-  if (event && event.target !== event.currentTarget) return;
-  const modal = document.getElementById("walkthrough-modal");
-  if (modal) {
-    modal.classList.remove("open");
-  }
-
-  const dontShow = document.getElementById("walkthrough-dont-show");
-  if (dontShow && dontShow.checked) {
-    localStorage.setItem("hasSeenWalkthrough", "true");
-  }
 }
 
 function showWalkthroughIfNeeded() {
-  const hasSeen = localStorage.getItem("hasSeenWalkthrough");
-  if (!hasSeen) {
-    const modal = document.getElementById("walkthrough-modal");
-    if (modal) {
-      walkthroughStep = 1;
-      updateWalkthroughUI();
-      modal.classList.add("open");
-    }
-  }
 }
 
 async function loadApiKeyInputs() {
@@ -902,21 +877,6 @@ function updateKeyStatus(provider, statusElementId) {
 }
 
 function updateDeployButtonVisibility() {
-  const flutterFlowConfigured =
-    hasStoredKey("flutterflow") && hasStoredKey("flutterflow_project_id");
-  const hasGeneratedCode =
-    pipelineState.step2Result && pipelineState.step2Result.length > 0;
-
-  const deployBtn = document.getElementById("btn-deploy-to-ff");
-  const runBtn = document.getElementById("btn-run-pipeline");
-
-  if (flutterFlowConfigured && hasGeneratedCode) {
-    if (deployBtn) deployBtn.classList.remove("hidden");
-    if (runBtn) runBtn.classList.add("hidden");
-  } else {
-    if (deployBtn) deployBtn.classList.add("hidden");
-    if (runBtn) runBtn.classList.remove("hidden");
-  }
 }
 
 function updateApiKeyStatusIndicators() {
@@ -3047,6 +3007,12 @@ function updateStepIndicator(step, status) {
   const statusIcon = document.getElementById(`step${step}-status`);
   if (!item || !statusIcon) return;
 
+  // Drive step timers
+  if (status === 'active') stepTimingStart(step);
+  else if (status === 'completed') stepTimingComplete(step);
+  else if (status === 'error') stepTimingClear(step);
+  else stepTimingReset(step);
+
   // Reset classes
   item.classList.remove("active", "completed", "error");
   statusIcon.classList.remove("running", "completed", "error");
@@ -3088,11 +3054,120 @@ function showStepLoading(step, show) {
     loading.classList.remove("hidden");
     result.classList.add("hidden");
     updateStepIndicator(step, "active");
+    setAccordionState(step, 'running');
   } else {
     loading.classList.add("hidden");
     result.classList.remove("hidden");
     updateStepIndicator(step, "completed");
+    setAccordionState(step, 'completed');
   }
+}
+
+function hideReadyState() {
+  const el = document.getElementById('ready-state')
+  if (el) el.style.display = 'none'
+}
+
+function showReadyState() {
+  const paywall = document.getElementById('paywall-exhausted')
+  if (paywall) paywall.style.display = 'none'
+  const accordions = document.getElementById('workflow-accordions')
+  if (accordions) accordions.style.display = 'none'
+  const banner = document.getElementById('next-steps-banner')
+  if (banner) banner.classList.add('hidden')
+  const el = document.getElementById('ready-state')
+  if (el) el.style.display = 'flex'
+}
+
+function hideWorkflowAccordions() {
+  const accordions = document.getElementById('workflow-accordions')
+  if (accordions) accordions.style.display = 'none'
+}
+
+function showWorkflowAccordions() {
+  const el = document.getElementById('ready-state')
+  if (el) el.style.display = 'none'
+  const paywall = document.getElementById('paywall-exhausted')
+  if (paywall) paywall.style.display = 'none'
+  const accordions = document.getElementById('workflow-accordions')
+  if (accordions) accordions.style.display = 'flex'
+}
+
+function setAccordionState(step, state) {
+  const accordion = document.getElementById(`accordion-step${step}`)
+  if (!accordion) return
+
+  accordion.classList.remove('acc-running', 'acc-completed', 'acc-error')
+
+  const statusIcon = document.getElementById(`accordion-step${step}-status-icon`)
+
+  const ICON_IDLE = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>`
+  const ICON_SPIN = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>`
+  const ICON_CHECK = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>`
+  const ICON_ERROR = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>`
+
+  if (state === 'running') {
+    accordion.classList.add('acc-running')
+    if (statusIcon) statusIcon.innerHTML = ICON_SPIN
+  } else if (state === 'completed') {
+    accordion.classList.add('acc-completed')
+    if (statusIcon) statusIcon.innerHTML = ICON_CHECK
+  } else if (state === 'error') {
+    accordion.classList.add('acc-error')
+    if (statusIcon) statusIcon.innerHTML = ICON_ERROR
+  } else {
+    if (statusIcon) statusIcon.innerHTML = ICON_IDLE
+  }
+}
+
+function expandAccordion(step) {
+  const body = document.getElementById(`accordion-step${step}-body`)
+  const chevron = document.getElementById(`accordion-step${step}-chevron`)
+  if (body) body.classList.add('open')
+  if (chevron) chevron.classList.add('open')
+}
+
+function collapseAccordion(step) {
+  const body = document.getElementById(`accordion-step${step}-body`)
+  const chevron = document.getElementById(`accordion-step${step}-chevron`)
+  if (body) body.classList.remove('open')
+  if (chevron) chevron.classList.remove('open')
+}
+
+function toggleAccordion(step) {
+  const body = document.getElementById(`accordion-step${step}-body`)
+  if (!body) return
+  if (body.classList.contains('open')) {
+    collapseAccordion(step)
+  } else {
+    expandAccordion(step)
+  }
+}
+
+function showNextStepsBanner() {
+  const banner = document.getElementById('next-steps-banner')
+  if (banner) banner.classList.remove('hidden')
+}
+
+function hideNextStepsBanner() {
+  const banner = document.getElementById('next-steps-banner')
+  if (banner) banner.classList.add('hidden')
+}
+
+function openFixErrorsModal() {
+  const modal = document.getElementById('fix-errors-modal')
+  if (modal) modal.classList.add('open')
+}
+
+function closeFixErrorsModal(event) {
+  if (event && event.target !== event.currentTarget) return
+  const modal = document.getElementById('fix-errors-modal')
+  if (modal) modal.classList.remove('open')
+}
+
+async function runFixErrorsAndClose() {
+  closeFixErrorsModal()
+  await regenerateFromPastedErrors()
 }
 
 function toggleSection(sectionId) {
@@ -3114,42 +3189,16 @@ function toggleStep(step) {
 }
 
 function selectWorkflowStep(step) {
-  // Remove active class from all workflow items
   for (let i = 1; i <= 3; i++) {
     const item = document.getElementById(`step${i}-item`);
     if (item) item.classList.remove("active");
   }
 
-  // Add active class to selected workflow item
   const selectedItem = document.getElementById(`step${step}-item`);
   if (selectedItem) selectedItem.classList.add("active");
 
-  // Hide welcome video
-  dismissWelcomeVideo();
-
-  // Hide ready state
-  const readyState = document.getElementById("ready-state");
-  if (readyState) readyState.classList.add("hidden");
-
-  // Hide all step contents
-  for (let i = 1; i <= 3; i++) {
-    const content = document.getElementById(`step${i}-content`);
-    if (content) content.classList.add("hidden");
-  }
-
-  // Show selected step content
-  const selectedContent = document.getElementById(`step${step}-content`);
-  if (selectedContent) selectedContent.classList.remove("hidden");
-
-  // Update stage title
-  const stageTitle = document.getElementById("stage-title");
-  const titles = {
-    1: "Prompt Architect",
-    2: "Code Generator",
-    3: "Code Review",
-  };
-  if (stageTitle)
-    stageTitle.textContent = titles[step] || "Active Workflow Stage";
+  showWorkflowAccordions();
+  expandAccordion(step);
 }
 
 function copyCode(elementId) {
@@ -3183,6 +3232,7 @@ function copyCode(elementId) {
 function updateModelInfo(selectedModel) {
   const modelNames = {
     "google/gemini-3.1-pro-preview": "Gemini 3.1 Pro",
+    "google/gemini-3-flash-preview": "Gemini 3 Flash",
     "anthropic/claude-4.6-opus": "Claude 4.6 Opus",
     "openai/gpt-5.3-codex": "GPT-5.3-Codex",
     "openrouter/auto": "OpenRouter: Auto",
@@ -3194,31 +3244,32 @@ function updateModelInfo(selectedModel) {
     return modelNames[model] || model
   }
 
-  // Update step 1 (Prompt Architect) model label - uses PROMPT_ARCHITECT_MODEL
   const step1Label = document.getElementById("step1-model-label")
-  if (step1Label) {
-    step1Label.textContent = getDisplayName(PROMPT_ARCHITECT_MODEL)
-  }
+  if (step1Label) step1Label.textContent = getDisplayName(PROMPT_ARCHITECT_MODEL)
 
-  // Update step 2 (Code Generator) model label - shows selected model
-  // If user is on free tier and selected a paid model, show: "Selected Model → Free Model"
   const effectiveModel = getEffectiveModel(selectedModel)
   const step2Label = document.getElementById("step2-model-label")
   if (step2Label) {
-    if (effectiveModel !== selectedModel) {
-      // Free tier user selected a paid model - show both
-      step2Label.textContent = `${getDisplayName(selectedModel)} → ${getDisplayName(effectiveModel)} (Free Tier)`
-    } else {
-      // User's selection matches effective model
-      step2Label.textContent = getDisplayName(selectedModel)
-    }
+    step2Label.textContent = effectiveModel !== selectedModel
+      ? `${getDisplayName(selectedModel)} → ${getDisplayName(effectiveModel)} (Free Tier)`
+      : getDisplayName(selectedModel)
   }
 
-  // Update step 3 (Code Review) model label - uses CODE_REVIEW_MODEL
   const step3Label = document.getElementById("step3-model-label")
-  if (step3Label) {
-    step3Label.textContent = getDisplayName(CODE_REVIEW_MODEL)
+  if (step3Label) step3Label.textContent = getDisplayName(CODE_REVIEW_MODEL)
+
+  const acc1Model = document.getElementById("accordion-step1-model")
+  if (acc1Model) acc1Model.textContent = getDisplayName(PROMPT_ARCHITECT_MODEL)
+
+  const acc2Model = document.getElementById("accordion-step2-model")
+  if (acc2Model) {
+    acc2Model.textContent = effectiveModel !== selectedModel
+      ? `${getDisplayName(effectiveModel)} (Free Tier)`
+      : getDisplayName(selectedModel)
   }
+
+  const acc3Model = document.getElementById("accordion-step3-model")
+  if (acc3Model) acc3Model.textContent = getDisplayName(CODE_REVIEW_MODEL)
 
   console.log(`Step 1 (Prompt Architect): ${getDisplayName(PROMPT_ARCHITECT_MODEL)}`)
   if (effectiveModel !== selectedModel) {
@@ -3268,11 +3319,10 @@ Please RE-GENERATE the code to fix the issues listed in the AUDIT REPORT.
 Ensure it still adheres to the ORIGINAL SPECIFICATION.
 `;
 
-    // Step 2: Code Generator (Refinement)
-    selectWorkflowStep(2);
+    collapseAccordion(3);
+    expandAccordion(2);
     showStepLoading(2, true);
 
-    // We use the same runCodeGenerator function but with the refinement prompt
     pipelineState.step2Result = await runCodeGenerator(
       refinementPrompt,
       selectedModel,
@@ -3284,8 +3334,9 @@ Ensure it still adheres to the ORIGINAL SPECIFICATION.
     step2Output.dataset.raw = cleanStep2;
     showStepLoading(2, false);
 
-    // Step 3: Code Audit (Re-audit)
-    selectWorkflowStep(3);
+    await new Promise(r => setTimeout(r, 800));
+    collapseAccordion(2);
+    expandAccordion(3);
     showStepLoading(3, true);
 
     pipelineState.step3Result = await runCodeReview(
@@ -3297,28 +3348,20 @@ Ensure it still adheres to the ORIGINAL SPECIFICATION.
     auditOutput.innerHTML = renderMarkdownAudit(pipelineState.step3Result);
 
     showStepLoading(3, false);
+    expandAccordion(2);
+    expandAccordion(3);
+    showNextStepsBanner();
   } catch (error) {
     console.error("Refinement failed:", error);
     showToast(`Refinement failed: ${error.message}`, "error");
-
-    // If it failed, we might want to stay on the step where it failed or go back to 3
-    // For now, let's just re-enable the button if we are still on step 3 or visible
   } finally {
     pipelineState.isRunning = false;
     btns.forEach((btn) => {
       btn.disabled = false;
-
-      let btnText = "Refine & Regenerate Code";
-      if (btn.id === "btn-refine-top") {
-        btnText = "Auto-Fix & Regenerate";
-      }
-
       btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-        </svg>
-        ${btnText}`;
+        </svg> Refine &amp; Regenerate Code`;
     });
-    updateDeployButtonVisibility();
   }
 }
 
@@ -3408,7 +3451,9 @@ Maintain the original specification and intent.`
     step2Output.dataset.raw = cleanStep2
     showStepLoading(2, false)
 
-    selectWorkflowStep(3)
+    await new Promise(r => setTimeout(r, 800));
+    collapseAccordion(2);
+    expandAccordion(3);
     showStepLoading(3, true)
 
     pipelineState.step3Result = await runCodeReview(pipelineState.step2Result, pipelineState.step1Result)
@@ -3417,19 +3462,16 @@ Maintain the original specification and intent.`
     auditOutput.innerHTML = renderMarkdownAudit(pipelineState.step3Result)
     showStepLoading(3, false)
 
+    expandAccordion(2);
+    expandAccordion(3);
+    showNextStepsBanner();
+
     if (input) input.value = ""
   } catch (error) {
     console.error("Fix from errors failed:", error)
     showToast(`Failed to fix errors: ${error.message}`, "error")
   } finally {
     pipelineState.isRunning = false
-    if (btn) {
-      btn.disabled = false
-      btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
-      </svg> Fix Errors &amp; Regenerate`
-    }
-    updateDeployButtonVisibility()
   }
 }
 
@@ -3474,19 +3516,19 @@ async function runThinkingPipeline() {
   </svg>
   Running...`;
 
-  // Update model info
   updateModelInfo(effectiveModel);
 
   try {
-    // Dismiss welcome video and hide ready state, show step 1
-    dismissWelcomeVideo();
-    const readyState = document.getElementById("ready-state");
-    if (readyState) readyState.classList.add("hidden");
-    const paywallEl = document.getElementById("paywall-exhausted");
-    if (paywallEl) paywallEl.classList.add("hidden");
+    hideNextStepsBanner();
+    showWorkflowAccordions();
 
-    // Step 1: Prompt Architect
-    selectWorkflowStep(1);
+    for (let i = 1; i <= 3; i++) {
+      collapseAccordion(i);
+      setAccordionState(i, 'idle');
+      stepTimingReset(i);
+    }
+
+    expandAccordion(1);
     showStepLoading(1, true);
 
     pipelineState.step1Result = await runPromptArchitect(userInput);
@@ -3501,8 +3543,10 @@ async function runThinkingPipeline() {
     step1Output.dataset.raw = cleanStep1
     showStepLoading(1, false)
 
-    // Step 2: Code Generator
-    selectWorkflowStep(2);
+    await new Promise(r => setTimeout(r, 1200));
+    collapseAccordion(1);
+
+    expandAccordion(2);
     showStepLoading(2, true);
 
     pipelineState.step2Result = await runCodeGenerator(
@@ -3514,11 +3558,13 @@ async function runThinkingPipeline() {
     const step2Output = document.getElementById("step2-output");
     const cleanStep2 = extractCodeFromMarkdown(pipelineState.step2Result);
     step2Output.innerHTML = highlightCode(cleanStep2);
-    step2Output.dataset.raw = cleanStep2; // Store raw for copy
+    step2Output.dataset.raw = cleanStep2;
     showStepLoading(2, false);
 
-    // Step 3: Code Audit
-    selectWorkflowStep(3);
+    await new Promise(r => setTimeout(r, 1200));
+    collapseAccordion(2);
+
+    expandAccordion(3);
     showStepLoading(3, true);
 
     pipelineState.step3Result = await runCodeReview(
@@ -3531,6 +3577,12 @@ async function runThinkingPipeline() {
     auditOutput.innerHTML = renderMarkdownAudit(pipelineState.step3Result);
 
     showStepLoading(3, false);
+
+    expandAccordion(2);
+    expandAccordion(3);
+    showNextStepsBanner();
+    sendCompletionNotification();
+
     incrementUsage();
     updateUsageDisplay();
   } catch (error) {
@@ -3553,12 +3605,12 @@ async function runThinkingPipeline() {
       errorStep = 3;
     }
 
-    selectWorkflowStep(errorStep);
+    setAccordionState(errorStep, 'error');
+    expandAccordion(errorStep);
     const resultDiv = document.getElementById(`step${errorStep}-result`);
     const loadingDiv = document.getElementById(`step${errorStep}-loading`);
     const output = document.getElementById(`step${errorStep}-output`);
 
-    // Hide loading and show error
     if (loadingDiv) loadingDiv.classList.add("hidden");
     if (resultDiv) resultDiv.classList.remove("hidden");
 
@@ -3594,7 +3646,7 @@ async function runThinkingPipeline() {
     btn.innerHTML = `<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
       <path d="M8 5v14l11-7z"/>
     </svg>
-    Run Pipeline`;
+    Run`;
 
     updateDeployButtonVisibility();
   }
@@ -4155,6 +4207,11 @@ function getUsage() {
 
 function incrementUsage() {
   const current = getUsage()
+  const limit = getRunLimit()
+  if (current.count >= limit) {
+    console.warn('incrementUsage: already at limit, ignoring')
+    return current
+  }
   const updated = { count: current.count + 1, month: getCurrentYearMonth() }
   localStorage.setItem(USAGE_STORAGE_KEY, JSON.stringify(updated))
   return updated
@@ -4165,6 +4222,7 @@ function getRunLimit() {
 }
 
 function canRunPipeline() {
+  if (pipelineState.isRunning) return false
   const { count } = getUsage()
   const limit = getRunLimit()
   if (count >= limit) {
@@ -4183,8 +4241,8 @@ function showPaywallExhausted(count, limit) {
   const walkthroughModal = document.getElementById('walkthrough-modal')
   if (walkthroughModal) walkthroughModal.classList.remove('open')
 
-  const readyState = document.getElementById('ready-state')
-  if (readyState) readyState.classList.add('hidden')
+  hideReadyState()
+  hideWorkflowAccordions()
 
   const paywall = document.getElementById('paywall-exhausted')
   if (!paywall) {
@@ -4206,7 +4264,7 @@ function showPaywallExhausted(count, limit) {
   const signInBtn = document.getElementById('paywall-signin-btn')
   if (signInBtn) signInBtn.classList.toggle('hidden', authState.isVerified)
 
-  paywall.classList.remove('hidden')
+  paywall.style.display = 'flex'
 }
 
 function getEffectiveModel(selectedModel) {
@@ -4420,7 +4478,7 @@ async function openCustomerPortal() {
 }
 
 async function callBuildShip(step, model, prompt, context = {}) {
-  const BUILDSHIP_TIMEOUT_MS = 120000
+  const BUILDSHIP_TIMEOUT_MS = 300000
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), BUILDSHIP_TIMEOUT_MS)
   try {
@@ -4460,7 +4518,7 @@ async function callBuildShip(step, model, prompt, context = {}) {
     return output
   } catch (error) {
     if (error.name === 'AbortError') {
-      throw new Error(`BuildShip ${step} timed out after ${BUILDSHIP_TIMEOUT_MS / 1000}s`)
+      throw new Error(`BuildShip ${step} timed out after ${BUILDSHIP_TIMEOUT_MS / 1000}s — the model may be under heavy load, please retry`)
     }
     if (error instanceof TypeError) {
       throw new Error(`BuildShip unreachable: ${error.message}`)
@@ -4553,9 +4611,65 @@ function updatePricingDisplay() {
 
 function openPricingModal() {
   updatePricingDisplay()
+  updatePricingModalTierState()
   const modal = document.getElementById('pricing-modal')
   if (modal) modal.classList.add('open')
   fetchAudExchangeRates().then(() => updatePricingDisplay())
+}
+
+function updatePricingModalTierState() {
+  const tier = subscriptionState.tier
+
+  const freeCurrent = document.getElementById('free-tier-current')
+  const popularBadge = document.getElementById('pm-popular-badge')
+  const proCurrentBadge = document.getElementById('pm-pro-current-badge')
+  const checkoutBtnPro = document.getElementById('checkout-btn-professional')
+  const proCurrentIndicator = document.getElementById('pro-current-indicator')
+  const checkoutBtnPower = document.getElementById('checkout-btn-power')
+
+  if (tier === 'professional') {
+    if (freeCurrent) freeCurrent.classList.add('hidden')
+    if (popularBadge) popularBadge.style.display = 'none'
+    if (proCurrentBadge) proCurrentBadge.style.display = ''
+    if (checkoutBtnPro) checkoutBtnPro.classList.add('hidden')
+    if (proCurrentIndicator) proCurrentIndicator.classList.remove('hidden')
+
+    let upgradeNote = document.getElementById('pm-pro-upgrade-note')
+    if (!upgradeNote) {
+      upgradeNote = document.createElement('p')
+      upgradeNote.id = 'pm-pro-upgrade-note'
+      upgradeNote.className = 'pm-footer-note'
+      upgradeNote.style.color = '#6366f1'
+      upgradeNote.textContent = "You're on Pro. Upgrade to Power for 2000 generations/month, API access & early features."
+      const footerNote = document.querySelector('.pm-footer-note')
+      if (footerNote) footerNote.insertAdjacentElement('afterend', upgradeNote)
+    }
+    upgradeNote.style.display = ''
+
+  } else if (tier === 'power') {
+    if (freeCurrent) freeCurrent.classList.add('hidden')
+    if (popularBadge) popularBadge.style.display = 'none'
+    if (checkoutBtnPro) checkoutBtnPro.classList.add('hidden')
+    if (checkoutBtnPower) checkoutBtnPower.classList.add('hidden')
+
+    let powerCurrentEl = document.getElementById('pm-power-current')
+    if (!powerCurrentEl) {
+      powerCurrentEl = document.createElement('div')
+      powerCurrentEl.id = 'pm-power-current'
+      powerCurrentEl.className = 'pm-current-plan-indicator'
+      powerCurrentEl.textContent = '✓ Current Plan'
+      if (checkoutBtnPower) checkoutBtnPower.insertAdjacentElement('afterend', powerCurrentEl)
+    }
+
+  } else {
+    if (freeCurrent) freeCurrent.classList.remove('hidden')
+    if (popularBadge) popularBadge.style.display = ''
+    if (proCurrentBadge) proCurrentBadge.style.display = 'none'
+    if (checkoutBtnPro) checkoutBtnPro.classList.remove('hidden')
+    if (proCurrentIndicator) proCurrentIndicator.classList.add('hidden')
+    const upgradeNote = document.getElementById('pm-pro-upgrade-note')
+    if (upgradeNote) upgradeNote.style.display = 'none'
+  }
 }
 
 function closePricingModal(event) {
@@ -4579,14 +4693,14 @@ function showToast(message, type = 'info') {
 // --- INITIALIZATION ---
 
 document.addEventListener("DOMContentLoaded", async () => {
-  // Initialize highlight.js
   hljs.configure({
     tabReplace: "  ",
     classPrefix: "hljs-",
   });
 
-  // Initialize welcome video
   initializeWelcomeVideo();
+
+  showReadyState();
 
   await initializeAuth();
   handleCheckoutRedirect();
@@ -4609,33 +4723,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   showWalkthroughIfNeeded();
   resolveIdentity();
+  loadNotifyPreference();
   // Walkthrough step tracking
   const pipelineInput = document.getElementById("pipeline-input");
   if (pipelineInput) {
-    pipelineInput.addEventListener("input", () => {
-      if (walkthroughStep === 2 && pipelineInput.value.trim().length > 0) {
-        advanceWalkthrough();
-        updateWalkthroughUI();
-      }
-    });
-
-    pipelineInput.addEventListener("blur", () => {
-      const walkthroughModal = document.getElementById("walkthrough-modal");
-      if (walkthroughStep === 2 && walkthroughModal) {
-        walkthroughModal.classList.add("open");
-      }
-    });
-
-    pipelineInput.addEventListener("keydown", (e) => {
-      if (e.key === "Tab") {
-        const walkthroughModal = document.getElementById("walkthrough-modal");
-        if (walkthroughStep === 2 && walkthroughModal) {
-          setTimeout(() => {
-            walkthroughModal.classList.add("open");
-          }, 100);
-        }
-      }
-    });
   }
 
 
@@ -4657,10 +4748,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 // --- WELCOME VIDEO FUNCTIONS ---
 function initializeWelcomeVideo() {
-  const previewContainer = document.getElementById("preview-frame-container");
-  if (previewContainer) {
-    previewContainer.style.display = "";
-  }
 }
 
 function handleWelcomeVideoEnd() {
@@ -4672,20 +4759,6 @@ function handleWelcomeVideoEnd() {
 }
 
 function dismissWelcomeVideo() {
-  const previewContainer = document.getElementById("preview-frame-container");
-  const stageContainer = document.getElementById("main-stage-container");
-  const readyState = document.getElementById("ready-state");
-
-  if (previewContainer) previewContainer.style.display = "none";
-  if (stageContainer) stageContainer.classList.add("visible");
-  if (readyState) readyState.classList.remove("hidden");
-
-  const video = document.getElementById("welcome-video-player");
-  if (video) {
-    video.removeEventListener("click", dismissWelcomeVideo);
-  }
-  document.removeEventListener("keydown", dismissWelcomeVideo);
-
   showWalkthroughIfNeeded();
 }
 
@@ -4988,6 +5061,148 @@ async function confirmCommitToFlutterFlow() {
 }
 
 // Global exports
+// --- STEP TIMING ---
+const STEP_AVG_TIMES = { 1: 47, 2: 43, 3: 46 }; // seconds, from observed data
+const _stepTimers = {}; // { [step]: { startMs, intervalId } }
+
+function _fmtElapsed(seconds) {
+  if (seconds < 60) return `${seconds}s`;
+  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+}
+
+function stepTimingStart(step) {
+  // Clear any existing timer for this step
+  stepTimingClear(step);
+  const startMs = Date.now();
+  const hint = document.getElementById(`step${step}-time-hint`);
+
+  const intervalId = setInterval(() => {
+    const elapsed = Math.floor((Date.now() - startMs) / 1000);
+    if (hint) hint.textContent = _fmtElapsed(elapsed);
+  }, 1000);
+
+  _stepTimers[step] = { startMs, intervalId };
+  if (hint) hint.textContent = '0s';
+}
+
+function stepTimingComplete(step) {
+  const timer = _stepTimers[step];
+  if (!timer) return;
+  clearInterval(timer.intervalId);
+  const elapsed = Math.round((Date.now() - timer.startMs) / 1000);
+  const hint = document.getElementById(`step${step}-time-hint`);
+  if (hint) hint.textContent = _fmtElapsed(elapsed);
+  delete _stepTimers[step];
+}
+
+function stepTimingClear(step) {
+  if (_stepTimers[step]) {
+    clearInterval(_stepTimers[step].intervalId);
+    delete _stepTimers[step];
+  }
+}
+
+function stepTimingReset(step) {
+  stepTimingClear(step);
+  const hint = document.getElementById(`step${step}-time-hint`);
+  const avg = STEP_AVG_TIMES[step];
+  if (hint && avg) hint.textContent = `~${avg}s`;
+}
+
+// --- NOTIFY ON COMPLETION ---
+const NOTIFY_STORAGE_KEY = 'ccc_notify_on_completion';
+
+function isNotifyEnabled() {
+  const checkbox = document.getElementById('notify-on-completion');
+  return checkbox ? checkbox.checked : false;
+}
+
+function loadNotifyPreference() {
+  const stored = localStorage.getItem(NOTIFY_STORAGE_KEY);
+  const checkbox = document.getElementById('notify-on-completion');
+  if (!checkbox) return;
+  if (stored === 'true') {
+    checkbox.checked = true;
+  }
+  updateNotifyUI();
+}
+
+function saveNotifyPreference(enabled) {
+  localStorage.setItem(NOTIFY_STORAGE_KEY, enabled ? 'true' : 'false');
+}
+
+function updateNotifyUI() {
+  const permission = ('Notification' in window) ? Notification.permission : 'unsupported';
+  const badge = document.getElementById('notify-permission-badge');
+  const hint = document.getElementById('notify-hint');
+  const checkbox = document.getElementById('notify-on-completion');
+
+  if (permission === 'denied') {
+    if (badge) badge.classList.remove('hidden');
+    if (hint) hint.textContent = 'Notifications are blocked. Allow them in your browser site settings.';
+    if (checkbox) checkbox.checked = false;
+    saveNotifyPreference(false);
+  } else if (permission === 'granted') {
+    if (badge) badge.classList.add('hidden');
+    if (hint) hint.textContent = 'System notification will fire when the pipeline finishes.';
+  } else {
+    if (badge) badge.classList.add('hidden');
+    if (hint) hint.textContent = 'Get a system notification when the pipeline finishes.';
+  }
+}
+
+async function handleNotifyToggleClick(event) {
+  // Prevent double-fire from label+input
+  const checkbox = document.getElementById('notify-on-completion');
+  if (!checkbox || event.target === checkbox) return;
+
+  const willBeChecked = !checkbox.checked;
+
+  if (willBeChecked && 'Notification' in window && Notification.permission === 'default') {
+    const result = await Notification.requestPermission();
+    if (result !== 'granted') {
+      updateNotifyUI();
+      return; // don't check the box
+    }
+  }
+
+  checkbox.checked = willBeChecked;
+  saveNotifyPreference(willBeChecked);
+  updateNotifyUI();
+}
+
+async function onNotifyToggleChange(checkbox) {
+  if (checkbox.checked && 'Notification' in window && Notification.permission === 'default') {
+    const result = await Notification.requestPermission();
+    if (result !== 'granted') {
+      checkbox.checked = false;
+      updateNotifyUI();
+      return;
+    }
+  }
+  saveNotifyPreference(checkbox.checked);
+  updateNotifyUI();
+}
+
+function sendCompletionNotification() {
+  if (!isNotifyEnabled()) return;
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+
+  try {
+    const n = new Notification('Pipeline Complete', {
+      body: 'Your FlutterFlow code is ready. Review it in the dashboard.',
+      icon: '/fflogo.webp',
+      tag: 'ccc-pipeline-complete', // replace old notification if still visible
+    });
+    n.onclick = () => {
+      window.focus();
+      n.close();
+    };
+  } catch (e) {
+    console.warn('Notification failed:', e);
+  }
+}
+
 window.runThinkingPipeline = runThinkingPipeline;
 window.toggleStep = toggleStep;
 window.toggleSection = toggleSection;
@@ -5037,6 +5252,14 @@ window.confirmCommitToFlutterFlow = confirmCommitToFlutterFlow;
 window.runRefinement = runRefinement;
 window.regenerateFromPastedErrors = regenerateFromPastedErrors;
 window.clearErrorInput = clearErrorInput;
+window.openFixErrorsModal = openFixErrorsModal;
+window.closeFixErrorsModal = closeFixErrorsModal;
+window.runFixErrorsAndClose = runFixErrorsAndClose;
+window.toggleAccordion = toggleAccordion;
+window.expandAccordion = expandAccordion;
+window.collapseAccordion = collapseAccordion;
+window.showNextStepsBanner = showNextStepsBanner;
+window.hideNextStepsBanner = hideNextStepsBanner;
 window.setFlutterFlowEndpoint = setFlutterFlowEndpoint;
 window.getFlutterFlowEndpoint = getFlutterFlowEndpoint;
 window.openSignInModal = openSignInModal;
@@ -5047,3 +5270,27 @@ window.startCheckout = startCheckout;
 window.openCustomerPortal = openCustomerPortal;
 window.openPricingModal = openPricingModal;
 window.closePricingModal = closePricingModal;
+function nsCopyGeneratedCode() {
+  const element = document.getElementById('step2-output');
+  const btn = document.getElementById('ns-copy-btn');
+  if (!element || !btn) return;
+
+  const text = element.dataset.raw || element.textContent;
+  if (!text.trim()) return;
+
+  navigator.clipboard.writeText(text).then(() => {
+    trackEvent('Code Copied', { elementId: 'step2-output', source: 'next-steps-banner' });
+    btn.classList.add('copied');
+    btn.innerHTML = `<svg style="width:14px;height:14px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Copied!`;
+    setTimeout(() => {
+      btn.classList.remove('copied');
+      btn.innerHTML = `<svg style="width:14px;height:14px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg> Copy Code`;
+    }, 2000);
+  }).catch(err => {
+    console.warn('Failed to copy to clipboard:', err);
+  });
+}
+
+window.handleNotifyToggleClick = handleNotifyToggleClick;
+window.onNotifyToggleChange = onNotifyToggleChange;
+window.nsCopyGeneratedCode = nsCopyGeneratedCode;
