@@ -416,6 +416,102 @@
         z-index: 5;
       }
 
+      /* ── Tooltip styles ────────────────────────────────── */
+      .tooltip {
+        position: relative;
+        display: inline-block;
+        cursor: pointer;
+      }
+
+      .tooltip .tooltiptext {
+        visibility: hidden;
+        width: 240px;
+        background-color: #333;
+        color: #fff;
+        text-align: center;
+        border-radius: 6px;
+        padding: 8px;
+        position: absolute;
+        z-index: 10;
+        bottom: 125%;
+        left: 50%;
+        margin-left: -120px;
+        opacity: 0;
+        transition: opacity 0.3s, visibility 0.3s;
+        font-size: 12px;
+        line-height: 1.4;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+      }
+
+      .tooltip .tooltiptext::after {
+        content: '';
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        margin-left: -5px;
+        border-width: 5px;
+        border-style: solid;
+        border-color: #333 transparent transparent transparent;
+      }
+
+      .tooltip:hover .tooltiptext {
+        visibility: visible;
+        opacity: 1;
+      }
+
+      /* Help button styles */
+      .help-button {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 8px 12px;
+        font-size: 12px;
+        font-weight: 500;
+        color: #475569;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+
+      .help-button:hover {
+        background: #f1f5f9;
+        border-color: #cbd5e1;
+      }
+
+      .help-button svg {
+        width: 14px;
+        height: 14px;
+        color: #64748b;
+      }
+
+      .help-button {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 8px 12px;
+        font-size: 12px;
+        font-weight: 500;
+        color: #475569;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+
+      .help-button:hover {
+        background: #f1f5f9;
+        border-color: #cbd5e1;
+      }
+
+      .help-button svg {
+        width: 14px;
+        height: 14px;
+        color: #64748b;
+      }
+
       .btn-action {
         display: flex;
         align-items: center;
@@ -1222,6 +1318,54 @@
     </style>
   </head>
   <body>
+    <div id="help-modal" class="modal-overlay">
+      <div class="modal-content">
+        <button class="modal-close" onclick="closeHelpModal()">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+        <div class="pm-header">
+          <h2 class="pm-title">FlutterFlow Custom Code Connect Help</h2>
+          <p class="pm-subtitle">Learn how to use this tool to generate FlutterFlow-compatible code</p>
+        </div>
+        <div class="pm-body" style="padding: 24px; max-height: 60vh; overflow-y: auto;">
+          <h3>Getting Started</h3>
+          <p>Describe what you want to create in the prompt box (e.g., "A circular progress indicator with gradient stroke and animated percentage text").</p>
+          
+          <h3>Workflow</h3>
+          <ol>
+            <li><strong>Prompt Architect:</strong> AI analyzes your request and creates a specification</li>
+            <li><strong>Code Generator:</strong> AI generates FlutterFlow-compatible Dart code</li>
+            <li><strong>Code Review:</strong> AI audits the code for FlutterFlow compatibility</li>
+          </ol>
+          
+          <h3>Keyboard Shortcuts</h3>
+          <ul>
+            <li><strong>Ctrl+Enter:</strong> Run the pipeline</li>
+            <li><strong>Ctrl+Shift+C:</strong> Commit to FlutterFlow</li>
+            <li><strong>Escape:</strong> Close any open modal</li>
+          </ul>
+          
+          <h3>FlutterFlow Constraints</h3>
+          <p>Our system automatically enforces FlutterFlow's strict requirements:</p>
+          <ul>
+            <li>No main() or runApp() functions</li>
+            <li>No Scaffold or MaterialApp widgets</li>
+            <li>Uses FlutterFlowTheme.of(context) for colors</li>
+            <li>Uses nullable width and height parameters</li>
+            <li>Uses Future Function() callbacks instead of VoidCallback</li>
+          </ul>
+          
+          <h3>API Keys</h3>
+          <p>Configure your FlutterFlow API key and Project ID in the Advanced Settings to enable one-click deployment.</p>
+          
+          <h3>Need More Help?</h3>
+          <p>Visit our <a href="https://github.com/sgardoll/CustomCodeConnectForFlutterFlow" target="_blank" style="color: #3b82f6; text-decoration: underline;">GitHub repository</a> for documentation and examples.</p>
+        </div>
+      </div>
+    </div>
+
     <div class="app-shell">
 
       <aside class="sidebar">
@@ -1390,6 +1534,23 @@
             Run
           </button>
           <button id="btn-deploy-to-ff" class="btn-action btn-deploy hidden" onclick="initiateCommitToFlutterFlow()" style="display:none !important;"></button>
+          
+          <div class="tooltip" style="margin-top: 10px;">
+            <button class="help-button" onclick="showHelpModal()">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" viewBox="0 0 24 24" class="w-4 h-4">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              Help
+            </button>
+            <span class="tooltiptext">Learn how to use the FlutterFlow Custom Code Connect pipeline</span>
+          </div>
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              Help
+            </button>
+            <span class="tooltiptext">Learn how to use FlutterFlow Custom Code Connect with our step-by-step guide</span>
+          </div>
           <div id="auth-signedout" style="margin-top: 10px;">
             <button class="flex items-center justify-center gap-2 text-xs text-gray-400 hover:text-gray-600 transition-colors w-full" style="background:none; border:none; cursor:pointer; font-family:inherit; padding:0;" id="auth-signin-btn" onclick="openSignInModal()">
               <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">

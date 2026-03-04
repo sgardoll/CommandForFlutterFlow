@@ -19,7 +19,6 @@ function trackEvent(eventName, properties = {}) {
     try {
       posthog.capture(eventName, properties);
     } catch(e) {
-      console.error("PostHog tracking failed", e);
     }
   }
 }
@@ -658,7 +657,6 @@ async function decryptData(encryptedBase64) {
     const decoder = new TextDecoder();
     return decoder.decode(decrypted);
   } catch (error) {
-    console.error("Decryption failed:", error);
     return null;
   }
 }
@@ -1072,10 +1070,9 @@ async function fetchProjects(apiKey) {
   const select = document.getElementById("flutterflow-projects-select");
   const errorElement = document.getElementById("flutterflow-projects-error");
 
-  if (!container || !select) {
-    console.error("Projects dropdown elements not found");
-    return;
-  }
+    if (!container || !select) {
+      return;
+    }
 
   // Show loading state
   container.classList.remove("hidden");
@@ -1113,14 +1110,13 @@ async function fetchProjects(apiKey) {
         projectIdInput.dispatchEvent(new Event("input"));
       }
     });
-  } catch (error) {
-    console.error("Failed to fetch projects:", error);
-    select.innerHTML = '<option value="">Error loading projects</option>';
-    if (errorElement) {
-      errorElement.textContent = `Failed to load projects: ${error.message}`;
-      errorElement.classList.remove("hidden");
+    } catch (error) {
+      select.innerHTML = '<option value="">Error loading projects</option>';
+      if (errorElement) {
+        errorElement.textContent = `Failed to load projects: ${error.message}`;
+        errorElement.classList.remove("hidden");
+      }
     }
-  }
 }
 
 function toggleKeyVisibility(inputId) {
@@ -1151,13 +1147,75 @@ let pipelineState = {
   isRunning: false,
 };
 
+// --- KEYBOARD SHORTCUTS & ACCESSIBILITY ---
+function initKeyboardShortcuts() {
+  document.addEventListener('keydown', function(e) {
+    if (e.ctrlKey && e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      runThinkingPipeline();
+      announceToScreenReader('Pipeline execution started');
+    }
+    
+    if (e.ctrlKey && e.shiftKey && e.key === 'c') {
+      e.preventDefault();
+      initiateCommitToFlutterFlow();
+      announceToScreenReader('Commit to FlutterFlow initiated');
+    }
+    
+    if (e.key === 'Escape') {
+      document.querySelectorAll('.modal-overlay.open').forEach(modal => {
+        modal.classList.remove('open');
+      });
+      announceToScreenReader('Modal closed');
+    }
+  });
+}
+
+function announceToScreenReader(message) {
+  let liveRegion = document.getElementById('screen-reader-live-region');
+  if (!liveRegion) {
+    liveRegion = document.createElement('div');
+    liveRegion.id = 'screen-reader-live-region';
+    liveRegion.style.position = 'absolute';
+    liveRegion.style.width = '1px';
+    liveRegion.style.height = '1px';
+    liveRegion.style.padding = '0';
+    liveRegion.style.border = '0';
+    liveRegion.style.clip = 'rect(0 0 0 0)';
+    liveRegion.style.overflow = 'hidden';
+    liveRegion.style.whiteSpace = 'nowrap';
+    liveRegion.style.clipPath = 'inset(50%)';
+    liveRegion.style.wordWrap = 'normal';
+    liveRegion.setAttribute('aria-live', 'polite');
+    liveRegion.setAttribute('aria-atomic', 'true');
+    document.body.appendChild(liveRegion);
+  }
+  liveRegion.textContent = message;
+}
+
+// --- HELP MODAL ---
+function showHelpModal() {
+  const modal = document.getElementById('help-modal');
+  if (!modal) return;
+  modal.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeHelpModal(event) {
+  if (event && event.target !== event.currentTarget) return;
+  const modal = document.getElementById('help-modal');
+  if (modal) {
+    modal.classList.remove('open');
+  }
+  document.body.style.overflow = '';
+}
+
 // --- CORE API FUNCTIONS ---
 
 async function checkConnection() {
   try {
     await initializeApiKeys()
   } catch (error) {
-    console.error('checkConnection: initializeApiKeys failed:', error)
     return false
   }
   return true
@@ -1236,10 +1294,6 @@ class FlutterFlowApiClient {
    * @returns {Promise<Object>} Object containing file contents mapped by path
    */
   async pullCode() {
-    console.log(
-      `Pulling code from FlutterFlow project: ${this.projectId}, branch: ${this.branchName || "main"}`,
-    );
-
     try {
       const response = await fetch(`${this.baseUrl}exportCode`, {
         method: "POST",
@@ -1270,10 +1324,9 @@ class FlutterFlowApiClient {
         projectId: this.projectId,
         branchName: this.branchName,
       };
-    } catch (error) {
-      console.error("Error pulling code from FlutterFlow:", error);
-      throw error;
-    }
+        } catch (error) {
+          return { responseCode: 500, errorMessage: error.message };
+        }
   }
 
   /**
@@ -1300,10 +1353,6 @@ class FlutterFlowApiClient {
         const baseUrl = endpointUrls[ei];
 
         try {
-          console.log(
-            `Push attempt ${attempt + 1} to ${baseUrl}syncCustomCodeChanges`,
-          );
-          console.log("Request:", JSON.stringify(pushCodeRequest, null, 2));
           const response = await fetch(`${baseUrl}syncCustomCodeChanges`, {
             method: "POST",
             headers: {
@@ -1314,27 +1363,19 @@ class FlutterFlowApiClient {
           });
 
           if (response.ok) {
-            console.log(`Push to ${baseUrl} succeeded!`);
             return response;
           }
 
           const clonedForLog = response.clone();
           const responseText = await clonedForLog.text();
-          console.log(
-            `Push to ${baseUrl} returned ${response.status}: ${responseText}`,
-          );
 
           if (response.status === 500) {
-            console.warn(`Endpoint ${baseUrl} returned 500, trying next...`);
             await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
             continue;
           }
 
           return response;
         } catch (error) {
-          console.warn(
-            `Push to ${baseUrl} failed: ${error.message}, trying next...`,
-          );
           await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
         }
       }
@@ -1356,7 +1397,6 @@ class FlutterFlowApiClient {
    */
   async listProjects(options = {}) {
     const { page = 1, limit = 100 } = options;
-    console.log(`Listing projects for API key via V2 endpoint`);
 
     try {
       const response = await fetch(
@@ -1934,7 +1974,7 @@ async function showPreCommitSummary(codeInfo, checks) {
 
   summaryHtml += "</div>";
 
-  console.log("Pre-commit summary:", summaryHtml);
+
 
   if (!checks.canProceed) {
     return false;
@@ -2380,7 +2420,7 @@ const commitState = {
       );
     }
 
-    console.log(`Commit state changed to: ${state}`);
+
   },
 
   /**
@@ -2583,11 +2623,14 @@ async function commitToFlutterFlow(dartCode, fileName, options = {}) {
  */
 
 async function createZipFromFileMap(fileMap) {
-  try {
-    const zip = new JSZip();
-
-    for (const [name, info] of fileMap.entries()) {
-      zip.file(name, info.content);
+    try {
+      const zip = new JSZip();
+      const zipContent = await generateZipContent(code, artifactType, artifactName, pipelineResult);
+      zip.file("code.zip", zipContent);
+      const zipBlob = await zip.generateAsync({ type: "blob" });
+      return zipBlob;
+    } catch (error) {
+      throw new Error("Failed to create zip archive");
     }
 
     const zipBuffer = await zip.generateAsync({
@@ -2597,35 +2640,23 @@ async function createZipFromFileMap(fileMap) {
     });
     return zipBuffer;
   } catch (error) {
-    console.error("Error creating zip:", error);
-    return "";
+    return [];
   }
 }
 
 async function executeCommit(code, options = {}) {
   const { artifactType, artifactName, pipelineResult } = options;
 
-  console.log(`Starting commit for ${artifactName} (${artifactType})`);
-
   try {
-    // Step 1: Prepare the code
-    commitState.setState(CommitState.PREPARING);
-    const codeInfo = prepareCodeForCommit(code, { artifactType, artifactName });
-
-    // Step 2: Extract dependencies
-    const deps = extractDependencies(codeInfo.content);
-    console.log("Detected dependencies:", deps);
-
-    // Step 3: Validate FlutterFlow credentials
-    commitState.setState(CommitState.VALIDATING);
-    const apiKey = await getApiKey("flutterflow");
-    const projectId = await getApiKey("flutterflow_project_id");
-
-    if (!apiKey) {
-      throw new Error(
-        "FlutterFlow API Key not configured. Please add it in API Keys settings.",
-      );
-    }
+    const zip = new JSZip();
+    const zipContent = await generateZipContent(code, artifactType, artifactName, pipelineResult);
+    zip.file("code.zip", zipContent);
+    const zipBlob = await zip.generateAsync({ type: "blob" });
+    return zipBlob;
+  } catch (error) {
+    throw new Error("Failed to create zip archive");
+  }
+}
     if (!projectId) {
       throw new Error(
         "FlutterFlow Project ID not configured. Please add it in API Keys settings.",
@@ -3271,18 +3302,16 @@ function updateModelInfo(selectedModel) {
   const acc3Model = document.getElementById("accordion-step3-model")
   if (acc3Model) acc3Model.textContent = getDisplayName(CODE_REVIEW_MODEL)
 
-  console.log(`Step 1 (Prompt Architect): ${getDisplayName(PROMPT_ARCHITECT_MODEL)}`)
+
   if (effectiveModel !== selectedModel) {
-    console.log(`Step 2 (Code Generator): ${getDisplayName(selectedModel)} → ${getDisplayName(effectiveModel)} (Free Tier fallback)`)
+
   } else {
-    console.log(`Step 2 (Code Generator): ${getDisplayName(selectedModel)}`)
+
   }
-  console.log(`Step 3 (Code Review): ${getDisplayName(CODE_REVIEW_MODEL)}`)
+
 }
 
 async function runRefinement() {
-  console.log("runRefinement called");
-
   if (pipelineState.isRunning) return;
 
   // Get current model
@@ -3365,7 +3394,7 @@ Ensure it still adheres to the ORIGINAL SPECIFICATION.
   }
 }
 
-async function callEndpoint(type, code, input) {
+  async function callEndpoint(type, code, input) {
   const url = `${BUILDSHIP_BASE_URL}/connectFeedback`
   const data = { type: type, code: code, input: input }
   try {
@@ -3377,15 +3406,12 @@ async function callEndpoint(type, code, input) {
     
     if (!response.ok) {
       const errorText = await response.text()
-      console.error(`callEndpoint failed: ${response.status} ${response.statusText}`, errorText)
       return { success: false, status: response.status, error: errorText }
     }
     
     const result = await response.json()
-    console.log('Telemetry success:', result)
     return result
   } catch (error) {
-    console.error('callEndpoint failed:', error)
     return { success: false, error: error.message }
   }
 }
@@ -3478,8 +3504,6 @@ Maintain the original specification and intent.`
 // --- MAIN PIPELINE ---
 
 async function runThinkingPipeline() {
-  console.log("runThinkingPipeline called");
-
   if (pipelineState.isRunning) return;
 
   localStorage.setItem("hasSeenWalkthrough", "true");
@@ -3715,7 +3739,7 @@ async function initiateCommitToFlutterFlow() {
   const shouldProceed = await showPreCommitSummary(codeInfo, checks);
 
   if (!shouldProceed) {
-    console.log("User cancelled commit");
+
     return;
   }
 
@@ -4171,10 +4195,14 @@ async function resolveIdentity() {
       updateUsageDisplay()
     }
 
-    console.log(`Identity resolved: ${data.status} (${data.user_id.slice(0, 8)}...) usage: ${data.usage_count ?? 'n/a'}`)
-  } catch (error) {
-    console.error('resolveIdentity failed:', error)
-  }
+
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message,
+        state: commitState.currentState,
+      };
+    }
 }
 
 // --- USAGE METERING ---
@@ -4500,7 +4528,7 @@ async function callBuildShip(step, model, prompt, context = {}) {
     })
 
     const data = await res.json()
-    console.log(`[BuildShip] ${step} response keys:`, Object.keys(data), 'content type:', typeof data.content)
+
     if (!res.ok) {
       throw new Error(`${data.message || data.error || 'BuildShip pipeline error'} (HTTP ${res.status})`)
     }
