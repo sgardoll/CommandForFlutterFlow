@@ -1210,7 +1210,7 @@ function closeHelpModal(event) {
   document.body.style.overflow = '';
 }
 
-// --- CORE API FUNCTIONS ---
+  // --- CORE API FUNCTIONS ---
 
 async function checkConnection() {
   try {
@@ -1219,6 +1219,60 @@ async function checkConnection() {
     return false
   }
   return true
+}
+
+/**
+ * Updates progress step visuals.
+ * @param {string} stepId - Step ID (preparing, validating, pushing, completed)
+ * @param {string} status - Status (pending, active, completed)
+ */
+function updateProgressStep(stepId, status) {
+  const step = document.getElementById(`step-${stepId}`);
+  if (!step) return;
+  
+  const icon = step.querySelector('.progress-step-icon div');
+  
+  // Remove all status classes
+  step.classList.remove('active', 'completed');
+  icon.className = 'w-2 h-2 rounded-full';
+  
+  // Add new status
+  switch (status) {
+    case 'active':
+      step.classList.add('active');
+      icon.classList.add('bg-orange-500', 'pulse-animation');
+      break;
+    case 'completed':
+      step.classList.add('completed');
+      icon.classList.add('bg-green-500');
+      icon.innerHTML = '✓';
+      break;
+    default: // pending
+      icon.classList.add('bg-gray-300');
+      break;
+  }
+}
+
+/**
+ * Enhanced progress update with step visualization.
+ * @param {string} state - CommitState value
+ */
+function updateProgressSteps(state) {
+  const stateStepMap = {
+    [CommitState.IDLE]: { preparing: 'pending', validating: 'pending', pushing: 'pending', completed: 'pending' },
+    [CommitState.PREPARING]: { preparing: 'active', validating: 'pending', pushing: 'pending', completed: 'pending' },
+    [CommitState.VALIDATING]: { preparing: 'completed', validating: 'active', pushing: 'pending', completed: 'pending' },
+    [CommitState.PUSHING]: { preparing: 'completed', validating: 'completed', pushing: 'active', completed: 'pending' },
+    [CommitState.SUCCESS]: { preparing: 'completed', validating: 'completed', pushing: 'completed', completed: 'completed' },
+    [CommitState.ERROR]: { preparing: 'completed', validating: 'completed', pushing: 'completed', completed: 'pending' },
+  };
+  
+  const steps = stateStepMap[state];
+  if (steps) {
+    Object.entries(steps).forEach(([stepId, status]) => {
+      updateProgressStep(stepId, status);
+    });
+  }
 }
 
 // --- FLUTTERFLOW API CLIENT ---
@@ -2612,27 +2666,17 @@ async function commitToFlutterFlow(dartCode, fileName, options = {}) {
   }
 }
 
-/**
- * Executes the complete commit action with all integrations.
- * @param {string} code - Generated Dart code
- * @param {Object} options - Commit options
- * @param {string} options.artifactType - Type of artifact
- * @param {string} options.artifactName - Name of artifact
- * @param {Object} options.pipelineResult - Pipeline generation results
- * @returns {Promise<Object>} Commit result with full details
+  /**
+ * Creates a zip file from a file map.
+ * @param {Map<string, {content: string, type: string, path: string}>} fileMap - Map of file paths to content
+ * @returns {Promise<string>} Base64 encoded zip file
  */
-
 async function createZipFromFileMap(fileMap) {
-    try {
-      const zip = new JSZip();
-      const zipContent = await generateZipContent(code, artifactType, artifactName, pipelineResult);
-      zip.file("code.zip", zipContent);
-      const zipBlob = await zip.generateAsync({ type: "blob" });
-      return zipBlob;
-    } catch (error) {
-      throw new Error("Failed to create zip archive");
+  try {
+    const zip = new JSZip();
+    for (const [filePath, fileData] of fileMap) {
+      zip.file(filePath, fileData.content);
     }
-
     const zipBuffer = await zip.generateAsync({
       type: "base64",
       compression: "DEFLATE",
@@ -2640,7 +2684,8 @@ async function createZipFromFileMap(fileMap) {
     });
     return zipBuffer;
   } catch (error) {
-    return [];
+    console.error("Failed to create zip archive:", error);
+    throw new Error("Failed to create zip archive");
   }
 }
 
@@ -2655,139 +2700,6 @@ async function executeCommit(code, options = {}) {
     return zipBlob;
   } catch (error) {
     throw new Error("Failed to create zip archive");
-  }
-}
-    if (!projectId) {
-      throw new Error(
-        "FlutterFlow Project ID not configured. Please add it in API Keys settings.",
-      );
-    }
-
-    if (!validateFlutterFlowProjectId(projectId)) {
-      throw new Error("Invalid FlutterFlow Project ID format.");
-    }
-
-    // Step 5: Prepare file map
-    const fileMap = new Map();
-    fileMap.set(codeInfo.fileName, {
-      content: codeInfo.content,
-      type: codeInfo.codeType,
-      path: getFilePathForCodeType(codeInfo.fileName, codeInfo.codeType),
-    });
-
-    commitState.setProgress(0, fileMap.size);
-
-    // Step 6: Validate files
-    const validation = validateFileMap(fileMap);
-    if (!validation.valid) {
-      throw new Error(
-        `File validation failed:\n${validation.errors.join("\n")}`,
-      );
-    }
-
-    if (validation.warnings.length > 0) {
-      console.warn("Validation warnings:", validation.warnings);
-    }
-
-    // Step 7: Prepare pubspec with dependencies
-    // createDefaultPubspec returns an object, no need to JSON.parse
-    let pubspec = createDefaultPubspec();
-
-    // Add default flutter dependency
-    if (!pubspec.dependencies) pubspec.dependencies = {};
-    if (!pubspec.dependencies.flutter)
-      pubspec.dependencies.flutter = { sdk: "flutter" };
-
-    if (Object.keys(deps).length > 0) {
-      pubspec = mergeDependencies(pubspec, deps);
-    }
-    const serializedYaml = serializePubspecToYaml(pubspec);
-
-    const fileMapContents = buildApiFileMap(fileMap);
-
-    const fileMapWithPubspec = new Map(fileMap);
-    fileMapWithPubspec.set("pubspec.yaml", {
-      content: serializedYaml,
-      type: "D",
-      path: "pubspec.yaml",
-    });
-
-    commitState.setState(CommitState.PUSHING);
-    const endpoint = getFlutterFlowEndpoint();
-    const apiClient = new FlutterFlowApiClient(
-      apiKey,
-      projectId,
-      "main",
-      endpoint,
-    );
-
-    const zippedCustomCode = await createZipFromFileMap(fileMapWithPubspec);
-
-    const pushRequest = {
-      project_id: projectId,
-      zipped_custom_code: zippedCustomCode,
-      uid: `web_${Date.now()}`,
-      branch_name: apiClient.branchName,
-      serialized_yaml: serializedYaml,
-      file_map: fileMapContents,
-      functions_map: "{}",
-    };
-
-    commitState.setProgress(1, fileMap.size);
-
-    const response = await apiClient.pushCode(pushRequest);
-    const result = await parsePushCodeResponse(response);
-
-    // Step 10: Handle result
-    if (result.success) {
-      const metadata = { ...buildCommitMetadata(codeInfo, pipelineResult), projectId };
-
-      commitState.setSuccess({
-        ...metadata,
-        fileCount: fileMap.size,
-        warnings: result.errorMap ? Array.from(result.errorMap.entries()) : [],
-      });
-
-      return {
-        success: true,
-        message: `Successfully committed ${codeInfo.fileName} to FlutterFlow`,
-        metadata,
-        warnings: result.errorMap ? Array.from(result.errorMap.entries()) : [],
-        elapsedTime: commitState.getElapsedTime(),
-      };
-    } else {
-      const errorMsg =
-        result.errorMessage || getFlutterFlowErrorMessage(result.responseCode);
-      const errorWithMap = new Error(errorMsg);
-      errorWithMap.errorMap = result.errorMap;
-      throw errorWithMap;
-    }
-  } catch (error) {
-    console.error("Commit execution failed:", error);
-    commitState.setError(error);
-
-    // Try to extract errorMap from the error if available
-    let errorMap = new Map();
-    if (error.errorMap) {
-      errorMap = error.errorMap;
-    } else if (error.message && error.message.includes("{")) {
-      // Try to parse errorMap from error message
-      try {
-        const match = error.message.match(/\{[\s\S]*\}/);
-        if (match) {
-          const parsed = JSON.parse(match[0]);
-          errorMap = new Map(Object.entries(parsed));
-        }
-      } catch (e) {}
-    }
-
-    return {
-      success: false,
-      error: error.message,
-      errorMap: errorMap,
-      state: commitState.currentState,
-      elapsedTime: commitState.getElapsedTime(),
-    };
   }
 }
 
@@ -4045,6 +3957,8 @@ function saveSession(email, sessionToken) {
   authState.email = email
   authState.sessionToken = sessionToken
   authState.isVerified = true
+  if (email) localStorage.setItem('ccc_email', email)
+  if (sessionToken) localStorage.setItem('ccc_sessionToken', sessionToken)
 }
 
 function clearSession() {
@@ -4053,12 +3967,14 @@ function clearSession() {
   authState.isVerified = false
   subscriptionState = { tier: 'free', status: 'none', periodEnd: null }
   localStorage.removeItem('ccc_subscription')
+  localStorage.removeItem('ccc_email')
+  localStorage.removeItem('ccc_sessionToken')
 }
 
 function getStoredSession() {
   return {
-    email: authState.email,
-    sessionToken: authState.sessionToken
+    email: authState.email || localStorage.getItem('ccc_email'),
+    sessionToken: authState.sessionToken || localStorage.getItem('ccc_sessionToken')
   }
 }
 
@@ -4404,7 +4320,8 @@ async function fetchSubscription() {
   if (cached) {
     try {
       const { data, ts } = JSON.parse(cached)
-      if (Date.now() - ts < 5 * 60 * 1000) {
+      // Cache bypassed to prevent stale subscription state
+      if (false) {
         subscriptionState = data
         return
       }
@@ -4520,6 +4437,7 @@ async function callBuildShip(step, model, prompt, context = {}) {
       signal: controller.signal,
       body: JSON.stringify({
         user_id: identityState.userId,
+        sessionToken: authState.sessionToken,
         step,
         model,
         prompt,
