@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-02-20)
 Phase: 9 of 9 (Tier Restrictions & Paywall UI)
 Plan: 09-01 (Tier Restrictions & Paywall) ✅ Complete (code shipped, backend deployed)
 Status: All Phase 9 frontend and backend changes committed. E2E manual testing not yet done.
-Last activity: 2026-02-25 — Phase 9 code review + minor fix committed
+Last activity: 2026-03-12 — Completed quick task 12: Remove Help button and Notifications toggle
 
 Progress: █████████░ 90%
 
@@ -89,6 +89,12 @@ Recent decisions affecting current work:
 
 None.
 
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 12 | Remove Help button and Notifications toggle | 2026-03-12 | 2cc01b8 | [12-remove-help-button-and-notifications-tog](./quick/12-remove-help-button-and-notifications-tog/) |
+
 ## Phase 9 Summary
 
 ### What was built:
@@ -110,6 +116,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-26 18:15
-Stopped at: Phase 9 code complete and committed. E2E manual testing not yet done. Plan 08-02 (BYOK Registration) deferred.
+Last session: 2026-03-12
+Stopped at: Completed quick task 12: Removed Help button and Notifications toggle from index.html
 Resume file: N/A — no formal plan file was created for Phase 9 (built directly)
