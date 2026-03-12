@@ -486,32 +486,6 @@
         color: #64748b;
       }
 
-      .help-button {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        background: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 12px;
-        padding: 8px 12px;
-        font-size: 12px;
-        font-weight: 500;
-        color: #475569;
-        cursor: pointer;
-        transition: all 0.2s ease;
-      }
-
-      .help-button:hover {
-        background: #f1f5f9;
-        border-color: #cbd5e1;
-      }
-
-      .help-button svg {
-        width: 14px;
-        height: 14px;
-        color: #64748b;
-      }
-
       .btn-action {
         display: flex;
         align-items: center;
@@ -958,6 +932,79 @@
       }
       .modal-overlay.open .modal-content {
         transform: scale(1) translateY(0);
+      }
+
+      /* ── Loading Overlay ─────────────────────────────────── */
+      .loading-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(255, 255, 255, 0.9);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.3s, visibility 0.3s;
+      }
+      
+      .loading-overlay.active {
+        opacity: 1;
+        visibility: visible;
+      }
+      
+      .loading-content {
+        text-align: center;
+        padding: 2rem;
+      }
+      
+      .loading-spinner {
+        width: 48px;
+        height: 48px;
+        border: 4px solid #f3f4f6;
+        border-top-color: #f97316;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 1rem;
+      }
+      
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+      
+      .pulse-animation {
+        animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      }
+      
+      @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+      }
+      
+      .progress-step {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.5rem 0;
+        opacity: 0.5;
+        transition: opacity 0.3s;
+      }
+      
+      .progress-step.active {
+        opacity: 1;
+      }
+      
+      .progress-step.completed {
+        opacity: 1;
+        color: #22c55e;
+      }
+      
+      .progress-step-icon {
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
       }
 
       .modal-close {
@@ -1433,20 +1480,6 @@
                 </select>
               </div>
             </div>
-
-            <!-- Notify on Completion subsection -->
-            <div class="sb-advanced-sub">
-              <span class="sb-sublabel">Notifications</span>
-              <label class="notify-toggle-row" id="notify-toggle-label" onclick="handleNotifyToggleClick(event)">
-                <span class="notify-toggle-switch">
-                  <input type="checkbox" id="notify-on-completion" style="display:none;" onchange="onNotifyToggleChange(this)">
-                  <span class="notify-slider" id="notify-slider"></span>
-                </span>
-                <span class="notify-toggle-text">Notify on Completion</span>
-                <span id="notify-permission-badge" class="notify-permission-badge hidden">blocked</span>
-              </label>
-              <p class="notify-hint" id="notify-hint">Get a system notification when the pipeline finishes.</p>
-            </div>
           </details>
 
           <!-- 02. Workflow -->
@@ -1533,24 +1566,8 @@
             <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
             Run
           </button>
-          <button id="btn-deploy-to-ff" class="btn-action btn-deploy hidden" onclick="initiateCommitToFlutterFlow()" style="display:none !important;"></button>
+          <button id="btn-deploy-to-ff" class="btn-action btn-deploy hidden" onclick="initiateCommitToFlutterFlow()" style="display:none !important;">          </button>
           
-          <div class="tooltip" style="margin-top: 10px;">
-            <button class="help-button" onclick="showHelpModal()">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" viewBox="0 0 24 24" class="w-4 h-4">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-              </svg>
-              Help
-            </button>
-            <span class="tooltiptext">Learn how to use the FlutterFlow Custom Code Connect pipeline</span>
-          </div>
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-              </svg>
-              Help
-            </button>
-            <span class="tooltiptext">Learn how to use FlutterFlow Custom Code Connect with our step-by-step guide</span>
-          </div>
           <div id="auth-signedout" style="margin-top: 10px;">
             <button class="flex items-center justify-center gap-2 text-xs text-gray-400 hover:text-gray-600 transition-colors w-full" style="background:none; border:none; cursor:pointer; font-family:inherit; padding:0;" id="auth-signin-btn" onclick="openSignInModal()">
               <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1955,6 +1972,45 @@
           </div>
           <input id="signin-email-input" type="email" placeholder="you@example.com" class="api-key-input mb-3" style="font-family:'Delight',sans-serif;font-size:14px;padding:11px 14px;" onkeydown="if(event.key==='Enter') handleMagicLinkRequest()" />
           <button id="signin-submit-btn" onclick="handleMagicLinkRequest()" class="btn-action btn-run" style="font-size:14px;">Send Sign-in Link</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Loading Overlay with Progress Steps -->
+    <div id="commit-progress-overlay" class="loading-overlay">
+      <div class="loading-content">
+        <div class="loading-spinner"></div>
+        <h3 class="font-semibold text-gray-900 mb-2" id="progress-title">Committing to FlutterFlow...</h3>
+        <p class="text-sm text-gray-500 mb-6" id="progress-message">Preparing code</p>
+        
+        <div class="text-left space-y-2 max-w-xs mx-auto">
+          <div class="progress-step active" id="step-preparing">
+            <div class="progress-step-icon">
+              <div class="w-2 h-2 bg-orange-500 rounded-full pulse-animation"></div>
+            </div>
+            <span class="text-sm">Preparing</span>
+          </div>
+          <div class="progress-step" id="step-validating">
+            <div class="progress-step-icon">
+              <div class="w-2 h-2 bg-gray-300 rounded-full"></div>
+            </div>
+            <span class="text-sm">Validating</span>
+          </div>
+          <div class="progress-step" id="step-pushing">
+            <div class="progress-step-icon">
+              <div class="w-2 h-2 bg-gray-300 rounded-full"></div>
+            </div>
+            <span class="text-sm">Pushing to FlutterFlow</span>
+          </div>
+          <div class="progress-step" id="step-completed">
+            <div class="progress-step-icon">
+              <div class="w-2 h-2 bg-gray-300 rounded-full"></div>
+            </div>
+            <span class="text-sm">Completed</span>
+          </div>
+        </div>
+      </div>
+    </div>
           <p id="signin-message" class="text-sm text-gray-400 mt-3 text-center min-h-[1.25rem]"></p>
         </div>
       </div>
