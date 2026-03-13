@@ -4,11 +4,11 @@
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="MIT License"/>
 </p>
 
-<h1 align="center">FlutterFlow Custom Code Connect</h1>
+<h1 align="center">FlutterFlow Custom Code, Solved.</h1>
 
 <p align="center">
-  <strong>Break through FlutterFlow's complexity ceiling.</strong><br/>
-  AI-powered custom code generation that actually works in FlutterFlow.
+  <strong>The only AI coding assistant trained specifically on FlutterFlow's architecture.</strong><br/>
+  Generate error-free widgets and actions, and deploy them directly to your project in one click.
   Watch the full tutorial video by clicking below.
 </p>
 
