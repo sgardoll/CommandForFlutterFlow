@@ -105,7 +105,7 @@ Every line of generated code is checked against FlutterFlow's rigid architecture
 
 ### Actionable Code Review
 
-The **Code Review** stage doesn't just find problems—it tells you exactly what to fix:
+The **Code Review** stage doesn't just find problems—it tells you exactly what requires fixing, which you can either do yourself or send back through the Connect process automatically:
 
 ```
 ## Overall Score: 75/100
@@ -125,13 +125,13 @@ The **Code Review** stage doesn't just find problems—it tells you exactly what
 ### Multi-Model Support
 
 Choose your AI backend:
-- **Gemini 3.0 Pro** (default, primary)
+- **Gemini 3.1 Pro** (default, primary)
 - **Claude 4.6 Opus** (optional)
 - **GPT-5.3-Codex** (optional)
 - **OpenRouter: Auto Router** (route to best available model)
 - **OpenRouter: Free Models** (cost-optimized routing)
 
-Each model receives optimized prompts tailored to its strengths, with automatic fallback to Gemini 3.0 Flash if the primary model fails.
+Each model receives optimized prompts tailored to its strengths, with automatic fallback to Gemini 3.1 Flash if the primary model fails.
 
 ### Smart Refinement
 
