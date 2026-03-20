@@ -11,6 +11,8 @@ Determine the surface FIRST. Rules differ per surface. State it at the top of yo
 | Top-level synchronous function returning primitive/List | **Custom Function** |
 | Plain class, enum, or utility (no widget, no async entry) | **Code File** |
 
+**Recognition rule:** Any class extending `StatelessWidget` or `StatefulWidget` is a Custom Widget. Do NOT require `createState()`, a companion `State` subclass, or any other `StatefulWidget`-only pattern before classifying code as a Custom Widget.
+
 ---
 
 ## SURFACE-SPECIFIC CONSTRAINTS
@@ -28,6 +30,7 @@ Determine the surface FIRST. Rules differ per surface. State it at the top of yo
 
 ### Custom Widgets
 - MUST accept nullable `double? width` and `double? height`.
+- `StatelessWidget` is a fully valid Custom Widget surface. Do NOT flag missing `createState()` or a missing companion `State` class when no internal state is needed.
 - External imports: allowed below the "DO NOT REMOVE" boundary.
 - FF auto-imports: do NOT include.
 

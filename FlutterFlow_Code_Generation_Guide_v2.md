@@ -11,6 +11,8 @@ Before writing any code, confirm which surface you are generating for. The const
 | **Custom Widget** | Class extending `StatelessWidget` or `StatefulWidget` | N/A (visual) | External packages allowed below boundary. Do NOT include FF auto-imports. | MUST accept `double? width`, `double? height` |
 | **Code File** | Plain class, enum, utility | N/A | Standard Dart only | No generics, no extensions, no function-typed fields, no `typedef` |
 
+**Recognition rule:** A Custom Widget is any class that extends `StatelessWidget` or `StatefulWidget`. Do NOT require `createState()`, a companion `State` subclass, or any other `StatefulWidget`-only pattern before classifying code as a Custom Widget.
+
 ---
 
 ## DO NOT INCLUDE (FF adds these automatically at commit)
@@ -94,6 +96,7 @@ Never use `VoidCallback`, `ValueChanged<T>`, or `void Function(T)`.
 ## WIDGET STRUCTURE
 
 - Class name MUST match the artifact name from spec exactly (case-sensitive).
+- `StatelessWidget` is a fully valid Custom Widget surface. Do NOT require `createState()` or a `_State` class when no internal state is needed.
 - Prefer `StatelessWidget` when no internal state is needed.
 - Use `StatefulWidget` only for: `AnimationController`, gesture tracking, local transient UI state.
 - State class: `_ArtifactNameState` (private, underscore prefix).

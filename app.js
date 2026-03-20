@@ -26,10 +26,6 @@ function trackEvent(eventName, properties = {}) {
 
 // --- AUTH / SUBSCRIPTION CONFIG ---
 const BUILDSHIP_BASE_URL = 'https://4tgke4.buildship.run'
-const STRIPE_PUBLISHABLE_KEY = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY
-if (!STRIPE_PUBLISHABLE_KEY) {
-  console.error('VITE_STRIPE_PUBLISHABLE_KEY environment variable is not set')
-}
 const STRIPE_PRICE_IDS = {
   professional: 'price_1T2ldCKszA2slvDXatdeCpbI',
   power: 'price_1T2le9KszA2slvDXR4mPvw7M'
@@ -1555,6 +1551,10 @@ const CodeType = {
   OTHER: "O",
 };
 
+const WIDGET_CLASS_REGEX =
+  /class\s+\w+\s+extends\s+(?:StatelessWidget|StatefulWidget)\b/;
+const STATE_CLASS_REGEX = /extends\s+State<\w+>/;
+
 /**
  * Detects the type of custom code based on file name and content.
  * @param {string} fileName - Name of the file
@@ -1575,14 +1575,15 @@ function detectCodeType(fileName, content = "") {
   }
 
   if (content) {
-    if (
-      content.includes("extends State") ||
-      content.includes("StatefulWidget")
-    ) {
-      if (content.includes("Future") && content.includes("BuildContext")) {
-        return CodeType.ACTION;
-      }
+    const hasWidgetClass = WIDGET_CLASS_REGEX.test(content);
+    const hasStateClass = STATE_CLASS_REGEX.test(content);
+
+    if (hasWidgetClass || hasStateClass) {
       return CodeType.WIDGET;
+    }
+
+    if (/^\s*Future(?:<[^>]+>)?\s+\w+\s*\(/m.test(content)) {
+      return CodeType.ACTION;
     }
 
     if (
@@ -2189,6 +2190,8 @@ function buildCommitMetadata(codeInfo, pipelineResult = {}) {
  */
 function validateDartFile(fileName, content, codeType) {
   const errors = [];
+  const hasWidgetClass = WIDGET_CLASS_REGEX.test(content);
+  const hasStateClass = STATE_CLASS_REGEX.test(content);
 
   // Check for forbidden patterns in FlutterFlow
   const forbiddenPatterns = [
@@ -2251,16 +2254,10 @@ function validateDartFile(fileName, content, codeType) {
   }
 
   // Check for required patterns in widgets
-  if (fileName.endsWith(".dart") && !fileName.includes("functions")) {
-    // Check for null safety
-    if (content.includes("!") && !content.includes("??")) {
-      // Has bang operator but no null coalescing - potential null safety issue
-      // This is just a warning, not an error
-    }
-  }
-
-  if (codeType === CodeType.WIDGET && !content.match(/class\s+\w+/)) {
-    errors.push("No class definition found");
+  if (codeType === CodeType.WIDGET && !hasWidgetClass && !hasStateClass) {
+    errors.push(
+      "No widget class definition found (must extend StatelessWidget or StatefulWidget)",
+    );
   }
 
   return {
