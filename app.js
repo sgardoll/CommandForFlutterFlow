@@ -26,7 +26,10 @@ function trackEvent(eventName, properties = {}) {
 
 // --- AUTH / SUBSCRIPTION CONFIG ---
 const BUILDSHIP_BASE_URL = 'https://4tgke4.buildship.run'
-const STRIPE_PUBLISHABLE_KEY = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || 'pk_live_51R8y3MKszA2slvDX8402H2tJtQkNanGCSeAz8YA5hZ8mmiwAR9ztvhGHvzh2KX1KMZt4vvt6wlh1MUtw8C9kbpkJ00NFSVe4GL'
+const STRIPE_PUBLISHABLE_KEY = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY
+if (!STRIPE_PUBLISHABLE_KEY) {
+  console.error('VITE_STRIPE_PUBLISHABLE_KEY environment variable is not set')
+}
 const STRIPE_PRICE_IDS = {
   professional: 'price_1T2ldCKszA2slvDXatdeCpbI',
   power: 'price_1T2le9KszA2slvDXR4mPvw7M'
@@ -603,20 +606,10 @@ async function getEncryptionKey() {
   return key;
 }
 
-// Generate a simple device fingerprint for key derivation
+// Generate a secure random device identifier using Web Crypto API
 async function generateDeviceFingerprint() {
-  const components = [
-    navigator.userAgent,
-    navigator.language,
-    screen.width + "x" + screen.height,
-    new Date().getTimezoneOffset().toString(),
-    navigator.hardwareConcurrency?.toString() || "unknown",
-  ];
-
-  const fingerprint = components.join("|");
-  const encoder = new TextEncoder();
-  const data = encoder.encode(fingerprint);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const randomData = crypto.getRandomValues(new Uint8Array(32));
+  const hashBuffer = await crypto.subtle.digest("SHA-256", randomData);
   return arrayBufferToBase64(hashBuffer);
 }
 
@@ -4030,7 +4023,8 @@ async function handleMagicLinkRequest() {
   const msg = document.getElementById('signin-message')
   const email = input?.value?.trim()
 
-  if (!email || !email.includes('@')) {
+  const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/
+  if (!email || !emailRegex.test(email) || email.length > 254) {
     if (msg) msg.textContent = 'Please enter a valid email address.'
     return
   }

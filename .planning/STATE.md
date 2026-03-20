@@ -1,3 +1,16 @@
+---
+gsd_state_version: 1.0
+milestone: v1.1
+milestone_name: Advanced UI & BuildShip Integration
+status: unknown
+last_updated: "2026-03-20T10:01:24.335Z"
+progress:
+  total_phases: 25
+  completed_phases: 8
+  total_plans: 28
+  completed_plans: 21
+---
+
 # Project State
 
 ## Project Reference
@@ -55,6 +68,7 @@ Recent decisions affecting current work:
 - Server-side usage tracking via Firestore — authUserCheck returns usage_count, pipeline increments atomically (2026-02-25)
 - Optimistic localStorage cache for usage — server syncs on page load, +1 locally after pipeline success (2026-02-25)
 - Pipeline review step usage_count NOT synced to frontend — optimistic +1 is sufficient (2026-02-25)
+- [Phase quick-13]: Fixed loading spinner to rotate counter-clockwise (index.html line 321)
 
 ### Deferred Issues
 
@@ -74,6 +88,14 @@ Recent decisions affecting current work:
 ### Blockers/Concerns
 
 None.
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 13 | The "loading" icon animation rotates the wrong way. Fix | 2026-03-20 | 252b831 | [13-the-loading-icon-animation-rotates-the-w](./quick/13-the-loading-icon-animation-rotates-the-w/) |
+
+Last activity: 2026-03-20 - Completed quick task 13: The "loading" icon animation rotates the wrong way. Fix
 
 ## Phase 9 Summary
 
