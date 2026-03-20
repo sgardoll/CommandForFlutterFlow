@@ -4081,9 +4081,9 @@ async function resolveIdentity() {
       return
     }
 
-    const cookieId = getOrCreateCookieId()
     const fp = await FingerprintJS.load()
     const result = await fp.get()
+    const cookieId = result.visitorId
 
     const response = await fetch(IDENTITY_ENDPOINT, {
       method: 'POST',
