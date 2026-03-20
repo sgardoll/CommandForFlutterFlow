@@ -1852,7 +1852,10 @@
               <span style="font-size:11px; color:#8a8f9c;"><span id="guest-usage-text">0 / 2 generations used</span></span>
               <span style="font-size:11px; font-weight:500; color:#64748b;">Free</span>
             </div>
-            <button onclick="openPricingModal()" style="width:100%; text-align:center; font-size:11px; background:#3b82f6; color:white; padding:5px 12px; border-radius:6px; border:none; cursor:pointer; font-family:inherit; font-weight:500;">Upgrade →</button>
+            <div style="display:flex; gap:6px;">
+              <button onclick="openSignInModal()" style="flex:1; text-align:center; font-size:11px; background:none; color:#64748b; padding:5px 12px; border-radius:6px; border:1px solid #e2e8f0; cursor:pointer; font-family:inherit; font-weight:500; transition:all 0.15s;">Sign In</button>
+              <button onclick="openPricingModal()" style="flex:1; text-align:center; font-size:11px; background:#3b82f6; color:white; padding:5px 12px; border-radius:6px; border:none; cursor:pointer; font-family:inherit; font-weight:500;">Upgrade</button>
+            </div>
           </div>
           <div id="auth-signedin" class="hidden" style="margin-top: 10px;">
             <div style="display:flex; align-items:center; justify-content:space-between;">
