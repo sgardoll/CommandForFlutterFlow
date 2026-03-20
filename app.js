@@ -3258,6 +3258,10 @@ Please RE-GENERATE the code to fix the issues listed in the AUDIT REPORT.
 Ensure it still adheres to the ORIGINAL SPECIFICATION.
 `;
 
+    // Show progress bar for refinement
+    showPipelineProgress();
+    updatePipelineProgressStep(2);
+
     // Step 2: Code Generator (Refinement)
     selectWorkflowStep(2);
     showStepLoading(2, true);
@@ -3270,12 +3274,13 @@ Ensure it still adheres to the ORIGINAL SPECIFICATION.
 
     const step2Output = document.getElementById("step2-output");
     const cleanStep2 = extractCodeFromMarkdown(pipelineState.step2Result);
-    step2Output.innerHTML = highlightCode(cleanStep2);
+    step2Output.textContent = cleanStep2;
     step2Output.dataset.raw = cleanStep2;
     showStepLoading(2, false);
 
     // Step 3: Code Audit (Re-audit)
     selectWorkflowStep(3);
+    updatePipelineProgressStep(3);
     showStepLoading(3, true);
 
     pipelineState.step3Result = await runCodeReview(
@@ -3284,29 +3289,23 @@ Ensure it still adheres to the ORIGINAL SPECIFICATION.
     );
 
     const auditOutput = document.getElementById("step3-output");
-    auditOutput.innerHTML = renderMarkdownAudit(pipelineState.step3Result);
+    auditOutput.textContent = pipelineState.step3Result;
 
     showStepLoading(3, false);
+
+    // Show updated results
+    hidePipelineProgress();
+    const auditHtml = renderMarkdownAudit(pipelineState.step3Result);
+    showResultsView(cleanStep2, auditHtml);
   } catch (error) {
     console.error("Refinement failed:", error);
+    hidePipelineProgress();
     showToast(`Refinement failed: ${error.message}`, "error");
-
-    // If it failed, we might want to stay on the step where it failed or go back to 3
-    // For now, let's just re-enable the button if we are still on step 3 or visible
   } finally {
     pipelineState.isRunning = false;
     btns.forEach((btn) => {
       btn.disabled = false;
-
-      let btnText = "Refine & Regenerate Code";
-      if (btn.id === "btn-refine-top") {
-        btnText = "Auto-Fix & Regenerate";
-      }
-
-      btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-        </svg>
-        ${btnText}`;
+      btn.textContent = "Refine & Regenerate";
     });
     updateDeployButtonVisibility();
   }
@@ -3387,6 +3386,10 @@ ${pastedErrors}
 Carefully analyse each error. Fix ALL of them in the regenerated code without introducing new issues.
 Maintain the original specification and intent.`
 
+    hideErrorInputPanel()
+    showPipelineProgress()
+    updatePipelineProgressStep(2)
+
     selectWorkflowStep(2)
     showStepLoading(2, true)
 
@@ -3394,30 +3397,34 @@ Maintain the original specification and intent.`
 
     const step2Output = document.getElementById("step2-output")
     const cleanStep2 = extractCodeFromMarkdown(pipelineState.step2Result)
-    step2Output.innerHTML = highlightCode(cleanStep2)
+    step2Output.textContent = cleanStep2
     step2Output.dataset.raw = cleanStep2
     showStepLoading(2, false)
 
     selectWorkflowStep(3)
+    updatePipelineProgressStep(3)
     showStepLoading(3, true)
 
     pipelineState.step3Result = await runCodeReview(pipelineState.step2Result, pipelineState.step1Result)
 
     const auditOutput = document.getElementById("step3-output")
-    auditOutput.innerHTML = renderMarkdownAudit(pipelineState.step3Result)
+    auditOutput.textContent = pipelineState.step3Result
     showStepLoading(3, false)
+
+    hidePipelineProgress()
+    const auditHtml = renderMarkdownAudit(pipelineState.step3Result)
+    showResultsView(cleanStep2, auditHtml)
 
     if (input) input.value = ""
   } catch (error) {
     console.error("Fix from errors failed:", error)
+    hidePipelineProgress()
     showToast(`Failed to fix errors: ${error.message}`, "error")
   } finally {
     pipelineState.isRunning = false
     if (btn) {
       btn.disabled = false
-      btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
-      </svg> Fix Errors &amp; Regenerate`
+      btn.textContent = "Fix Errors & Regenerate"
     }
     updateDeployButtonVisibility()
   }
@@ -3468,15 +3475,19 @@ async function runThinkingPipeline() {
   updateModelInfo(effectiveModel);
 
   try {
-    // Dismiss welcome video and hide ready state, show step 1
+    // Dismiss welcome video and hide ready state, show progress
     dismissWelcomeVideo();
     const readyState = document.getElementById("ready-state");
     if (readyState) readyState.classList.add("hidden");
     const paywallEl = document.getElementById("paywall-exhausted");
     if (paywallEl) paywallEl.classList.add("hidden");
 
+    // Show pipeline progress bar
+    showPipelineProgress();
+
     // Step 1: Prompt Architect
     selectWorkflowStep(1);
+    updatePipelineProgressStep(1);
     showStepLoading(1, true);
 
     pipelineState.step1Result = await runPromptArchitect(userInput);
@@ -3484,15 +3495,13 @@ async function runThinkingPipeline() {
 
     const step1Output = document.getElementById("step1-output")
     const cleanStep1 = extractCodeFromMarkdown(pipelineState.step1Result)
-    step1Output.innerHTML = highlightCode(cleanStep1, 'json')
-    if (cleanStep1 && !step1Output.innerHTML.trim()) {
-      step1Output.textContent = cleanStep1
-    }
+    step1Output.textContent = cleanStep1
     step1Output.dataset.raw = cleanStep1
     showStepLoading(1, false)
 
     // Step 2: Code Generator
     selectWorkflowStep(2);
+    updatePipelineProgressStep(2);
     showStepLoading(2, true);
 
     pipelineState.step2Result = await runCodeGenerator(
@@ -3503,12 +3512,13 @@ async function runThinkingPipeline() {
 
     const step2Output = document.getElementById("step2-output");
     const cleanStep2 = extractCodeFromMarkdown(pipelineState.step2Result);
-    step2Output.innerHTML = highlightCode(cleanStep2);
+    step2Output.textContent = cleanStep2;
     step2Output.dataset.raw = cleanStep2; // Store raw for copy
     showStepLoading(2, false);
 
     // Step 3: Code Audit
     selectWorkflowStep(3);
+    updatePipelineProgressStep(3);
     showStepLoading(3, true);
 
     pipelineState.step3Result = await runCodeReview(
@@ -3518,15 +3528,22 @@ async function runThinkingPipeline() {
     trackEvent("Code Review Completed");
 
     const auditOutput = document.getElementById("step3-output");
-    auditOutput.innerHTML = renderMarkdownAudit(pipelineState.step3Result);
+    auditOutput.textContent = pipelineState.step3Result;
 
     showStepLoading(3, false);
+
+    // Hide progress bar and show split-panel results
+    hidePipelineProgress();
+    const auditHtml = renderMarkdownAudit(pipelineState.step3Result);
+    showResultsView(cleanStep2, auditHtml);
+
     incrementUsage();
     updateUsageDisplay();
   } catch (error) {
     console.error("Pipeline failed:", error);
-    
-    trackEvent("Pipeline Failed", { 
+    hidePipelineProgress();
+
+    trackEvent("Pipeline Failed", {
       error: error.message,
       effectiveModel: getEffectiveModel(document.getElementById("code-generator-model").value)
     });
@@ -3568,7 +3585,7 @@ async function runThinkingPipeline() {
 
       output.innerHTML = `<div class="bg-red-50 border border-red-200 rounded-lg p-4">
         <h4 class="text-red-600 font-bold text-xs uppercase mb-2">Connection Error</h4>
-        <p class="text-sm text-red-700">${errorMessage}</p>
+        <p class="text-sm text-red-700">${escapeHtml(errorMessage)}</p>
         <div class="mt-3 text-xs text-gray-500">
           <p>Check if API key is valid</p>
           <p>Try using a different model</p>
@@ -3783,6 +3800,9 @@ ${errorContext}
 
 Please regenerate the code to fix these errors while maintaining the original specification.`;
 
+    showPipelineProgress();
+    updatePipelineProgressStep(2);
+
     // Go to step 2
     selectWorkflowStep(2);
     showStepLoading(2, true);
@@ -3795,12 +3815,13 @@ Please regenerate the code to fix these errors while maintaining the original sp
 
     const step2Output = document.getElementById("step2-output");
     const cleanStep2 = extractCodeFromMarkdown(pipelineState.step2Result);
-    step2Output.innerHTML = highlightCode(cleanStep2);
+    step2Output.textContent = cleanStep2;
     step2Output.dataset.raw = cleanStep2;
     showStepLoading(2, false);
 
     // Run audit
     selectWorkflowStep(3);
+    updatePipelineProgressStep(3);
     showStepLoading(3, true);
 
     pipelineState.step3Result = await runCodeReview(
@@ -3809,20 +3830,23 @@ Please regenerate the code to fix these errors while maintaining the original sp
     );
 
     const auditOutput = document.getElementById("step3-output");
-    auditOutput.innerHTML = renderMarkdownAudit(pipelineState.step3Result);
+    auditOutput.textContent = pipelineState.step3Result;
 
     showStepLoading(3, false);
+
+    hidePipelineProgress();
+    const auditHtml = renderMarkdownAudit(pipelineState.step3Result);
+    showResultsView(cleanStep2, auditHtml);
   } catch (error) {
     console.error("Regeneration failed:", error);
+    hidePipelineProgress();
     showToast(`Regeneration failed: ${error.message}`, "error");
   } finally {
     pipelineState.isRunning = false;
 
     if (btn) {
       btn.disabled = false;
-      btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-      </svg> Fix Errors & Regenerate`;
+      btn.textContent = "Fix Errors & Regenerate";
     }
 
     updateDeployButtonVisibility();
@@ -5047,3 +5071,191 @@ window.startCheckout = startCheckout;
 window.openCustomerPortal = openCustomerPortal;
 window.openPricingModal = openPricingModal;
 window.closePricingModal = closePricingModal;
+
+// --- PIPELINE PROGRESS BAR & RESULTS VIEW ---
+let pipelineProgressTimer = null;
+let pipelineStartTime = null;
+const PIPELINE_ESTIMATED_DURATION = 120; // seconds
+
+function showPipelineProgress() {
+  const progress = document.getElementById("pipeline-progress");
+  const resultsView = document.getElementById("results-view");
+  const readyState = document.getElementById("ready-state");
+
+  if (readyState) readyState.classList.add("hidden");
+  if (resultsView) resultsView.classList.remove("visible");
+  if (progress) progress.classList.add("visible");
+
+  pipelineStartTime = Date.now();
+
+  // Reset dots
+  for (let i = 1; i <= 3; i++) {
+    const dot = document.getElementById(`pdot-${i}`);
+    if (dot) { dot.className = "progress-dot"; }
+  }
+
+  updatePipelineProgressStep(1);
+  startProgressTimer();
+}
+
+function updatePipelineProgressStep(step) {
+  const titles = {
+    1: "Analyzing your prompt...",
+    2: "Generating Dart code...",
+    3: "Running code audit..."
+  };
+  const substeps = {
+    1: "Step 1 of 3 \u2014 Prompt Architect",
+    2: "Step 2 of 3 \u2014 Code Generator",
+    3: "Step 3 of 3 \u2014 Code Review"
+  };
+
+  const titleEl = document.getElementById("progress-title-text");
+  const substepEl = document.getElementById("progress-substep-text");
+  if (titleEl) titleEl.textContent = titles[step] || titles[1];
+  if (substepEl) substepEl.textContent = substeps[step] || substeps[1];
+
+  // Update dots
+  for (let i = 1; i <= 3; i++) {
+    const dot = document.getElementById(`pdot-${i}`);
+    if (!dot) continue;
+    if (i < step) {
+      dot.className = "progress-dot completed";
+    } else if (i === step) {
+      dot.className = "progress-dot active";
+    } else {
+      dot.className = "progress-dot";
+    }
+  }
+}
+
+function startProgressTimer() {
+  if (pipelineProgressTimer) clearInterval(pipelineProgressTimer);
+
+  pipelineProgressTimer = setInterval(() => {
+    const elapsed = (Date.now() - pipelineStartTime) / 1000;
+    const elapsedEl = document.getElementById("progress-elapsed");
+    const fillEl = document.getElementById("pipeline-progress-fill");
+
+    if (elapsedEl) elapsedEl.textContent = `${Math.floor(elapsed)}s`;
+
+    // Ease toward ~95% over the estimated duration, never quite reaching 100%
+    const rawPct = (elapsed / PIPELINE_ESTIMATED_DURATION) * 100;
+    const easedPct = Math.min(95, rawPct * (1 - Math.exp(-elapsed / (PIPELINE_ESTIMATED_DURATION * 0.6))) * 1.2);
+    if (fillEl) fillEl.style.width = `${easedPct}%`;
+  }, 250);
+}
+
+function hidePipelineProgress() {
+  if (pipelineProgressTimer) {
+    clearInterval(pipelineProgressTimer);
+    pipelineProgressTimer = null;
+  }
+
+  // Snap to 100%
+  const fillEl = document.getElementById("pipeline-progress-fill");
+  if (fillEl) fillEl.style.width = "100%";
+
+  // Mark all dots completed
+  for (let i = 1; i <= 3; i++) {
+    const dot = document.getElementById(`pdot-${i}`);
+    if (dot) dot.className = "progress-dot completed";
+  }
+
+  // Brief pause then hide
+  setTimeout(() => {
+    const progress = document.getElementById("pipeline-progress");
+    if (progress) progress.classList.remove("visible");
+    if (fillEl) fillEl.style.width = "0%";
+  }, 400);
+}
+
+function showResultsView(codeContent, auditContent) {
+  const resultsView = document.getElementById("results-view");
+  const codeOutput = document.getElementById("results-code-output");
+  const auditOutput = document.getElementById("results-audit-output");
+
+  // Code panel uses highlighted code (already sanitized by highlightCode)
+  if (codeOutput) codeOutput.textContent = "";
+  if (codeOutput) {
+    // Use the same highlightCode function used elsewhere in this codebase
+    const highlighted = highlightCode(codeContent);
+    // highlightCode returns hljs-processed HTML which is safe (generated by highlight.js)
+    codeOutput.innerHTML = highlighted; // eslint-disable-line -- highlight.js output
+  }
+  // Audit panel uses renderMarkdownAudit (existing sanitized renderer)
+  if (auditOutput) {
+    auditOutput.innerHTML = auditContent; // eslint-disable-line -- renderMarkdownAudit output
+  }
+  if (resultsView) resultsView.classList.add("visible");
+
+  // Reset feedback buttons
+  const upBtn = document.getElementById("btn-feedback-up");
+  const downBtn = document.getElementById("btn-feedback-down");
+  if (upBtn) upBtn.className = "feedback-btn";
+  if (downBtn) downBtn.className = "feedback-btn";
+}
+
+function copyResultsCode() {
+  const btn = document.getElementById("btn-copy-results");
+
+  // Use raw data from step2-output (stored by pipeline)
+  const step2El = document.getElementById("step2-output");
+  const rawCode = step2El?.dataset?.raw || "";
+
+  navigator.clipboard.writeText(rawCode).then(() => {
+    if (btn) {
+      btn.classList.add("copied");
+      const label = btn.querySelector("span");
+      if (label) {
+        const origText = label.textContent;
+        label.textContent = "Copied!";
+        setTimeout(() => {
+          btn.classList.remove("copied");
+          label.textContent = origText;
+        }, 2000);
+      }
+    }
+  });
+}
+
+function submitResultsFeedback(direction) {
+  const upBtn = document.getElementById("btn-feedback-up");
+  const downBtn = document.getElementById("btn-feedback-down");
+
+  // Toggle
+  if (direction === "up") {
+    upBtn.classList.toggle("active-up");
+    downBtn.classList.remove("active-down");
+  } else {
+    downBtn.classList.toggle("active-down");
+    upBtn.classList.remove("active-up");
+  }
+
+  const feedbackType = direction === "up" ? "thumbsUp" : "thumbsDown";
+  callEndpoint(feedbackType, pipelineState.step2Result, pipelineState.step1Result);
+  trackEvent("Generation Feedback", { feedback: feedbackType });
+}
+
+function showErrorInputPanel() {
+  const panel = document.getElementById("error-input-panel");
+  if (panel) {
+    panel.classList.remove("hidden");
+    panel.style.display = "flex";
+    const input = document.getElementById("ff-error-paste-input");
+    if (input) setTimeout(() => input.focus(), 100);
+  }
+}
+
+function hideErrorInputPanel() {
+  const panel = document.getElementById("error-input-panel");
+  if (panel) {
+    panel.classList.add("hidden");
+    panel.style.display = "none";
+  }
+}
+
+window.copyResultsCode = copyResultsCode;
+window.submitResultsFeedback = submitResultsFeedback;
+window.showErrorInputPanel = showErrorInputPanel;
+window.hideErrorInputPanel = hideErrorInputPanel;

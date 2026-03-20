@@ -591,6 +591,348 @@
       .hljs-type, .hljs-built_in { color: #a78bfa !important; }
       .hljs-class .hljs-title { color: #34d399 !important; }
 
+      /* ── Generation Results (split panel) ────────────── */
+      .results-view {
+        display: none;
+        flex-direction: column;
+        height: 100%;
+      }
+      .results-view.visible {
+        display: flex;
+      }
+
+      .results-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 20px 28px 16px;
+        border-bottom: 1px solid var(--border);
+        flex-shrink: 0;
+      }
+      .results-header-left h2 {
+        font-family: "Delight", "Outfit", sans-serif;
+        font-size: 20px;
+        font-weight: 600;
+        color: var(--navy);
+        letter-spacing: -0.02em;
+      }
+      .results-header-left p {
+        font-size: 13px;
+        color: var(--sublabel);
+        margin-top: 2px;
+      }
+      .results-header-actions {
+        display: flex;
+        gap: 10px;
+      }
+      .btn-header-action {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        padding: 9px 16px;
+        border-radius: 10px;
+        border: none;
+        cursor: pointer;
+        font-size: 12.5px;
+        font-weight: 600;
+        font-family: "Delight", "DM Sans", sans-serif;
+        transition: all 0.2s ease;
+        letter-spacing: -0.01em;
+      }
+      .btn-header-action:hover { transform: translateY(-1px); }
+      .btn-header-action:active { transform: scale(0.97); }
+      .btn-header-action:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+      .btn-error-regen {
+        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        color: #fff;
+        box-shadow: 0 2px 8px -2px rgba(245,158,11,0.4);
+      }
+      .btn-error-regen:hover:not(:disabled) {
+        box-shadow: 0 4px 14px -2px rgba(245,158,11,0.5);
+      }
+      .btn-refine-regen {
+        background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+        color: #fff;
+        box-shadow: 0 2px 8px -2px rgba(99,102,241,0.4);
+      }
+      .btn-refine-regen:hover:not(:disabled) {
+        box-shadow: 0 4px 14px -2px rgba(99,102,241,0.5);
+      }
+
+      .results-split {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0;
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+      }
+
+      .results-panel {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        overflow: hidden;
+      }
+      .results-panel + .results-panel {
+        border-left: 1px solid var(--border);
+      }
+
+      .panel-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 14px 24px;
+        border-bottom: 1px solid var(--border);
+        background: #fafbfc;
+        flex-shrink: 0;
+      }
+      .panel-header-icon {
+        width: 20px;
+        height: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--label);
+      }
+      .panel-header-label {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--label);
+      }
+
+      .panel-body {
+        flex: 1;
+        overflow-y: auto;
+        min-height: 0;
+      }
+      .panel-body::-webkit-scrollbar { width: 4px; }
+      .panel-body::-webkit-scrollbar-track { background: transparent; }
+      .panel-body::-webkit-scrollbar-thumb { background: #ddd; border-radius: 2px; }
+
+      .panel-code-wrap {
+        background: #1a1b26;
+        min-height: 100%;
+      }
+      .panel-code-wrap pre {
+        margin: 0;
+        padding: 20px;
+        font-size: 12.5px;
+        line-height: 1.65;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        word-break: break-word;
+        color: #e2e8f0;
+      }
+      .panel-audit-wrap {
+        padding: 24px;
+      }
+
+      .results-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px 24px;
+        border-top: 1px solid var(--border);
+        background: #fff;
+        flex-shrink: 0;
+      }
+      .results-footer-left {
+        display: flex;
+        gap: 10px;
+      }
+      .results-footer-right {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+      .results-footer-right .feedback-label {
+        font-size: 12px;
+        color: var(--sublabel);
+        font-weight: 500;
+      }
+
+      .btn-footer {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 20px;
+        border-radius: 10px;
+        border: none;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 600;
+        font-family: "Delight", "DM Sans", sans-serif;
+        transition: all 0.2s ease;
+      }
+      .btn-footer:hover { transform: translateY(-1px); }
+      .btn-footer:active { transform: scale(0.97); }
+      .btn-footer:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+      .btn-deploy-footer {
+        background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+        color: #fff;
+        box-shadow: 0 3px 12px -2px rgba(249,115,22,0.4);
+      }
+      .btn-deploy-footer:hover:not(:disabled) {
+        box-shadow: 0 5px 18px -2px rgba(249,115,22,0.5);
+      }
+
+      .btn-copy-footer {
+        background: #f1f5f9;
+        color: var(--navy);
+        border: 1px solid var(--border);
+      }
+      .btn-copy-footer:hover:not(:disabled) {
+        background: #e2e8f0;
+      }
+      .btn-copy-footer.copied {
+        background: #065f46;
+        color: #a7f3d0;
+        border-color: #065f46;
+      }
+
+      .feedback-btn {
+        width: 36px;
+        height: 36px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        color: var(--sublabel);
+      }
+      .feedback-btn:hover {
+        background: #f1f5f9;
+        color: var(--navy);
+        border-color: #cbd5e1;
+      }
+      .feedback-btn.active-up {
+        background: #dcfce7;
+        color: #16a34a;
+        border-color: #86efac;
+      }
+      .feedback-btn.active-down {
+        background: #fee2e2;
+        color: #dc2626;
+        border-color: #fca5a5;
+      }
+
+      /* ── Pipeline Progress Bar ───────────────────────── */
+      .pipeline-progress {
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        padding: 48px;
+        text-align: center;
+      }
+      .pipeline-progress.visible {
+        display: flex;
+      }
+      .pipeline-progress-icon {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 28px;
+        position: relative;
+      }
+      .pipeline-progress-icon::after {
+        content: '';
+        position: absolute;
+        inset: -4px;
+        border-radius: 50%;
+        border: 2px solid transparent;
+        border-top-color: var(--accent);
+        animation: spin 1.2s linear infinite;
+      }
+      .pipeline-progress-icon svg {
+        width: 32px;
+        height: 32px;
+        color: #4f46e5;
+      }
+
+      .pipeline-progress h3 {
+        font-family: "Delight", "Outfit", sans-serif;
+        font-size: 18px;
+        font-weight: 600;
+        color: var(--navy);
+        margin-bottom: 6px;
+        letter-spacing: -0.02em;
+      }
+      .pipeline-progress .progress-substep {
+        font-size: 13px;
+        color: var(--sublabel);
+        margin-bottom: 28px;
+      }
+
+      .progress-track {
+        width: 100%;
+        max-width: 400px;
+        height: 6px;
+        background: #e2e8f0;
+        border-radius: 3px;
+        overflow: hidden;
+        position: relative;
+      }
+      .progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #6366f1, #3b82f6, #6366f1);
+        background-size: 200% 100%;
+        border-radius: 3px;
+        transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        animation: progress-shimmer 2s ease-in-out infinite;
+        width: 0%;
+      }
+      @keyframes progress-shimmer {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+      }
+
+      .progress-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+        max-width: 400px;
+        margin-top: 10px;
+      }
+      .progress-meta span {
+        font-size: 11px;
+        color: var(--sublabel);
+        font-weight: 500;
+      }
+      .progress-steps-dots {
+        display: flex;
+        gap: 8px;
+        margin-top: 24px;
+      }
+      .progress-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #e2e8f0;
+        transition: all 0.3s ease;
+      }
+      .progress-dot.active {
+        background: #6366f1;
+        box-shadow: 0 0 8px rgba(99,102,241,0.4);
+      }
+      .progress-dot.completed {
+        background: #22c55e;
+      }
+
       /* ── Modals ────────────────────────────────────────── */
       .modal-overlay {
         position: fixed;
@@ -1339,7 +1681,7 @@
         .pm-cards { padding: 0 16px; }
       }
     </style>
-    <script type="module" crossorigin src="/assets/index-pBvwDTCd.js"></script>
+    <script type="module" crossorigin src="/assets/index-B_pBpeL7.js"></script>
   </head>
   <body>
     <div class="app-shell">
@@ -1563,12 +1905,10 @@
       </div>
 
       <div class="main-stage" id="main-stage-container">
-          <div class="main-stage-header">
-            <h2 id="stage-title">Active Workflow Stage</h2>
-          </div>
-          <div class="main-stage-body" id="main-stage">
+          <!-- Ready / Paywall states -->
+          <div class="main-stage-body" id="main-stage" style="flex:1;display:flex;flex-direction:column;">
 
-            <div id="ready-state" class="hidden flex flex-col items-center justify-center" style="padding:80px 0;">
+            <div id="ready-state" class="hidden flex flex-col items-center justify-center" style="padding:80px 0;flex:1;">
               <div class="ready-icon">
                 <svg class="w-7 h-7 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
@@ -1593,85 +1933,143 @@
               <p class="text-xs text-gray-300 mt-4">Generations reset at the start of each month.</p>
             </div>
 
-            <div id="step1-content" class="hidden">
-              <div id="step1-loading" class="stage-loading hidden">
-                <div class="spinner mb-4"></div>
-                <p class="text-sm text-gray-500">Analyzing your request...</p>
+            <!-- Pipeline Progress View -->
+            <div id="pipeline-progress" class="pipeline-progress">
+              <div class="pipeline-progress-icon">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
+                </svg>
               </div>
-              <div id="step1-result" class="hidden">
-                <div class="code-container">
-                  <button class="copy-btn" onclick="copyCode('step1-output')">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
-                    Copy
-                  </button>
-                  <pre id="step1-output" class="code-font text-gray-300"></pre>
-                </div>
+              <h3 id="progress-title-text">Generating your code...</h3>
+              <p class="progress-substep" id="progress-substep-text">Step 1 of 3 — Prompt Architect</p>
+              <div class="progress-track">
+                <div class="progress-fill" id="pipeline-progress-fill"></div>
               </div>
-            </div>
-
-            <div id="step2-content" class="hidden">
-              <div id="step2-loading" class="stage-loading hidden">
-                <div class="spinner mb-4"></div>
-                <p class="text-sm text-gray-500">Generating code...</p>
+              <div class="progress-meta">
+                <span id="progress-elapsed">0s</span>
+                <span id="progress-estimate">~120s</span>
               </div>
-              <div id="step2-result" class="hidden">
-                <div class="code-container">
-                  <button class="copy-btn" onclick="copyCode('step2-output')">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
-                    Copy
-                  </button>
-                  <pre id="step2-output" class="code-font text-gray-300"></pre>
-                </div>
+              <div class="progress-steps-dots">
+                <div class="progress-dot" id="pdot-1"></div>
+                <div class="progress-dot" id="pdot-2"></div>
+                <div class="progress-dot" id="pdot-3"></div>
               </div>
             </div>
 
-            <div id="step3-content" class="hidden">
-              <div id="step3-loading" class="stage-loading hidden">
-                <div class="spinner mb-4"></div>
-                <p class="text-sm text-gray-500">Auditing code...</p>
-              </div>
-              <div id="step3-result" class="hidden">
-                <div class="flex justify-end mb-4">
-                  <button id="btn-refine-top" class="btn-primary btn-refine-action" style="width:auto;background:#4f46e5;" onclick="runRefinement()">
+            <!-- Split-Panel Results View -->
+            <div id="results-view" class="results-view">
+              <div class="results-header">
+                <div class="results-header-left">
+                  <h2>Generation Results</h2>
+                  <p>Review the generated code and audit report below</p>
+                </div>
+                <div class="results-header-actions">
+                  <button id="btn-error-regen-header" class="btn-header-action btn-error-regen" onclick="showErrorInputPanel()">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.538-1.333-3.308 0L3.732 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                    Add FlutterFlow Build Errors &amp; Regenerate
+                  </button>
+                  <button id="btn-refine-header" class="btn-header-action btn-refine-regen btn-refine-action" onclick="runRefinement()">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                    Refine & Regenerate Code
+                    Refine &amp; Regenerate
                   </button>
                 </div>
-                <div id="step3-output" class="text-sm text-gray-700"></div>
+              </div>
 
-                <div id="ff-error-input-section" class="mt-6 border-t border-gray-100 pt-5">
-                  <div class="rounded-lg border border-amber-200 bg-amber-50 p-4">
-                    <div class="flex items-center gap-2 mb-1">
-                      <svg class="w-4 h-4 flex-shrink-0 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.538-1.333-3.308 0L3.732 16c-.77 1.333.192 3 1.732 3z"/>
-                      </svg>
-                      <h4 class="text-sm font-semibold text-amber-800">Got build errors from FlutterFlow?</h4>
+              <div class="results-split">
+                <!-- Left panel: Generated Code -->
+                <div class="results-panel">
+                  <div class="panel-header">
+                    <div class="panel-header-icon">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
                     </div>
-                    <p class="text-xs text-amber-700 mb-3 ml-6">Paste the raw Dart compiler output below — the AI will analyse every error and regenerate fixed code.</p>
-                    <textarea
-                      id="ff-error-paste-input"
-                      rows="5"
-                      style="background:#fffbf0; border-color:#fcd34d; color:#78350f;"
-                      placeholder="Paste FlutterFlow / Dart build errors here..."
-                      spellcheck="false"
-                    ></textarea>
-                    <div class="flex items-center justify-between mt-3">
-                      <button onclick="clearErrorInput()" class="text-xs text-amber-600 hover:text-amber-800 underline underline-offset-2 transition-colors">Clear</button>
-                      <button id="btn-fix-from-errors" onclick="regenerateFromPastedErrors()" class="btn-primary" style="width:auto;background:#d97706;font-size:12px;padding:8px 14px;">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
-                        Fix Errors &amp; Regenerate
-                      </button>
+                    <span class="panel-header-label">Generated Dart Code</span>
+                  </div>
+                  <div class="panel-body">
+                    <div class="panel-code-wrap">
+                      <pre id="results-code-output" class="code-font"></pre>
                     </div>
                   </div>
                 </div>
 
-                <div id="refinement-actions" class="mt-4 pt-4 flex justify-end">
-                  <button id="btn-refine" class="btn-primary btn-refine-action" style="width:auto;background:#4f46e5;" onclick="runRefinement()">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                    Refine & Regenerate Code
+                <!-- Right panel: Audit Report -->
+                <div class="results-panel">
+                  <div class="panel-header">
+                    <div class="panel-header-icon">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    </div>
+                    <span class="panel-header-label">Live Audit Report</span>
+                  </div>
+                  <div class="panel-body">
+                    <div class="panel-audit-wrap" id="results-audit-output"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="results-footer">
+                <div class="results-footer-left">
+                  <button id="btn-deploy-results" class="btn-footer btn-deploy-footer" onclick="initiateCommitToFlutterFlow()">
+                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                    Deploy to FlutterFlow
+                  </button>
+                  <button id="btn-copy-results" class="btn-footer btn-copy-footer" onclick="copyResultsCode()">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                    <span>Copy to Clipboard</span>
+                  </button>
+                </div>
+                <div class="results-footer-right">
+                  <span class="feedback-label">Was this generation accurate?</span>
+                  <button class="feedback-btn" id="btn-feedback-up" onclick="submitResultsFeedback('up')" title="Good generation">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3H14z"/></svg>
+                  </button>
+                  <button class="feedback-btn" id="btn-feedback-down" onclick="submitResultsFeedback('down')" title="Needs improvement">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 15v4a3 3 0 003 3l4-9V2H5.72a2 2 0 00-2 1.7l-1.38 9a2 2 0 002 2.3H10z"/></svg>
                   </button>
                 </div>
               </div>
+            </div>
+
+            <!-- Error Input Panel (overlay on results) -->
+            <div id="error-input-panel" class="hidden" style="position:absolute;inset:0;background:rgba(255,255,255,0.97);z-index:10;align-items:center;justify-content:center;padding:48px;display:none;">
+              <div style="width:100%;max-width:560px;">
+                <div class="flex items-center justify-between mb-4">
+                  <div class="flex items-center gap-2">
+                    <svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.538-1.333-3.308 0L3.732 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                    <h3 class="text-base font-semibold text-gray-800">Paste FlutterFlow Build Errors</h3>
+                  </div>
+                  <button onclick="hideErrorInputPanel()" class="text-gray-400 hover:text-gray-600 p-1">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                  </button>
+                </div>
+                <p class="text-sm text-gray-500 mb-4">Paste the raw Dart compiler output below — the AI will analyse every error and regenerate fixed code.</p>
+                <textarea
+                  id="ff-error-paste-input"
+                  rows="8"
+                  style="background:#fffbf0; border-color:#fcd34d; color:#78350f;"
+                  placeholder="Paste FlutterFlow / Dart build errors here..."
+                  spellcheck="false"
+                ></textarea>
+                <div class="flex items-center justify-between mt-4">
+                  <button onclick="clearErrorInput(); hideErrorInputPanel();" class="text-sm text-gray-400 hover:text-gray-600 transition-colors">Cancel</button>
+                  <button id="btn-fix-from-errors" onclick="regenerateFromPastedErrors()" class="btn-header-action btn-error-regen">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+                    Fix Errors &amp; Regenerate
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Hidden legacy elements for backward compat -->
+            <div id="step1-content" class="hidden">
+              <div id="step1-loading" class="hidden"></div>
+              <div id="step1-result" class="hidden"><pre id="step1-output" class="code-font text-gray-300"></pre></div>
+            </div>
+            <div id="step2-content" class="hidden">
+              <div id="step2-loading" class="hidden"></div>
+              <div id="step2-result" class="hidden"><pre id="step2-output" class="code-font text-gray-300"></pre></div>
+            </div>
+            <div id="step3-content" class="hidden">
+              <div id="step3-loading" class="hidden"></div>
+              <div id="step3-result" class="hidden"><div id="step3-output" class="text-sm text-gray-700"></div></div>
             </div>
 
           </div>
