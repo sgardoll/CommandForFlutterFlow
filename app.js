@@ -72,6 +72,7 @@ const PRO_MODELS = [
   'openai/gpt-5.3-codex',
   'openrouter/auto',
   'openrouter/free',
+  'openrouter/deepseek/deepseek-v4-pro',
 ]
 const USAGE_STORAGE_KEY = 'ccc_usage'
 
@@ -3177,6 +3178,7 @@ function updateModelInfo(selectedModel) {
     "openai/gpt-5.3-codex": "GPT-5.3-Codex",
     "openrouter/auto": "OpenRouter: Auto",
     "openrouter/free": "OpenRouter: Free Models",
+    "openrouter/deepseek/deepseek-v4-pro": "DeepSeek v4 Pro",
   }
 
   // Helper function to get display name
@@ -4246,6 +4248,7 @@ function updateModelSelectorGating() {
     'openai/gpt-5.3-codex': 'GPT-5.3-Codex',
     'openrouter/auto': 'OpenRouter: Auto Router',
     'openrouter/free': 'OpenRouter: Free Models',
+    'openrouter/deepseek/deepseek-v4-pro': 'DeepSeek v4 Pro',
   }
 
   Array.from(select.options).forEach(opt => {
