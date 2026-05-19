@@ -1,0 +1,70 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 8.2%;
+    --foreground: 240 5% 84%;
+    --card: 0 0% 9%;
+    --card-foreground: 240 5% 84%;
+    --popover: 0 0% 6%;
+    --popover-foreground: 240 5% 84%;
+    --primary: 187 76% 42%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 13%;
+    --secondary-foreground: 240 5% 84%;
+    --muted: 0 0% 13%;
+    --muted-foreground: 240 4% 46%;
+    --accent: 0 0% 13%;
+    --accent-foreground: 240 5% 84%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 16%;
+    --input: 0 0% 16%;
+    --ring: 187 76% 42%;
+    --radius: 0.65rem;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  textarea,
+  button {
+    font: inherit;
+  }
+}
+
+@layer components {
+  .designer-icon-button {
+    @apply relative flex h-8 w-8 items-center justify-center transition-colors duration-150 active:scale-[0.96];
+  }
+
+  .designer-icon-button::after {
+    content: "";
+    position: absolute;
+    inset: -4px;
+  }
+}
+
+.h-31px {
+  height: 31px;
+}
+
+.w-31px {
+  width: 31px;
+}
