@@ -1,128 +1,89 @@
 # Testing Patterns
 
-**Analysis Date:** 2025-02-13
+**Analysis Date:** 2026-05-20
 
 ## Test Framework
 
-**Status:** No test framework configured
+**Runner:**
+- No test runner is configured in `ff-landing/package.json`.
+- No `*.test.ts`, `*.test.tsx`, `*.spec.ts`, or `*.spec.tsx` files were found in the focused `ff-landing/` scan.
 
-**Current Testing:**
-- Syntax checking only: `node --check app.js`
-- No unit tests
-- No integration tests
-- No E2E tests
+**Assertion Library:**
+- None configured.
+
+## Verification Commands
+
+```bash
+cd ff-landing
+pnpm lint       # ESLint over the nested app
+pnpm build      # TypeScript build + Vite production build
+pnpm dev        # Local Vite dev server
+pnpm preview    # Preview production build
+```
+
+Equivalent `npm run ...` commands should work if dependencies are installed with npm, but the presence of `pnpm-lock.yaml` indicates pnpm is the intended package manager.
 
 ## Test File Organization
 
-**Status:** Not applicable
+**Current state:**
+- No established test directory.
+- No colocated test files.
+- No E2E setup.
 
-No test files exist in the codebase:
-- No `*.test.js` files
-- No `*.spec.js` files
-- No `__tests__/` directory
-- No `tests/` directory
+**Recommended future pattern:**
+- Add a test runner before adding tests, likely Vitest + React Testing Library for this Vite/React stack.
+- Collocate component tests next to source if the app remains small, e.g. `ff-landing/src/App.test.tsx`.
+- Add Playwright only if the landing/demo shell needs browser-level interaction checks.
 
-## Testing Approach
+## What Should Be Tested If This Becomes Product Code
 
-**Manual Testing:**
-- Browser-based manual testing
-- Dev server (`npm run dev`) for local testing
-- Build verification (`npm run build`)
+**Unit / component:**
+- `PromptComposer` disabled/enabled submit behavior.
+- Suggestion chips populate the textarea.
+- `App` flash class toggles after submit.
 
-**Code Quality:**
-- Syntax validation via `node --check`
-- Build process catches bundling errors
-- No linting or formatting checks
+**Visual / integration:**
+- Sidebar renders expected design history and download card.
+- Responsive behavior if mobile/desktop controls become functional.
 
-## Test Coverage
+**Build safety:**
+- TypeScript build should stay clean under `noUnusedLocals` and `noUnusedParameters`.
+- ESLint should remain clean under `eslint.config.js`.
 
-**Current Coverage:** 0%
+## Mocking
 
-**Untested Areas:**
-- All API client functions (`callGemini`, `callClaude`, `callOpenAI`)
-- Encryption/decryption logic
-- Pipeline orchestration (`runThinkingPipeline`)
-- UI state management
-- localStorage operations
-- Walkthrough logic
+- No mocking patterns exist yet.
+- Current app has no network calls, localStorage usage, timers beyond `window.setTimeout`, or external data services.
+- If testing `App.handleSubmit`, fake timers would be useful for the 900ms flash reset.
 
-## Mocking Strategy
+## Coverage
 
-**Not Implemented:**
-- No mocking framework
-- No test doubles
-- No stubbing of external APIs
+- No coverage target or coverage tooling configured.
+- If tests are added, start with behavior coverage for `ff-landing/src/App.tsx`; the shadcn component inventory can generally be treated as generated/vendor-like unless customized.
 
-## Common Patterns (If Tests Were Added)
+## Test Types
 
-**Recommended Approach:**
+**Current:**
+- Manual/browser verification only via Vite dev server or preview.
 
-Since this is a vanilla JS project, recommended test setup would be:
+**Not present:**
+- Unit tests.
+- Integration tests.
+- E2E tests.
+- CI workflow scoped to `ff-landing/`.
 
-```javascript
-// Example test pattern if Vitest/Jest were added
+## Common Patterns to Use Later
 
-// API client tests would need mocking:
-describe('callGemini', () => {
-  it('should return parsed response on success', async () => {
-    // Mock fetch
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ candidates: [{ content: { parts: [{ text: 'result' }] } }] })
-    })
-    
-    const result = await callGemini('prompt', 'instruction', 'model')
-    expect(result).toBe('result')
+```tsx
+// Suggested future style, not currently present:
+describe('PromptComposer', () => {
+  it('enables submit after prompt text is entered', () => {
+    // render, act, assert
   })
 })
-
-// Encryption tests:
-describe('encryptData', () => {
-  it('should encrypt and decrypt data', async () => {
-    const data = 'sensitive-api-key'
-    const encrypted = await encryptData(data, 'device-fingerprint')
-    const decrypted = await decryptData(encrypted, 'device-fingerprint')
-    expect(decrypted).toBe(data)
-  })
-})
-```
-
-## Testing Gaps (Priority)
-
-**High Priority:**
-1. API client error handling - No tests for fallback logic
-2. Encryption security - No verification of AES-GCM implementation
-3. Pipeline state management - Race conditions possible
-
-**Medium Priority:**
-1. Walkthrough progression logic
-2. localStorage key storage/retrieval
-3. UI state updates
-
-**Low Priority:**
-1. Syntax highlighting integration
-2. Modal open/close behavior
-3. Copy-to-clipboard functionality
-
-## Recommendations
-
-**If Adding Tests:**
-
-1. **Framework:** Vitest (matches Vite ecosystem)
-2. **Location:** Co-located or `tests/` directory
-3. **Priority:** Start with API client error handling
-4. **Mocking:** Mock fetch for API calls, mock localStorage
-5. **Coverage Target:** 60% for critical paths
-
-**Test Structure Example:**
-```
-├── app.js
-├── app.test.js (or tests/app.test.js)
-├── package.json
-└── vitest.config.js (add config)
 ```
 
 ---
 
-*Testing analysis: 2025-02-13*
-*Update when test patterns change*
+*Testing analysis: 2026-05-20*
+*Update when a real test runner is added to `ff-landing/`.*

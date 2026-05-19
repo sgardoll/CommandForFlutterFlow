@@ -1,150 +1,90 @@
 # Coding Conventions
 
-**Analysis Date:** 2025-02-13
+**Analysis Date:** 2026-05-20
 
 ## Naming Patterns
 
 **Files:**
-- kebab-case for config files: `vite.config.js`, `package.json`
-- Descriptive names: `app.js`, `index.html`
-- No test files (no testing framework)
+- `App.tsx` and `main.tsx` follow Vite React template naming.
+- UI primitives under `ff-landing/src/components/ui/` use lowercase names, with kebab-case for multiword components (`dropdown-menu.tsx`, `aspect-ratio.tsx`).
+- Config files use standard tool names (`vite.config.ts`, `eslint.config.js`, `tailwind.config.js`).
 
-**Functions:**
-- camelCase for all functions: `runCodeGenerator`, `callGemini`
-- Verb-first naming: `showWalkthrough`, `updateUI`, `handleClick`
-- Async functions: No special prefix, use async/await
-- Event handlers: `handle[EventName]` pattern: `handleWelcomeVideoEnd`
+**Functions and Components:**
+- React components use PascalCase function names: `DesignerLogo`, `PromptComposer`, `Sidebar`, `App`.
+- Helpers use camelCase: `cn`, `genId`, `addToRemoveQueue`.
+- Event handlers use `handle*` or local verb names: `handleSubmit`, `submit`.
 
 **Variables:**
-- camelCase for variables: `pipelineState`, `geminiApiKey`
-- UPPER_SNAKE_CASE for constants: `PROMPT_ARCHITECT_MODEL`
-- No underscore prefix for private (not used)
+- camelCase for local state and arrays: `designs`, `suggestions`, `prompt`, `flash`.
+- uppercase constants in toast hook: `TOAST_LIMIT`, `TOAST_REMOVE_DELAY`.
 
-**Constants:**
-- UPPER_SNAKE_CASE: `FF_CORE_PHILOSOPHY`, `STORAGE_KEY_PREFIX`
-- Grouped by purpose (FF_ prefix for FlutterFlow constraints)
+**Types:**
+- Type aliases and interfaces use PascalCase: `Toast`, `Action`, `State`, `ButtonProps`.
+- Type-only imports are used where appropriate, e.g. `import type { ElementType } from "react"`.
 
 ## Code Style
 
 **Formatting:**
-- No semicolons at line ends (explicitly documented in AGENTS.md)
-- 2 space indentation (observed in code)
-- Template literals preferred for string interpolation
-- No trailing commas observed
+- Mixed semicolon style exists: `ff-landing/src/App.tsx` uses semicolons, shadcn-generated files mostly omit them.
+- Strings are mostly double quotes in `App.tsx` and shadcn files; `main.tsx` and config use single quotes in places.
+- Tailwind-heavy JSX with long class strings is the dominant style.
 
 **Linting:**
-- No ESLint configuration present
-- No Prettier configuration present
-- Relies on manual consistency
+- ESLint config: `ff-landing/eslint.config.js`.
+- Script: `pnpm lint` or `npm run lint` from `ff-landing/`.
+- Rules include JS recommended, TypeScript recommended, React Hooks, and React Refresh Vite config.
 
-**Quotes:**
-- Double quotes for strings: `"string"`
-- Template literals for interpolation: `` `Hello ${name}` ``
-- Single quotes used occasionally in HTML attributes
+**TypeScript Strictness:**
+- `ff-landing/tsconfig.app.json` enables `noUnusedLocals`, `noUnusedParameters`, `noFallthroughCasesInSwitch`, `verbatimModuleSyntax`, and `erasableSyntaxOnly`.
 
 ## Import Organization
 
-**No Module Imports:**
-- Project uses vanilla JavaScript (no imports within app.js)
-- All dependencies loaded via CDN in index.html
-- Vite handles env variables via `import.meta.env`
+**Observed order:**
+1. React imports.
+2. Type imports.
+3. Third-party packages (`lucide-react`, Radix, CVA).
+4. Internal alias imports (`@/lib/utils`, `@/components/ui/*`).
+5. Relative CSS/component imports (`./index.css`, `./App.tsx`).
 
-**CDN Loading (in index.html):**
-1. Tailwind CSS
-2. Highlight.js (CSS and JS)
-3. Dart language support for Highlight.js
-4. Google Fonts (Inter, JetBrains Mono)
+**Path Aliases:**
+- `@/*` maps to `ff-landing/src/*` via `vite.config.ts`, `tsconfig.json`, and `tsconfig.app.json`.
 
 ## Error Handling
 
 **Patterns:**
-- Try/catch blocks around all async operations
-- Log errors with context: `console.error("FunctionName failed:", error)`
-- Fallback logic for API failures
-- User-facing alerts for critical errors
-
-**Error Types:**
-- Throw on API failures (with fallback)
-- Alert on invalid user input
-- Console logging for debugging
+- Main app has no async error handling because it has no external calls.
+- shadcn components use local invariant errors where context is required, e.g. carousel context.
+- Toast reducer centralizes state transitions in `ff-landing/src/hooks/use-toast.ts`.
 
 ## Logging
 
-**Framework:**
-- console.log for info/debug
-- console.error for errors
-- No structured logging
-
-**Patterns:**
-- Log function entry: `console.log("runThinkingPipeline called")`
-- Log errors with context
-- Verbose logging in development
+- No logging framework or `console.log` usage found in `ff-landing/src`.
 
 ## Comments
 
-**When to Comment:**
-- Section headers with `---`: `// --- CONFIGURATION ---`
-- Complex logic explanations
-- FlutterFlow constraint documentation (extensive)
-- Function purpose (minimal)
+- Very few comments.
+- Notable inherited shadcn comment in `use-toast.ts` describes a side-effect tradeoff.
+- No TODO/FIXME/HACK markers found in `ff-landing/src` during focused search.
 
-**Documentation Style:**
-- AGENTS.md contains comprehensive developer guide
-- No JSDoc comments in code
-- Extensive template literals for system prompts
+## Function and Module Design
 
-**Template Literals:**
-- Used extensively for AI system instructions
-- Markdown-formatted content
-- Stored in constants (FF_*)
+**Main app:**
+- `ff-landing/src/App.tsx` keeps all product-specific UI in one file.
+- Small local presentational functions (`DesignerLogo`, `DesignRow`, `SidebarAction`) support readability.
+- State is local and minimal.
 
-## Function Design
+**UI components:**
+- shadcn/Radix components use `React.forwardRef`, CVA variant helpers, and `cn()` class merging.
+- Public APIs are named exports for most UI primitives.
 
-**Size:**
-- Large functions common (~50-100+ lines)
-- Monolithic approach (no module splitting)
-- Helper functions extracted for reuse
+## Guidance for New Work
 
-**Parameters:**
-- Destructuring not commonly used
-- Simple parameter passing
-- Options objects for complex functions
-
-**Return Values:**
-- Async functions return promises
-- Explicit returns
-- No Result<T,E> pattern
-
-## Module Design
-
-**No Modules:**
-- Single file architecture (`app.js`)
-- All functions in global scope (within module)
-- Functions exported to `window` for HTML onclick handlers:
-  ```javascript
-  window.runThinkingPipeline = runThinkingPipeline
-  window.closeWalkthroughModal = closeWalkthroughModal
-  ```
-
-**State Management:**
-- Global variables at top of file
-- Mutable state (no immutability patterns)
-- localStorage for persistence
-
-## FlutterFlow-Specific Conventions
-
-**Constraint Constants:**
-- `FF_` prefix for all FlutterFlow-related constants
-- `FF_CORE_PHILOSOPHY` - Integration principles
-- `FF_FORBIDDEN_PATTERNS` - Code that won't compile
-- `FF_REQUIRED_PATTERNS` - Must-have code patterns
-- `FF_ARTIFACT_TYPES` - Function/Action/Widget definitions
-
-**Naming in Templates:**
-- Backtick-escaped code in templates: \`code\`
-- Placeholder format: `${variable}`
+- For small landing page changes, edit `ff-landing/src/App.tsx` directly.
+- For reusable components, follow the existing `ff-landing/src/components/ui/` shadcn style.
+- Prefer the existing `@/` alias for internal imports.
+- Keep generated artifacts (`dist/`, `bundle.html`) separate from source changes unless explicitly refreshing deployable output.
 
 ---
 
-*Convention analysis: 2025-02-13*
-*Update when patterns change*
+*Convention analysis: 2026-05-20*
+*Update when formatting or component-generation conventions change.*

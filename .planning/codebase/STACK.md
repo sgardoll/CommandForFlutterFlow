@@ -1,83 +1,70 @@
 # Technology Stack
 
-**Analysis Date:** 2025-02-13
+**Analysis Date:** 2026-05-20
+
+## Focus
+
+This map is a focused refresh for `ff-landing/`, a nested frontend app inside the root `dreamflowCommandForFlutterFlow` repository.
 
 ## Languages
 
 **Primary:**
-- JavaScript (ES6+) - All application logic in `app.js`
-- HTML5 - UI structure in `index.html`
+- TypeScript / TSX - `ff-landing/src/App.tsx`, `ff-landing/src/main.tsx`, and `ff-landing/src/components/ui/*.tsx`.
+- CSS with Tailwind directives - `ff-landing/src/index.css`.
 
 **Secondary:**
-- CSS (via Tailwind CDN) - Styling embedded in HTML
+- JavaScript config files - `ff-landing/eslint.config.js`, `ff-landing/tailwind.config.js`, `ff-landing/postcss.config.js`.
+- HTML entry/bundle files - `ff-landing/index.html`, `ff-landing/bundle.html`, `ff-landing/dist/index.html`.
 
 ## Runtime
 
 **Environment:**
-- Node.js (for build tooling only)
-- Browser (vanilla JavaScript, no framework)
+- Browser-only React SPA; `ff-landing/index.html` mounts `src/main.tsx` into `#root`.
+- No server runtime or backend code found inside `ff-landing/`.
 
 **Package Manager:**
-- npm 10.x
-- Lockfile: `package-lock.json` present
+- pnpm, indicated by `ff-landing/pnpm-lock.yaml`.
+- `ff-landing/package.json` has npm-compatible scripts: `dev`, `build`, `lint`, `preview`.
 
-## Frameworks
+## Frameworks and Build Tools
 
 **Core:**
-- None (vanilla JavaScript SPA)
-
-**UI:**
-- Tailwind CSS (via CDN) - Utility-first styling
-- No React, Vue, or other frontend framework
-
-**Testing:**
-- No test framework configured
-- Syntax checking only: `node --check app.js`
+- React 19 - UI runtime (`react`, `react-dom`).
+- Vite 8 - dev server and production bundler via `ff-landing/vite.config.ts`.
+- Tailwind CSS 3.4 - styling via `ff-landing/tailwind.config.js` and `ff-landing/src/index.css`.
+- shadcn/Radix-style component stack - `ff-landing/components.json`, `ff-landing/src/components/ui/*.tsx`, Radix packages in `package.json`.
 
 **Build/Dev:**
-- Vite 5.x - Dev server, bundling, hot reload
-- No TypeScript (plain JavaScript)
+- TypeScript 6 - `tsc -b` in build script, config split across `tsconfig.json`, `tsconfig.app.json`, `tsconfig.node.json`.
+- ESLint 10 - `ff-landing/eslint.config.js`.
+- PostCSS + Autoprefixer - `ff-landing/postcss.config.js`.
+- Parcel 2 + `html-inline` - present in dev dependencies and `.parcelrc`; likely used to produce the checked-in single-file `ff-landing/bundle.html`.
 
-## Key Dependencies
+## Critical Dependencies
 
-**Critical:**
-- `vite` ^5.0.0 - Build tool and dev server
-
-**No Runtime Dependencies:**
-- All third-party libraries loaded via CDN:
-  - Tailwind CSS (styling)
-  - Highlight.js (syntax highlighting)
-  - Google Fonts (Inter, JetBrains Mono)
-
-**External Services (APIs):**
-- Google Gemini API - Primary AI model
-- Anthropic Claude API - Optional AI model
-- OpenAI GPT API - Optional AI model
+- `lucide-react` - all visible icons in `ff-landing/src/App.tsx`.
+- `@radix-ui/*` packages - shadcn-style primitives used by reusable UI components under `ff-landing/src/components/ui/`.
+- `class-variance-authority`, `clsx`, `tailwind-merge` - class composition utilities used by shadcn components and `ff-landing/src/lib/utils.ts`.
+- `tailwindcss-animate` - Tailwind animation plugin referenced in `ff-landing/tailwind.config.js`.
+- `sonner` and local toast components - available UI infrastructure, though the main app shell does not currently use it directly.
 
 ## Configuration
 
+**Aliases:**
+- `@` maps to `ff-landing/src` in both `ff-landing/vite.config.ts` and TypeScript configs.
+
 **Environment:**
-- `.env` file for API keys (gitignored)
-- `.env.example` template provided
-- Required: `VITE_GEMINI_API_KEY`
-- Optional: `VITE_ANTHROPIC_API_KEY`, `VITE_OPENAI_API_KEY`
+- No `VITE_*`, `process.env`, `import.meta.env`, API key, or external-service env usage found in `ff-landing/src`.
 
-**Build:**
-- `vite.config.js` - Vite configuration with API proxies
-- `package.json` - npm scripts (dev, build, preview)
+**Build output:**
+- Vite/Parcel output exists in `ff-landing/dist/` and `ff-landing/bundle.html`.
+- `ff-landing/.gitignore` excludes `node_modules`, `dist`, and `.parcel-cache`, but those directories currently exist in the worktree.
 
-## Platform Requirements
+## Purpose Summary
 
-**Development:**
-- Any platform with Node.js 18+
-- npm for dependency management
-
-**Production:**
-- Static file hosting (any web server)
-- Build output in `dist/` directory
-- Client-side only (no server required)
+`ff-landing/` is not the root product app. It is a separate, modern React/Tailwind prototype or landing/demo shell for a FlutterFlow Custom Code Connect / designer-style interface.
 
 ---
 
-*Stack analysis: 2025-02-13*
-*Update after major dependency changes*
+*Stack analysis: 2026-05-20*
+*Update after major dependency changes in `ff-landing/`.*
