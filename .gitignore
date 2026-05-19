@@ -33,3 +33,7 @@ VS-Code-Extension
 !/workspace/lib/
 FlutterFlow_Code_Generation_Guide_v2.md
 FlutterFlow_Code_Review_Guide_v3.md
+CLAUDE.md
+.claude/deployment.md
+firebase.deploy.json
+.firebase/
