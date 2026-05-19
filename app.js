@@ -66,7 +66,7 @@ const TIER_LIMITS = {
   power: 2000,
 }
 
-const FREE_MODEL = 'google/gemini-3.1-pro-preview'
+const FREE_MODEL = 'google/gemini-3.5-flash'
 const PRO_MODELS = [
   'anthropic/claude-4.6-opus',
   'openai/gpt-5.3-codex',
@@ -77,9 +77,9 @@ const PRO_MODELS = [
 const USAGE_STORAGE_KEY = 'ccc_usage'
 
 // Model Configuration
-const PROMPT_ARCHITECT_MODEL = "google/gemini-3.1-pro-preview"
-const CODE_REVIEW_MODEL = "google/gemini-3.1-pro-preview"
-const FALLBACK_MODEL = "google/gemini-3.1-pro-preview"
+const PROMPT_ARCHITECT_MODEL = "google/gemini-3.5-flash"
+const CODE_REVIEW_MODEL = "google/gemini-3.5-flash"
+const FALLBACK_MODEL = "google/gemini-3.5-flash"
 
 // --- DYNAMIC PRICING ---
 const BASE_PRICES_AUD = { professional: 11, power: 49 }
@@ -3173,7 +3173,7 @@ function copyCode(elementId) {
 
 function updateModelInfo(selectedModel) {
   const modelNames = {
-    "google/gemini-3.1-pro-preview": "Gemini 3.1 Pro",
+    "google/gemini-3.5-flash": "Gemini 3.5 Flash",
     "anthropic/claude-4.6-opus": "Claude 4.6 Opus",
     "openai/gpt-5.3-codex": "GPT-5.3-Codex",
     "openrouter/auto": "OpenRouter: Auto",
@@ -3576,7 +3576,7 @@ async function runThinkingPipeline() {
       let errorMessage = error.message;
       if (error.message.includes("image input")) {
         errorMessage =
-          "This model doesn't support image input. Please use Gemini 3.1 Pro for image-based requests or remove image references from your prompt.";
+          "This model doesn't support image input. Please use Gemini 3.5 Flash for image-based requests or remove image references from your prompt.";
       } else if (
         error.message.includes("Load failed") ||
         error.message.includes("CORS")
@@ -3613,7 +3613,7 @@ function retryWithDifferentModel() {
   // Show model selection dialog
   const currentModel = document.getElementById("code-generator-model").value;
   const otherModels = [
-    "google/gemini-3.1-pro-preview",
+    "google/gemini-3.5-flash",
     "anthropic/claude-4.6-opus",
     "openai/gpt-5.3-codex",
   ].filter((model) => model !== currentModel);
@@ -4243,7 +4243,7 @@ function updateModelSelectorGating() {
   const isFree = tier === 'free'
 
   const modelLabels = {
-    'google/gemini-3.1-pro-preview': 'Gemini 3.1 Pro',
+    'google/gemini-3.5-flash': 'Gemini 3.5 Flash',
     'anthropic/claude-4.6-opus': 'Claude 4.6 Opus',
     'openai/gpt-5.3-codex': 'GPT-5.3-Codex',
     'openrouter/auto': 'OpenRouter: Auto Router',
