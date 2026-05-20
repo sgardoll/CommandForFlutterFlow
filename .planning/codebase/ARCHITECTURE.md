@@ -1,132 +1,103 @@
 # Architecture
 
-**Analysis Date:** 2025-02-13
+**Analysis Date:** 2026-05-20
 
 ## Pattern Overview
 
-**Overall:** Single-Page Application (SPA) with 3-Step Pipeline
+**Overall:** Standalone React/Vite single-page frontend nested under the root project.
 
 **Key Characteristics:**
-- Monolithic architecture (single `app.js` file ~2000 lines)
-- Vanilla JavaScript (no framework)
-- Client-side only (no backend server)
-- State managed in global variables
-- Event-driven UI updates
+- `ff-landing/` has its own `package.json`, lockfile, TypeScript configs, Vite config, Tailwind config, and source tree.
+- The visible app is a static interactive shell, not a data-connected product flow.
+- Main screen mimics a designer/AI-prompt interface: sidebar, design history, prompt composer, suggestion chips, and a small submit animation.
+- No network calls, auth, persistence, routing, or backend integration were found in `ff-landing/src`.
 
 ## Layers
 
-**Presentation Layer:**
-- Purpose: UI rendering and event handling
-- Contains: HTML templates, event listeners, DOM manipulation
-- Location: `index.html` (structure), `app.js` (interaction logic)
-- Depends on: Browser APIs, CDN libraries
+**HTML Boot Layer:**
+- Purpose: Browser entry and React root mount.
+- Contains: `ff-landing/index.html` with `<div id="root"></div>` and `/src/main.tsx` module script.
+- Depends on: Vite dev/build pipeline.
 
-**Application Layer:**
-- Purpose: Core business logic and pipeline orchestration
-- Contains: Pipeline functions, state management, API clients
-- Location: `app.js` (all application logic)
-- Depends on: External AI APIs, browser storage
+**React App Layer:**
+- Purpose: Renders the mock designer landing UI.
+- Contains: `DesignerLogo`, `SidebarAction`, `DesignRow`, `PromptComposer`, `Sidebar`, and `App` in `ff-landing/src/App.tsx`.
+- Depends on: React state/hooks, `lucide-react`, Tailwind classes.
 
-**Data Layer:**
-- Purpose: API communication and data persistence
-- Contains: API clients (Gemini, Claude, OpenAI), encryption utilities
-- Location: `app.js` (embedded in functions)
-- Depends on: External APIs, localStorage
+**Component Library Layer:**
+- Purpose: shadcn/Radix reusable component inventory.
+- Contains: 43 files under `ff-landing/src/components/ui/` plus `ff-landing/src/hooks/use-toast.ts` and `ff-landing/src/lib/utils.ts`.
+- Depends on: Radix primitives, `class-variance-authority`, `clsx`, `tailwind-merge`.
+- Used by: Mostly available but not central to `App.tsx`; the app currently uses custom inline Tailwind markup more than the generated UI components.
+
+**Styling Layer:**
+- Purpose: Tailwind theme tokens and global styling.
+- Contains: `ff-landing/src/index.css`, `ff-landing/tailwind.config.js`, `ff-landing/postcss.config.js`.
+- Depends on: Tailwind CSS and `tailwindcss-animate`.
+
+**Bundle Artifact Layer:**
+- Purpose: Built/static outputs.
+- Contains: `ff-landing/dist/index.html`, hashed CSS/JS in `ff-landing/dist/`, and a single-file `ff-landing/bundle.html` with inlined CSS/JS.
+- Depends on: Vite/Parcel/html-inline tooling.
 
 ## Data Flow
 
-**Pipeline Execution Flow:**
-
-1. User enters prompt in `index.html` textarea
-2. User clicks "Run Pipeline" button
-3. `runThinkingPipeline()` in `app.js` initiates workflow
-4. **Step 1** - `runPromptArchitect()`:
-   - Sends prompt to Gemini API
-   - Returns JSON specification
-   - UI updates to show results
-5. **Step 2** - `runCodeGenerator()`:
-   - Sends spec + constraints to AI
-   - Returns Dart code
-   - Displays with syntax highlighting
-6. **Step 3** - `runCodeDissector()`:
-   - Audits code for FlutterFlow compatibility
-   - Returns markdown report
-   - Shows score and issues
+**Render Flow:**
+1. `ff-landing/index.html` loads `/src/main.tsx`.
+2. `ff-landing/src/main.tsx` renders `<App />` into `#root` inside React `StrictMode`.
+3. `App` renders the `Sidebar` and `PromptComposer`.
+4. `PromptComposer` stores only local prompt text in `useState`.
+5. On submit, `App.handleSubmit()` toggles a local `flash` state and resets it with `window.setTimeout`.
 
 **State Management:**
-- Global `pipelineState` object tracks:
-  - `isRunning` - pipeline status
-  - `currentStep` - active step (1-3)
-  - `step1Result`, `step2Result`, `step3Result` - cached outputs
-- API keys stored encrypted in localStorage
-
-**Error Handling:**
-- Try/catch blocks around API calls
-- Fallback to secondary model on failure
-- User-facing error messages in UI
+- Local React state only: `prompt` and `flash` in `ff-landing/src/App.tsx`.
+- Toast hook has module-level memory state in `ff-landing/src/hooks/use-toast.ts`, but it is not part of the main rendered app flow found in `App.tsx`.
 
 ## Key Abstractions
 
-**Pipeline Functions:**
-- Purpose: Execute each stage of code generation
-- Examples: `runPromptArchitect()`, `runCodeGenerator()`, `runCodeDissector()`
-- Pattern: Async functions with error handling and fallback logic
+**Static product shell:**
+- Purpose: Demonstrate a possible FlutterFlow Custom Code Connect / designer product interface.
+- Example: Hard-coded `designs` and `suggestions` arrays in `ff-landing/src/App.tsx`.
 
-**API Clients:**
-- Purpose: Communicate with AI services
-- Examples: `callGemini()`, `callClaude()`, `callOpenAI()`
-- Pattern: Fetch wrapper with proxy routing
+**shadcn UI inventory:**
+- Purpose: Ready-made primitives for future richer interactions.
+- Examples: `ff-landing/src/components/ui/button.tsx`, `dialog.tsx`, `form.tsx`, `toast.tsx`.
 
-**Constraints Templates:**
-- Purpose: FlutterFlow-specific rules embedded in prompts
-- Examples: `FF_CORE_PHILOSOPHY`, `FF_FORBIDDEN_PATTERNS`
-- Pattern: Template literals with markdown content
-
-**Walkthrough System:**
-- Purpose: Guide first-time users through setup
-- Functions: `showWalkthroughIfNeeded()`, `advanceWalkthrough()`, `updateWalkthroughUI()`
-- Pattern: Step-based state machine with DOM updates
+**Class merging utility:**
+- Purpose: Compose Tailwind classes safely.
+- Example: `cn()` in `ff-landing/src/lib/utils.ts`.
 
 ## Entry Points
 
-**Application Entry:**
-- Location: `index.html`
-- Triggers: Page load in browser
-- Responsibilities: Load UI, initialize event listeners, show walkthrough
+**Development entry:**
+- Location: `ff-landing/index.html` → `ff-landing/src/main.tsx` → `ff-landing/src/App.tsx`.
+- Trigger: `pnpm dev` / `vite` from `ff-landing/`.
 
-**Script Entry:**
-- Location: `app.js` (loaded via `<script type="module">`)
-- Triggers: DOMContentLoaded event
-- Responsibilities: Initialize API keys, set up event handlers
+**Production build entry:**
+- Location: same source entry; output in `ff-landing/dist/`.
+- Trigger: `pnpm build` runs `tsc -b && vite build`.
+
+**Single-file artifact:**
+- Location: `ff-landing/bundle.html`.
+- Trigger: not scripted in `package.json`, but dependencies and `.parcelrc` suggest Parcel/html-inline tooling.
 
 ## Error Handling
 
-**Strategy:** Try/catch at function level, graceful degradation
-
-**Patterns:**
-- API calls wrapped in try/catch with fallback logic
-- Primary model failure → automatic retry with fallback model
-- User input validation before pipeline execution
-- Console.error with context for debugging
+**Strategy:** Minimal; this is mostly static UI.
+- No API boundary or async external failure path in `App.tsx`.
+- shadcn components throw only normal contextual errors such as `useCarousel must be used within a <Carousel />`.
 
 ## Cross-Cutting Concerns
 
-**Logging:**
-- Console.log/console.error for debugging
-- No structured logging framework
-- Verbose logging in development
+**Validation:** None in the visible app; submit button is disabled while the prompt is empty.
 
-**Validation:**
-- Manual input validation before API calls
-- Check for empty prompts
-- Image reference detection for non-Gemini models
+**Authentication:** None.
 
-**Security:**
-- API keys encrypted with AES-GCM before localStorage
-- Device fingerprinting for key binding
-- No server-side code (all client-side)
+**External APIs:** None found.
+
+**Logging:** None found.
 
 ---
 
-*Architecture analysis: 2025-02-13*
-*Update when major patterns change*
+*Architecture analysis: 2026-05-20*
+*Update when `ff-landing/` becomes connected to real product flows.*

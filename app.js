@@ -31,6 +31,8 @@ const STRIPE_PRICE_IDS = {
   power: 'price_1T2le9KszA2slvDXR4mPvw7M'
 }
 
+const AUTH_SESSION_STORAGE_KEY = 'ccc_auth_session'
+
 const proGateAttachedSet = new WeakSet()
 
 let authState = {
@@ -43,6 +45,7 @@ let subscriptionState = {
   tier: 'free',
   status: 'none',
   periodEnd: null,
+  isLoading: false,
 }
 
 // --- PIPELINE ---
@@ -66,7 +69,7 @@ const TIER_LIMITS = {
   power: 2000,
 }
 
-const FREE_MODEL = 'google/gemini-3.1-pro-preview'
+const FREE_MODEL = 'google/gemini-3.5-flash'
 const PRO_MODELS = [
   'anthropic/claude-4.6-opus',
   'openai/gpt-5.3-codex',
@@ -77,9 +80,9 @@ const PRO_MODELS = [
 const USAGE_STORAGE_KEY = 'ccc_usage'
 
 // Model Configuration
-const PROMPT_ARCHITECT_MODEL = "google/gemini-3.1-pro-preview"
-const CODE_REVIEW_MODEL = "google/gemini-3.1-pro-preview"
-const FALLBACK_MODEL = "google/gemini-3.1-pro-preview"
+const PROMPT_ARCHITECT_MODEL = "google/gemini-3.5-flash"
+const CODE_REVIEW_MODEL = "google/gemini-3.5-flash"
+const FALLBACK_MODEL = "google/gemini-3.5-flash"
 
 // --- DYNAMIC PRICING ---
 const BASE_PRICES_AUD = { professional: 11, power: 49 }
@@ -3173,7 +3176,7 @@ function copyCode(elementId) {
 
 function updateModelInfo(selectedModel) {
   const modelNames = {
-    "google/gemini-3.1-pro-preview": "Gemini 3.1 Pro",
+    "google/gemini-3.5-flash": "Gemini 3.5 Flash",
     "anthropic/claude-4.6-opus": "Claude 4.6 Opus",
     "openai/gpt-5.3-codex": "GPT-5.3-Codex",
     "openrouter/auto": "OpenRouter: Auto",
@@ -3449,7 +3452,7 @@ async function runThinkingPipeline() {
     return;
   }
 
-  if (!canRunPipeline()) return;
+  if (!(await canRunPipeline())) return;
 
   const effectiveModel = getEffectiveModel(selectedModel);
 
@@ -3545,6 +3548,12 @@ async function runThinkingPipeline() {
     console.error("Pipeline failed:", error);
     hidePipelineProgress();
 
+    if (error.isUsageLimit) {
+      const { count } = getUsage()
+      showPaywallExhausted(count, getRunLimit(), { openModal: true })
+      return
+    }
+
     trackEvent("Pipeline Failed", {
       error: error.message,
       effectiveModel: getEffectiveModel(document.getElementById("code-generator-model").value)
@@ -3576,7 +3585,7 @@ async function runThinkingPipeline() {
       let errorMessage = error.message;
       if (error.message.includes("image input")) {
         errorMessage =
-          "This model doesn't support image input. Please use Gemini 3.1 Pro for image-based requests or remove image references from your prompt.";
+          "This model doesn't support image input. Please use Gemini 3.5 Flash for image-based requests or remove image references from your prompt.";
       } else if (
         error.message.includes("Load failed") ||
         error.message.includes("CORS")
@@ -3613,7 +3622,7 @@ function retryWithDifferentModel() {
   // Show model selection dialog
   const currentModel = document.getElementById("code-generator-model").value;
   const otherModels = [
-    "google/gemini-3.1-pro-preview",
+    "google/gemini-3.5-flash",
     "anthropic/claude-4.6-opus",
     "openai/gpt-5.3-codex",
   ].filter((model) => model !== currentModel);
@@ -3982,23 +3991,35 @@ async function refreshSession(sessionToken) {
 }
 
 function saveSession(email, sessionToken) {
+  const sessionChanged = authState.email !== email || authState.sessionToken !== sessionToken
   authState.email = email
   authState.sessionToken = sessionToken
   authState.isVerified = true
+  subscriptionState = { tier: 'free', status: 'none', periodEnd: null, isLoading: true }
+  localStorage.setItem(AUTH_SESSION_STORAGE_KEY, JSON.stringify({ email, sessionToken }))
+  if (sessionChanged) clearSubscriptionCache()
 }
 
 function clearSession() {
   authState.email = null
   authState.sessionToken = null
   authState.isVerified = false
-  subscriptionState = { tier: 'free', status: 'none', periodEnd: null }
+  subscriptionState = { tier: 'free', status: 'none', periodEnd: null, isLoading: false }
+  localStorage.removeItem(AUTH_SESSION_STORAGE_KEY)
   localStorage.removeItem('ccc_subscription')
 }
 
 function getStoredSession() {
-  return {
-    email: authState.email,
-    sessionToken: authState.sessionToken
+  try {
+    const raw = localStorage.getItem(AUTH_SESSION_STORAGE_KEY)
+    if (!raw) return { email: null, sessionToken: null }
+    const session = JSON.parse(raw)
+    if (!session.email || !session.sessionToken) return { email: null, sessionToken: null }
+    return session
+  } catch (err) {
+    console.warn('getStoredSession: failed to parse auth session:', err)
+    localStorage.removeItem(AUTH_SESSION_STORAGE_KEY)
+    return { email: null, sessionToken: null }
   }
 }
 
@@ -4177,15 +4198,24 @@ function incrementUsage() {
   return updated
 }
 
+function isSubscriptionLoading() {
+  return !!subscriptionState.isLoading
+}
+
 function getRunLimit() {
   return TIER_LIMITS[subscriptionState.tier] ?? TIER_LIMITS.free
 }
 
-function canRunPipeline() {
+async function canRunPipeline() {
+  if (authState.isVerified && isSubscriptionLoading()) {
+    await fetchSubscription({ force: true })
+    updateSubscriptionUI()
+  }
+
   const { count } = getUsage()
   const limit = getRunLimit()
   if (count >= limit) {
-    showPaywallExhausted(count, limit)
+    showPaywallExhausted(count, limit, { openModal: true })
     return false
   }
   const warningThreshold = Math.floor(limit * 0.8)
@@ -4196,12 +4226,24 @@ function canRunPipeline() {
   return true
 }
 
-function showPaywallExhausted(count, limit) {
+function showPaywallExhausted(count, limit, options = {}) {
   const walkthroughModal = document.getElementById('walkthrough-modal')
   if (walkthroughModal) walkthroughModal.classList.remove('open')
 
   const readyState = document.getElementById('ready-state')
   if (readyState) readyState.classList.add('hidden')
+
+  const previewContainer = document.getElementById('preview-frame-container')
+  if (previewContainer) previewContainer.style.display = 'none'
+
+  const stageContainer = document.getElementById('main-stage-container')
+  if (stageContainer) stageContainer.classList.add('visible')
+
+  const resultsView = document.getElementById('results-view')
+  if (resultsView) resultsView.classList.remove('visible')
+
+  const pipelineProgress = document.getElementById('pipeline-progress')
+  if (pipelineProgress) pipelineProgress.classList.remove('visible')
 
   const paywall = document.getElementById('paywall-exhausted')
   if (!paywall) {
@@ -4224,6 +4266,7 @@ function showPaywallExhausted(count, limit) {
   if (signInBtn) signInBtn.classList.toggle('hidden', authState.isVerified)
 
   paywall.classList.remove('hidden')
+  if (options.openModal) openPricingModal()
 }
 
 function getEffectiveModel(selectedModel) {
@@ -4243,7 +4286,7 @@ function updateModelSelectorGating() {
   const isFree = tier === 'free'
 
   const modelLabels = {
-    'google/gemini-3.1-pro-preview': 'Gemini 3.1 Pro',
+    'google/gemini-3.5-flash': 'Gemini 3.5 Flash',
     'anthropic/claude-4.6-opus': 'Claude 4.6 Opus',
     'openai/gpt-5.3-codex': 'GPT-5.3-Codex',
     'openrouter/auto': 'OpenRouter: Auto Router',
@@ -4295,6 +4338,14 @@ function updateModelSelectorGating() {
 function updateUsageDisplay() {
   const el = document.getElementById('usage-counter')
   if (!el) return
+
+  if (authState.isVerified && isSubscriptionLoading()) {
+    el.textContent = 'Checking plan…'
+    el.className = 'text-xs text-gray-500'
+    updateGuestUsageCounter()
+    return
+  }
+
   const { count } = getUsage()
   const limit = getRunLimit()
   el.textContent = `${count} / ${limit} runs this month`
@@ -4322,18 +4373,23 @@ function updateGuestUsageCounter() {
 
 // --- STRIPE FUNCTIONS ---
 
-async function fetchSubscription() {
+async function fetchSubscription(options = {}) {
+  const force = options.force === true
+
   if (!authState.isVerified || !authState.sessionToken) {
-    subscriptionState = { tier: 'free', status: 'none', periodEnd: null }
+    subscriptionState = { tier: 'free', status: 'none', periodEnd: null, isLoading: false }
     return
   }
 
+  subscriptionState = { ...subscriptionState, isLoading: true }
+
   const cached = localStorage.getItem('ccc_subscription')
-  if (cached) {
+  if (!force && cached) {
     try {
-      const { data, ts } = JSON.parse(cached)
-      if (Date.now() - ts < 5 * 60 * 1000) {
-        subscriptionState = data
+      const { data, email, sessionToken, ts } = JSON.parse(cached)
+      const cacheMatchesSession = email === authState.email && sessionToken === authState.sessionToken
+      if (cacheMatchesSession && Date.now() - ts < 5 * 60 * 1000) {
+        subscriptionState = { ...data, isLoading: false }
         return
       }
     } catch (err) {
@@ -4358,15 +4414,19 @@ async function fetchSubscription() {
     subscriptionState = {
       tier: data.tier || 'free',
       status: data.status || 'none',
-      periodEnd: data.periodEnd || null
+      periodEnd: data.periodEnd || null,
+      isLoading: false,
     }
 
     localStorage.setItem('ccc_subscription', JSON.stringify({
       data: subscriptionState,
+      email: authState.email,
+      sessionToken: authState.sessionToken,
       ts: Date.now()
     }))
   } catch (err) {
     console.error('fetchSubscription failed:', err)
+    subscriptionState = { ...subscriptionState, isLoading: false }
   }
 }
 
@@ -4462,7 +4522,9 @@ async function callBuildShip(step, model, prompt, context = {}) {
         localStorage.setItem(USAGE_STORAGE_KEY, JSON.stringify({ count: data.serverCount, month: getCurrentYearMonth() }))
         updateUsageDisplay()
       }
-      throw new Error(data.message || 'Monthly usage limit reached. Upgrade to continue.')
+      const usageError = new Error(data.message || 'Monthly usage limit reached. Upgrade to continue.')
+      usageError.isUsageLimit = true
+      throw usageError
     }
 
     console.log(`[BuildShip] ${step} response keys:`, Object.keys(data), 'content type:', typeof data.content)
@@ -4516,6 +4578,7 @@ function handleCheckoutRedirect() {
 function updateSubscriptionUI() {
   const signedIn = authState.isVerified && !!authState.email
   const tier = subscriptionState.tier
+  const loading = signedIn && isSubscriptionLoading()
 
   const badge = document.getElementById('subscription-tier-badge')
   if (badge) {
@@ -4525,15 +4588,15 @@ function updateSubscriptionUI() {
       professional: 'bg-indigo-100 text-indigo-700',
       power: 'bg-purple-100 text-purple-700'
     }
-    badge.textContent = labels[tier] || 'Free'
+    badge.textContent = loading ? 'Checking…' : labels[tier] || 'Free'
     badge.className = `inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${colors[tier] || colors.free}`
   }
 
   const upgradePrompt = document.getElementById('upgrade-prompt')
-  if (upgradePrompt) upgradePrompt.classList.toggle('hidden', !signedIn || tier !== 'free')
+  if (upgradePrompt) upgradePrompt.classList.toggle('hidden', !signedIn || loading || tier !== 'free')
 
   const manageBillingBtn = document.getElementById('manage-billing-btn')
-  if (manageBillingBtn) manageBillingBtn.classList.toggle('hidden', !signedIn || tier === 'free')
+  if (manageBillingBtn) manageBillingBtn.classList.toggle('hidden', !signedIn || loading || tier === 'free')
 
   updatePricingModalState(tier)
   updateModelSelectorGating()
