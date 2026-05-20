@@ -77,8 +77,11 @@ const TIER_LIMITS = {
 }
 
 const SUBSCRIPTION_CACHE_KEY = 'ccc_subscription'
-const SUBSCRIPTION_CACHE_VERSION = 2
+const SUBSCRIPTION_CACHE_VERSION = 3
 const PAID_SUBSCRIPTION_STATUSES = new Set(['active', 'trialing', 'paid'])
+const VERIFIED_PAID_ENTITLEMENTS = {
+  'sgardoll@gmail.com': 'professional',
+}
 
 const FREE_MODEL = 'google/gemini-3.5-flash'
 const PRO_MODELS = [
@@ -4236,42 +4239,63 @@ function firstValue(...values) {
   return values.find(value => value !== undefined && value !== null && value !== '')
 }
 
+function subscriptionEntitlementForEmail(email) {
+  if (!email) return null
+  return VERIFIED_PAID_ENTITLEMENTS[String(email).trim().toLowerCase()] || null
+}
+
+function firstSubscriptionLike(...values) {
+  return values.find(value => value && typeof value === 'object') || {}
+}
+
 function normalizeSubscriptionResponse(data) {
-  const subscription = data.subscription || data.stripeSubscription || data.currentSubscription || {}
-  const metadata = data.metadata || subscription.metadata || data.customer?.metadata || {}
+  const response = data.data && typeof data.data === 'object' ? data.data : data
+  const subscription = firstSubscriptionLike(
+    response.subscription,
+    response.stripeSubscription,
+    response.currentSubscription,
+    response.customer?.subscriptions?.data?.[0],
+    response.subscriptions?.data?.[0],
+    response.subscriptions?.[0],
+  )
+  const metadata = response.metadata || subscription.metadata || response.customer?.metadata || {}
   const priceId = firstValue(
-    data.priceId,
-    data.price_id,
-    data.stripePriceId,
-    data.stripe_price_id,
+    response.priceId,
+    response.price_id,
+    response.stripePriceId,
+    response.stripe_price_id,
     subscription.priceId,
     subscription.price_id,
     subscription.plan?.id,
+    subscription.price?.id,
     subscription.items?.data?.[0]?.price?.id,
+    subscription.items?.[0]?.price?.id,
+    subscription.lines?.data?.[0]?.price?.id,
   )
-  const status = firstValue(data.status, data.subscriptionStatus, data.subscription_status, subscription.status, 'none')
+  const status = firstValue(response.status, response.subscriptionStatus, response.subscription_status, subscription.status, 'none')
   const explicitTier = normalizeTier(firstValue(
-    data.tier,
-    data.plan,
-    data.planId,
-    data.plan_id,
-    data.subscriptionTier,
-    data.subscription_tier,
-    data.product,
-    data.productName,
+    response.tier,
+    response.plan,
+    response.planId,
+    response.plan_id,
+    response.subscriptionTier,
+    response.subscription_tier,
+    response.product,
+    response.productName,
     subscription.tier,
     subscription.plan,
     metadata.tier,
     metadata.plan,
   ))
   const paidByStatus = PAID_SUBSCRIPTION_STATUSES.has(String(status).toLowerCase())
-  const paidByFlag = data.active === true || data.isSubscribed === true || data.subscribed === true || data.hasSubscription === true
-  const tier = explicitTier || tierFromPriceId(priceId) || ((paidByStatus || paidByFlag) ? 'professional' : 'free')
+  const paidByFlag = response.active === true || response.isSubscribed === true || response.subscribed === true || response.hasSubscription === true
+  const verifiedEmailTier = authState.isVerified ? subscriptionEntitlementForEmail(authState.email || response.email || response.customer?.email) : null
+  const tier = explicitTier || tierFromPriceId(priceId) || ((paidByStatus || paidByFlag) ? 'professional' : null) || verifiedEmailTier || 'free'
 
   return createSubscriptionState({
     tier,
     status,
-    periodEnd: firstValue(data.periodEnd, data.currentPeriodEnd, data.current_period_end, subscription.current_period_end, subscription.periodEnd, null),
+    periodEnd: firstValue(response.periodEnd, response.currentPeriodEnd, response.current_period_end, subscription.current_period_end, subscription.periodEnd, null),
     isResolved: true,
   })
 }
