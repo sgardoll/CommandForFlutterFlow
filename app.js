@@ -41,12 +41,19 @@ let authState = {
   isVerified: false,
 }
 
-let subscriptionState = {
-  tier: 'free',
-  status: 'none',
-  periodEnd: null,
-  isLoading: false,
+function createSubscriptionState(overrides = {}) {
+  return {
+    tier: 'free',
+    status: 'none',
+    periodEnd: null,
+    isLoading: false,
+    isResolved: false,
+    error: null,
+    ...overrides,
+  }
 }
+
+let subscriptionState = createSubscriptionState({ isResolved: true })
 
 // --- PIPELINE ---
 const PIPELINE_ENDPOINT = `${BUILDSHIP_BASE_URL}/service/runpipeline`
@@ -68,6 +75,10 @@ const TIER_LIMITS = {
   professional: 50,
   power: 2000,
 }
+
+const SUBSCRIPTION_CACHE_KEY = 'ccc_subscription'
+const SUBSCRIPTION_CACHE_VERSION = 2
+const PAID_SUBSCRIPTION_STATUSES = new Set(['active', 'trialing', 'paid'])
 
 const FREE_MODEL = 'google/gemini-3.5-flash'
 const PRO_MODELS = [
@@ -3991,11 +4002,12 @@ async function refreshSession(sessionToken) {
 }
 
 function saveSession(email, sessionToken) {
-  const sessionChanged = authState.email !== email || authState.sessionToken !== sessionToken
+  const storedSession = getStoredSession()
+  const sessionChanged = (authState.email || storedSession.email) !== email
   authState.email = email
   authState.sessionToken = sessionToken
   authState.isVerified = true
-  subscriptionState = { tier: 'free', status: 'none', periodEnd: null, isLoading: true }
+  subscriptionState = createSubscriptionState({ isLoading: true })
   localStorage.setItem(AUTH_SESSION_STORAGE_KEY, JSON.stringify({ email, sessionToken }))
   if (sessionChanged) clearSubscriptionCache()
 }
@@ -4004,9 +4016,9 @@ function clearSession() {
   authState.email = null
   authState.sessionToken = null
   authState.isVerified = false
-  subscriptionState = { tier: 'free', status: 'none', periodEnd: null, isLoading: false }
+  subscriptionState = createSubscriptionState({ isResolved: true })
   localStorage.removeItem(AUTH_SESSION_STORAGE_KEY)
-  localStorage.removeItem('ccc_subscription')
+  localStorage.removeItem(SUBSCRIPTION_CACHE_KEY)
 }
 
 function getStoredSession() {
@@ -4202,14 +4214,81 @@ function isSubscriptionLoading() {
   return !!subscriptionState.isLoading
 }
 
+function isSubscriptionResolved() {
+  return !!subscriptionState.isResolved
+}
+
+function normalizeTier(value) {
+  if (!value) return null
+  const tier = String(value).toLowerCase().replace(/[^a-z0-9]+/g, '_')
+  if (tier === 'pro' || tier === 'professional_plan') return 'professional'
+  if (tier === 'power_developer' || tier === 'power_plan') return 'power'
+  if (Object.prototype.hasOwnProperty.call(TIER_LIMITS, tier)) return tier
+  return null
+}
+
+function tierFromPriceId(priceId) {
+  if (!priceId) return null
+  return Object.entries(STRIPE_PRICE_IDS).find(([, id]) => id === priceId)?.[0] || null
+}
+
+function firstValue(...values) {
+  return values.find(value => value !== undefined && value !== null && value !== '')
+}
+
+function normalizeSubscriptionResponse(data) {
+  const subscription = data.subscription || data.stripeSubscription || data.currentSubscription || {}
+  const metadata = data.metadata || subscription.metadata || data.customer?.metadata || {}
+  const priceId = firstValue(
+    data.priceId,
+    data.price_id,
+    data.stripePriceId,
+    data.stripe_price_id,
+    subscription.priceId,
+    subscription.price_id,
+    subscription.plan?.id,
+    subscription.items?.data?.[0]?.price?.id,
+  )
+  const status = firstValue(data.status, data.subscriptionStatus, data.subscription_status, subscription.status, 'none')
+  const explicitTier = normalizeTier(firstValue(
+    data.tier,
+    data.plan,
+    data.planId,
+    data.plan_id,
+    data.subscriptionTier,
+    data.subscription_tier,
+    data.product,
+    data.productName,
+    subscription.tier,
+    subscription.plan,
+    metadata.tier,
+    metadata.plan,
+  ))
+  const paidByStatus = PAID_SUBSCRIPTION_STATUSES.has(String(status).toLowerCase())
+  const paidByFlag = data.active === true || data.isSubscribed === true || data.subscribed === true || data.hasSubscription === true
+  const tier = explicitTier || tierFromPriceId(priceId) || ((paidByStatus || paidByFlag) ? 'professional' : 'free')
+
+  return createSubscriptionState({
+    tier,
+    status,
+    periodEnd: firstValue(data.periodEnd, data.currentPeriodEnd, data.current_period_end, subscription.current_period_end, subscription.periodEnd, null),
+    isResolved: true,
+  })
+}
+
 function getRunLimit() {
   return TIER_LIMITS[subscriptionState.tier] ?? TIER_LIMITS.free
 }
 
 async function canRunPipeline() {
-  if (authState.isVerified && isSubscriptionLoading()) {
+  if (authState.isVerified && (!isSubscriptionResolved() || isSubscriptionLoading())) {
     await fetchSubscription({ force: true })
     updateSubscriptionUI()
+  }
+
+  if (authState.isVerified && !isSubscriptionResolved()) {
+    showToast('Could not verify your subscription. Please refresh or try Manage billing.', 'error')
+    return false
   }
 
   const { count } = getUsage()
@@ -4224,6 +4303,11 @@ async function canRunPipeline() {
     showToast(`${remaining} run${remaining === 1 ? '' : 's'} remaining this month.`, 'warning')
   }
   return true
+}
+
+function hidePaywallExhausted() {
+  const paywall = document.getElementById('paywall-exhausted')
+  if (paywall) paywall.classList.add('hidden')
 }
 
 function showPaywallExhausted(count, limit, options = {}) {
@@ -4283,7 +4367,8 @@ function updateModelSelectorGating() {
   if (!container || !select) return
 
   const tier = subscriptionState.tier
-  const isFree = tier === 'free'
+  const unresolvedSignedIn = authState.isVerified && !isSubscriptionResolved()
+  const isFree = !unresolvedSignedIn && tier === 'free'
 
   const modelLabels = {
     'google/gemini-3.5-flash': 'Gemini 3.5 Flash',
@@ -4310,7 +4395,7 @@ function updateModelSelectorGating() {
   // Intercept PRO model selection on free tier → open pricing modal
   if (!proGateAttachedSet.has(select)) {
     select.addEventListener('change', () => {
-      if (subscriptionState.tier === 'free' && PRO_MODELS.includes(select.value)) {
+      if (isSubscriptionResolved() && subscriptionState.tier === 'free' && PRO_MODELS.includes(select.value)) {
         select.value = FREE_MODEL
         openPricingModal()
       }
@@ -4343,6 +4428,15 @@ function updateUsageDisplay() {
     el.textContent = 'Checking plan…'
     el.className = 'text-xs text-gray-500'
     updateGuestUsageCounter()
+    hidePaywallExhausted()
+    return
+  }
+
+  if (authState.isVerified && !isSubscriptionResolved()) {
+    el.textContent = 'Plan check failed'
+    el.className = 'text-xs text-red-600 font-medium'
+    updateGuestUsageCounter()
+    hidePaywallExhausted()
     return
   }
 
@@ -4359,6 +4453,8 @@ function updateUsageDisplay() {
 
   if (count >= limit && !pipelineState.isRunning) {
     showPaywallExhausted(count, limit)
+  } else {
+    hidePaywallExhausted()
   }
 }
 
@@ -4377,23 +4473,23 @@ async function fetchSubscription(options = {}) {
   const force = options.force === true
 
   if (!authState.isVerified || !authState.sessionToken) {
-    subscriptionState = { tier: 'free', status: 'none', periodEnd: null, isLoading: false }
+    subscriptionState = createSubscriptionState({ isResolved: true })
     return
   }
 
-  subscriptionState = { ...subscriptionState, isLoading: true }
+  subscriptionState = { ...subscriptionState, isLoading: true, error: null }
 
-  const cached = localStorage.getItem('ccc_subscription')
+  const cached = localStorage.getItem(SUBSCRIPTION_CACHE_KEY)
   if (!force && cached) {
     try {
-      const { data, email, sessionToken, ts } = JSON.parse(cached)
-      const cacheMatchesSession = email === authState.email && sessionToken === authState.sessionToken
+      const { data, email, ts, version } = JSON.parse(cached)
+      const cacheMatchesSession = version === SUBSCRIPTION_CACHE_VERSION && email === authState.email
       if (cacheMatchesSession && Date.now() - ts < 5 * 60 * 1000) {
-        subscriptionState = { ...data, isLoading: false }
+        subscriptionState = { ...data, isLoading: false, isResolved: data.isResolved !== false }
         return
       }
     } catch (err) {
-      console.warn('Failed to parse ccc_subscription cache:', err, '| raw value:', cached)
+      console.warn('Failed to parse subscription cache:', err, '| raw value:', cached)
     }
   }
 
@@ -4401,37 +4497,37 @@ async function fetchSubscription(options = {}) {
     const res = await fetch(`${BUILDSHIP_BASE_URL}/stripe/get-subscription`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionToken: authState.sessionToken })
+      body: JSON.stringify({ sessionToken: authState.sessionToken, email: authState.email })
     })
 
     const data = await res.json()
 
     if (data.error) {
-      clearSession()
-      updateAuthUI()
+      const isAuthError = ['unauthorized', 'invalid session', 'expired session'].some(message => String(data.error).toLowerCase().includes(message))
+      if (isAuthError) {
+        clearSession()
+        updateAuthUI()
+        return
+      }
+      subscriptionState = createSubscriptionState({ isResolved: false, error: data.error })
       return
     }
-    subscriptionState = {
-      tier: data.tier || 'free',
-      status: data.status || 'none',
-      periodEnd: data.periodEnd || null,
-      isLoading: false,
-    }
+    subscriptionState = normalizeSubscriptionResponse(data)
 
-    localStorage.setItem('ccc_subscription', JSON.stringify({
+    localStorage.setItem(SUBSCRIPTION_CACHE_KEY, JSON.stringify({
+      version: SUBSCRIPTION_CACHE_VERSION,
       data: subscriptionState,
       email: authState.email,
-      sessionToken: authState.sessionToken,
       ts: Date.now()
     }))
   } catch (err) {
     console.error('fetchSubscription failed:', err)
-    subscriptionState = { ...subscriptionState, isLoading: false }
+    subscriptionState = { ...subscriptionState, isLoading: false, isResolved: false, error: err.message }
   }
 }
 
 function clearSubscriptionCache() {
-  localStorage.removeItem('ccc_subscription')
+  localStorage.removeItem(SUBSCRIPTION_CACHE_KEY)
 }
 
 async function startCheckout(tierId) {
@@ -4579,6 +4675,7 @@ function updateSubscriptionUI() {
   const signedIn = authState.isVerified && !!authState.email
   const tier = subscriptionState.tier
   const loading = signedIn && isSubscriptionLoading()
+  const resolved = !signedIn || isSubscriptionResolved()
 
   const badge = document.getElementById('subscription-tier-badge')
   if (badge) {
@@ -4586,19 +4683,20 @@ function updateSubscriptionUI() {
     const colors = {
       free: 'bg-gray-100 text-gray-600',
       professional: 'bg-indigo-100 text-indigo-700',
-      power: 'bg-purple-100 text-purple-700'
+      power: 'bg-purple-100 text-purple-700',
+      unresolved: 'bg-red-50 text-red-600',
     }
-    badge.textContent = loading ? 'Checking…' : labels[tier] || 'Free'
-    badge.className = `inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${colors[tier] || colors.free}`
+    badge.textContent = loading ? 'Checking…' : resolved ? labels[tier] || 'Free' : 'Plan unavailable'
+    badge.className = `inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${resolved ? colors[tier] || colors.free : colors.unresolved}`
   }
 
   const upgradePrompt = document.getElementById('upgrade-prompt')
-  if (upgradePrompt) upgradePrompt.classList.toggle('hidden', !signedIn || loading || tier !== 'free')
+  if (upgradePrompt) upgradePrompt.classList.toggle('hidden', !signedIn || loading || !resolved || tier !== 'free')
 
   const manageBillingBtn = document.getElementById('manage-billing-btn')
-  if (manageBillingBtn) manageBillingBtn.classList.toggle('hidden', !signedIn || loading || tier === 'free')
+  if (manageBillingBtn) manageBillingBtn.classList.toggle('hidden', !signedIn || loading || (resolved && tier === 'free'))
 
-  updatePricingModalState(tier)
+  updatePricingModalState(resolved ? tier : null)
   updateModelSelectorGating()
   updateUsageDisplay()
 }
