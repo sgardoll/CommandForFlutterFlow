@@ -37,3 +37,4 @@ CLAUDE.md
 .claude/deployment.md
 firebase.deploy.json
 .firebase/
+/.sisyphus
