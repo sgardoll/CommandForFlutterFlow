@@ -79,9 +79,6 @@ const TIER_LIMITS = {
 const SUBSCRIPTION_CACHE_KEY = 'ccc_subscription'
 const SUBSCRIPTION_CACHE_VERSION = 3
 const PAID_SUBSCRIPTION_STATUSES = new Set(['active', 'trialing', 'paid'])
-const VERIFIED_PAID_ENTITLEMENTS = {
-  'sgardoll@gmail.com': 'professional',
-}
 
 const FREE_MODEL = 'google/gemini-3.5-flash'
 const PRO_MODELS = [
@@ -4239,11 +4236,6 @@ function firstValue(...values) {
   return values.find(value => value !== undefined && value !== null && value !== '')
 }
 
-function subscriptionEntitlementForEmail(email) {
-  if (!email) return null
-  return VERIFIED_PAID_ENTITLEMENTS[String(email).trim().toLowerCase()] || null
-}
-
 function firstSubscriptionLike(...values) {
   return values.find(value => value && typeof value === 'object') || {}
 }
@@ -4289,8 +4281,7 @@ function normalizeSubscriptionResponse(data) {
   ))
   const paidByStatus = PAID_SUBSCRIPTION_STATUSES.has(String(status).toLowerCase())
   const paidByFlag = response.active === true || response.isSubscribed === true || response.subscribed === true || response.hasSubscription === true
-  const verifiedEmailTier = authState.isVerified ? subscriptionEntitlementForEmail(authState.email || response.email || response.customer?.email) : null
-  const tier = explicitTier || tierFromPriceId(priceId) || ((paidByStatus || paidByFlag) ? 'professional' : null) || verifiedEmailTier || 'free'
+  const tier = explicitTier || tierFromPriceId(priceId) || ((paidByStatus || paidByFlag) ? 'professional' : 'free')
 
   return createSubscriptionState({
     tier,
