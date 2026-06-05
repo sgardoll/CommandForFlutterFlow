@@ -90,7 +90,7 @@ Plans:
 - [x] 14-02: Render artifact-level code and review panels
 - [x] 14-03: Render bundle-level dependency and relationship warnings
 
-#### Phase 15: Multi-File FlutterFlow Deploy
+#### ✅ Phase 15: Multi-File FlutterFlow Deploy
 **Goal:** Extend deploy-to-FlutterFlow from one generated file plus pubspec to a selected bundle of generated artifacts plus merged dependency metadata.
 **Depends on:** Phase 12, Phase 14
 **Research:** Complete; phase planning should verify Code File placement support in the FlutterFlow API path
@@ -103,9 +103,9 @@ Plans:
 5. Payload construction is verified without calling the live FlutterFlow API.
 
 Plans:
-- [ ] 15-01: Build `prepareBundleForCommit()` and multi-artifact file map generation
-- [ ] 15-02: Merge explicit dependencies and improve dependency warning UX
-- [ ] 15-03: Update deploy confirmation, progress, success, and failure UI for bundles
+- [x] 15-01: Build `prepareBundleForCommit()` and multi-artifact file map generation
+- [x] 15-02: Merge explicit dependencies and improve dependency warning UX
+- [x] 15-03: Update deploy confirmation, progress, success, and failure UI for bundles
 
 #### Phase 16: Refinement, Regeneration, and Fixture Validation
 **Goal:** Preserve the product's review/refine/regenerate loop for multi-artifact bundles and validate with realistic fixture prompts.

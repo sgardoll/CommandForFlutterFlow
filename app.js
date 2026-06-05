@@ -10,6 +10,7 @@ import {
   createBuildShipContext,
 } from "./src/pipelineContracts.js";
 import { validateBundleCompatibility } from "./src/flutterFlowArtifactValidation.js";
+import { buildBundleDeployPlan } from "./src/bundleDeployPlanner.js";
 
 // --- CONFIGURATION ---
 const IS_DEV = import.meta.env.DEV
@@ -2908,6 +2909,127 @@ async function executeCommit(code, options = {}) {
   }
 }
 
+async function executeBundleCommit(bundlePlan, options = {}) {
+  const { pipelineResult } = options;
+
+  try {
+    commitState.setState(CommitState.PREPARING);
+    const fileMap = new Map(
+      bundlePlan.fileEntries.map((entry) => [
+        entry.fileName,
+        {
+          content: entry.content,
+          type: entry.type,
+          path: entry.path,
+        },
+      ]),
+    );
+
+    commitState.setProgress(0, fileMap.size);
+
+    const validation = validateFileMap(fileMap);
+    if (!validation.valid) {
+      throw new Error(`File validation failed:\n${validation.errors.join("\n")}`);
+    }
+
+    commitState.setState(CommitState.VALIDATING);
+    const apiKey = await getApiKey("flutterflow");
+    const projectId = await getApiKey("flutterflow_project_id");
+
+    if (!apiKey) {
+      throw new Error("FlutterFlow API Key not configured. Please add it in API Keys settings.");
+    }
+    if (!projectId) {
+      throw new Error("FlutterFlow Project ID not configured. Please add it in API Keys settings.");
+    }
+    if (!validateFlutterFlowProjectId(projectId)) {
+      throw new Error("Invalid FlutterFlow Project ID format.");
+    }
+
+    let pubspec = createDefaultPubspec();
+    if (!pubspec.dependencies) pubspec.dependencies = {};
+    if (!pubspec.dependencies.flutter) {
+      pubspec.dependencies.flutter = { sdk: "flutter" };
+    }
+    if (Object.keys(bundlePlan.dependencies).length > 0) {
+      pubspec = mergeDependencies(pubspec, bundlePlan.dependencies);
+    }
+    const serializedYaml = serializePubspecToYaml(pubspec);
+    const fileMapContents = buildApiFileMap(fileMap);
+
+    const fileMapWithPubspec = new Map(fileMap);
+    fileMapWithPubspec.set("pubspec.yaml", {
+      content: serializedYaml,
+      type: CodeType.DEPENDENCIES,
+      path: "pubspec.yaml",
+    });
+
+    commitState.setState(CommitState.PUSHING);
+    const endpoint = getFlutterFlowEndpoint();
+    const apiClient = new FlutterFlowApiClient(
+      apiKey,
+      projectId,
+      "main",
+      endpoint,
+    );
+
+    const zippedCustomCode = await createZipFromFileMap(fileMapWithPubspec);
+    const pushRequest = {
+      project_id: projectId,
+      zipped_custom_code: zippedCustomCode,
+      uid: `web_${Date.now()}`,
+      branch_name: apiClient.branchName,
+      serialized_yaml: serializedYaml,
+      file_map: fileMapContents,
+      functions_map: "{}",
+    };
+
+    commitState.setProgress(1, fileMap.size);
+    const response = await apiClient.pushCode(pushRequest);
+    const result = await parsePushCodeResponse(response);
+
+    if (result.success) {
+      const metadata = {
+        ...pipelineResult,
+        artifactType: "Bundle",
+        artifactName: bundlePlan.title,
+        fileName: `${bundlePlan.fileEntries.length} files`,
+        codeSize: bundlePlan.fileEntries.reduce((sum, entry) => sum + entry.content.length, 0),
+        projectId,
+      };
+
+      commitState.setSuccess({
+        ...metadata,
+        fileCount: fileMap.size,
+        warnings: result.errorMap ? Array.from(result.errorMap.entries()) : [],
+      });
+
+      return {
+        success: true,
+        message: `Successfully committed ${bundlePlan.fileEntries.length} files to FlutterFlow`,
+        metadata,
+        warnings: result.errorMap ? Array.from(result.errorMap.entries()) : [],
+        elapsedTime: commitState.getElapsedTime(),
+      };
+    }
+
+    const errorMsg = result.errorMessage || getFlutterFlowErrorMessage(result.responseCode);
+    const errorWithMap = new Error(errorMsg);
+    errorWithMap.errorMap = result.errorMap;
+    throw errorWithMap;
+  } catch (error) {
+    console.error("Bundle commit execution failed:", error);
+    commitState.setError(error);
+    return {
+      success: false,
+      error: error.message,
+      errorMap: error.errorMap || new Map(),
+      state: commitState.currentState,
+      elapsedTime: commitState.getElapsedTime(),
+    };
+  }
+}
+
 // --- PIPELINE FUNCTIONS ---
 
 async function runPromptArchitect(userInput) {
@@ -3789,6 +3911,11 @@ async function initiateCommitToFlutterFlow() {
     return;
   }
 
+  if (pipelineState.artifactBundle?.artifacts?.length > 1) {
+    await initiateBundleCommitToFlutterFlow();
+    return;
+  }
+
   const { artifactType, artifactName } = getCurrentArtifactMetadata();
 
   const codeInfo = prepareCodeForCommit(code, { artifactType, artifactName });
@@ -3823,6 +3950,49 @@ async function initiateCommitToFlutterFlow() {
     trackEvent("Deploy to FlutterFlow Failed", { artifactType, artifactName, error: result.error });
     showCommitFailureModal(result);
   }
+}
+
+async function initiateBundleCommitToFlutterFlow() {
+  const apiKey = await getApiKey("flutterflow");
+  const projectId = await getApiKey("flutterflow_project_id");
+
+  if (!apiKey || !projectId) {
+    showToast("FlutterFlow credentials not configured. Add your API Key and Project ID in settings.", "warning");
+    openApiKeysModal();
+    return;
+  }
+
+  const plan = buildBundleDeployPlan(pipelineState.artifactBundle);
+  const fileMap = new Map(
+    plan.fileEntries.map((entry) => [
+      entry.fileName,
+      {
+        content: entry.content,
+        type: entry.type,
+        path: entry.path,
+      },
+    ]),
+  );
+
+  const validation = validateFileMap(fileMap);
+  const checks = {
+    canProceed: validation.valid,
+    issues: validation.errors,
+    warnings: [...plan.warnings, ...validation.warnings],
+  };
+  if (!checks.canProceed) {
+    showToast(`Bundle validation failed: ${checks.issues.join("; ")}`, "error");
+    return;
+  }
+  const codeInfo = {
+    content: plan.fileEntries.map((entry) => `// ${entry.fileName}\n${entry.content}`).join("\n\n"),
+    fileName: `${plan.fileEntries.length} files`,
+    codeType: "bundle",
+    artifactType: "Bundle",
+    artifactName: plan.title,
+  };
+
+  openCommitConfirmModal(codeInfo, checks, plan.dependencies, plan);
 }
 
 /**
@@ -5013,8 +5183,8 @@ let pendingCommitData = null;
  * @param {Object} checks - Pre-commit check results
  * @param {Object} deps - Detected dependencies
  */
-function openCommitConfirmModal(codeInfo, checks, deps) {
-  pendingCommitData = { codeInfo, checks, deps };
+function openCommitConfirmModal(codeInfo, checks, deps, bundlePlan = null) {
+  pendingCommitData = { codeInfo, checks, deps, bundlePlan };
 
   document.getElementById("confirm-file-name").textContent = codeInfo.fileName;
   document.getElementById("confirm-artifact-type").textContent =
@@ -5022,7 +5192,7 @@ function openCommitConfirmModal(codeInfo, checks, deps) {
   document.getElementById("confirm-file-size").textContent =
     `${(codeInfo.content.length / 1024).toFixed(1)} KB`;
   document.getElementById("confirm-line-count").textContent =
-    codeInfo.content.split("\n").length;
+    bundlePlan ? `${bundlePlan.fileEntries.length} files` : codeInfo.content.split("\n").length;
 
   getApiKey("flutterflow_project_id").then((projectId) => {
     document.getElementById("confirm-project-id").textContent =
@@ -5258,16 +5428,35 @@ function updateProgressFromState(state) {
  * Confirms the commit after modal review.
  */
 async function confirmCommitToFlutterFlow() {
-  closeCommitConfirmModal();
-
   if (!pendingCommitData) {
     console.error("No pending commit data");
     return;
   }
 
+  const commitData = pendingCommitData;
+  closeCommitConfirmModal();
   showCommitProgress();
 
-  const { codeInfo } = pendingCommitData;
+  if (commitData.bundlePlan) {
+    const result = await executeBundleCommit(commitData.bundlePlan, {
+      pipelineResult: {
+        step1Result: pipelineState.step1Result,
+        selectedModel: document.getElementById("code-generator-model")?.value,
+      },
+    });
+
+    hideCommitProgress();
+
+    if (result.success) {
+      showCommitSuccessModal(result);
+    } else {
+      showCommitFailureModal(result);
+    }
+
+    return;
+  }
+
+  const { codeInfo } = commitData;
 
   const { artifactType, artifactName } = getCurrentArtifactMetadata();
 

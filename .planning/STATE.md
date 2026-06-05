@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Multi-Code Generation
 status: planning
-last_updated: "2026-06-05T11:02:00.000Z"
+last_updated: "2026-06-05T11:25:00.000Z"
 last_activity: 2026-06-05
 progress:
   total_phases: 5
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 15
-  completed_plans: 9
-  percent: 60
+  completed_plans: 12
+  percent: 80
 ---
 
 # Project State
@@ -21,14 +21,14 @@ See: .planning/PROJECT.md (updated 2026-06-05)
 
 **Core value:** Users can describe a capability once and receive the complete set of FlutterFlow-ready custom code artifacts needed to implement it, with each artifact reviewable, refinable, regenerable, and deployable independently or as a bundle.
 
-**Current focus:** Phase 15 — Multi-File FlutterFlow Deploy.
+**Current focus:** Phase 16 — Refinement, Regeneration, and Fixture Validation.
 
 ## Current Position
 
-Phase: 15 of 16 (Multi-File FlutterFlow Deploy)
+Phase: 16 of 16 (Refinement, Regeneration, and Fixture Validation)
 Plan: —
-Status: Phase 14 complete; ready to discuss or plan Phase 15
-Last activity: 2026-06-05 — Phase 14 verified
+Status: Phase 15 complete; ready to discuss or plan Phase 16
+Last activity: 2026-06-05 — Phase 15 verified
 
 ## Performance Metrics
 
@@ -88,6 +88,7 @@ Recent decisions affecting current work:
 - Phase 12 complete: artifact bundle contract, legacy adapter, and fixture tests shipped (2026-06-05)
 - Phase 13 complete: bundle-aware pipeline contracts, BuildShip MCP verification, and FlutterFlow compatibility validation shipped (2026-06-05)
 - Phase 14 complete: bundle-aware results view, selected artifact panels/actions, and browser fixture verification shipped (2026-06-05)
+- Phase 15 complete: multi-file deploy planner, dependency merge, and bundle commit path shipped with local payload verification (2026-06-05)
 
 ### Pending Todos
 
