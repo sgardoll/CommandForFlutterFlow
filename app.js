@@ -5689,7 +5689,7 @@ function renderBundleControls() {
       <button
         type="button"
         class="artifact-tab${artifact.id === pipelineState.selectedArtifactId ? " active" : ""}"
-        onclick="selectArtifact('${artifact.id}')"
+        onclick="selectArtifact(${escapeHtml(JSON.stringify(artifact.id))})"
         title="${escapeHtml(artifact.fileName || artifact.artifactName)}"
       >
         <span class="artifact-tab-name">${escapeHtml(artifact.artifactName)}</span>
