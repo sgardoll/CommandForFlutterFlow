@@ -1208,6 +1208,7 @@ let pipelineState = {
   bundleSpec: null,
   artifactBundle: null,
   bundleReview: null,
+  selectedArtifactId: null,
   currentStep: 0,
   isRunning: false,
 };
@@ -1219,6 +1220,7 @@ function resetPipelineResults() {
   pipelineState.bundleSpec = null;
   pipelineState.artifactBundle = null;
   pipelineState.bundleReview = null;
+  pipelineState.selectedArtifactId = null;
 }
 
 function updateBundleSpecFromArchitectResult() {
@@ -1253,15 +1255,23 @@ function updateArtifactBundleFromGeneratedCode() {
       compatibility,
     },
   };
+  pipelineState.selectedArtifactId = getPrimaryArtifact(pipelineState.artifactBundle).id;
 }
 
 function updateBundleReviewFromReviewResult() {
+  const reviewBundle = normalizeArtifactBundle(pipelineState.step3Result, {
+    id: pipelineState.artifactBundle?.id,
+    title: pipelineState.artifactBundle?.title,
+  });
+  const reviewByArtifactId = new Map(
+    reviewBundle.artifacts.map((artifact) => [artifact.id, artifact.review]),
+  );
   pipelineState.bundleReview = normalizeArtifactBundle({
     id: pipelineState.artifactBundle?.id,
     title: pipelineState.artifactBundle?.title,
     artifacts: pipelineState.artifactBundle?.artifacts?.map((artifact) => ({
       ...artifact,
-      review: pipelineState.step3Result || null,
+      review: reviewByArtifactId.get(artifact.id) || artifact.review || pipelineState.step3Result || null,
     })) || [],
     relationships: pipelineState.artifactBundle?.relationships,
     warnings: pipelineState.artifactBundle?.warnings,
@@ -1269,13 +1279,23 @@ function updateBundleReviewFromReviewResult() {
 }
 
 function getCurrentArtifactMetadata() {
-  const artifact = getPrimaryArtifact(
-    pipelineState.artifactBundle || pipelineState.bundleSpec || null,
-  );
+  const artifact = getSelectedArtifact();
   return {
     artifactType: artifact.artifactType || "CustomWidget",
     artifactName: artifact.artifactName || "GeneratedWidget",
   };
+}
+
+function getSelectedArtifact() {
+  const bundle = pipelineState.artifactBundle || pipelineState.bundleSpec || null;
+  const artifacts = Array.isArray(bundle?.artifacts) ? bundle.artifacts : [];
+  return artifacts.find((artifact) => artifact.id === pipelineState.selectedArtifactId)
+    || getPrimaryArtifact(bundle);
+}
+
+function getSelectedArtifactCode() {
+  const artifact = getSelectedArtifact();
+  return artifact.code || pipelineState.step2Result || "";
 }
 
 // --- CORE API FUNCTIONS ---
@@ -3754,7 +3774,8 @@ function retryWithDifferentModel() {
  * Called when user clicks the "Commit to FlutterFlow" button.
  */
 async function initiateCommitToFlutterFlow() {
-  if (!pipelineState.step2Result) {
+  const code = getSelectedArtifactCode();
+  if (!code) {
     showToast("No code to commit. Please run the pipeline first.", "warning");
     return;
   }
@@ -3767,8 +3788,6 @@ async function initiateCommitToFlutterFlow() {
     openApiKeysModal();
     return;
   }
-
-  const code = pipelineState.step2Result;
 
   const { artifactType, artifactName } = getCurrentArtifactMetadata();
 
@@ -4901,6 +4920,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   showWalkthroughIfNeeded();
   resolveIdentity();
+  if (IS_DEV && new URLSearchParams(window.location.search).get("debugBundle") === "multi") {
+    setTimeout(showDebugMultiArtifactResults, 0);
+    setTimeout(showDebugMultiArtifactResults, 1600);
+  }
   // Walkthrough step tracking
   const pipelineInput = document.getElementById("pipeline-input");
   if (pipelineInput) {
@@ -5427,24 +5450,114 @@ function hidePipelineProgress() {
   }, 400);
 }
 
-function showResultsView(codeContent, auditContent) {
+function renderSelectedArtifactReview(fallbackAuditContent = "") {
+  const selectedArtifact = getSelectedArtifact();
+  const reviewArtifact = pipelineState.bundleReview?.artifacts?.find(
+    (artifact) => artifact.id === selectedArtifact.id,
+  );
+  const review = reviewArtifact?.review || selectedArtifact.review;
+
+  if (!review || typeof review === "string") {
+    return typeof review === "string" ? renderMarkdownAudit(review) : fallbackAuditContent;
+  }
+
+  const findings = Array.isArray(review.findings) ? review.findings : [];
+  const status = review.status || "pending";
+  const findingHtml = findings.length > 0
+    ? findings.map((finding) => `
+      <div class="audit-item">
+        <strong>${escapeHtml(finding.severity || "info")}</strong>: ${escapeHtml(finding.message || "")}
+        ${finding.suggestion ? `<br><span>${escapeHtml(finding.suggestion)}</span>` : ""}
+      </div>
+    `).join("")
+    : `<div class="audit-item">No artifact-specific findings.</div>`;
+
+  return `
+    <div class="audit-section">
+      <h3>${escapeHtml(selectedArtifact.artifactName)} review: ${escapeHtml(status)}</h3>
+      ${findingHtml}
+    </div>
+  `;
+}
+
+function renderBundleControls() {
+  const bundle = pipelineState.artifactBundle;
+  const strip = document.getElementById("bundle-strip");
+  const tabs = document.getElementById("artifact-tabs");
+  const artifactCount = document.getElementById("bundle-artifact-count");
+  const deployableCount = document.getElementById("bundle-deployable-count");
+  const warningCount = document.getElementById("bundle-warning-count");
+
+  if (!bundle || !Array.isArray(bundle.artifacts) || bundle.artifacts.length <= 1) {
+    if (strip) strip.classList.remove("visible");
+    if (tabs) tabs.innerHTML = "";
+    return;
+  }
+
+  const compatibilityFindings = bundle.metadata?.compatibility?.findings || [];
+  const errorArtifactIds = new Set(
+    compatibilityFindings
+      .filter((finding) => finding.severity === "error")
+      .map((finding) => finding.artifactId),
+  );
+
+  if (artifactCount) artifactCount.textContent = String(bundle.artifacts.length);
+  if (deployableCount) {
+    deployableCount.textContent = String(
+      bundle.artifacts.filter((artifact) => !errorArtifactIds.has(artifact.id)).length,
+    );
+  }
+  if (warningCount) {
+    warningCount.textContent = String(
+      (bundle.warnings || []).length
+        + compatibilityFindings.filter((finding) => finding.severity !== "error").length,
+    );
+  }
+
+  if (tabs) {
+    tabs.innerHTML = bundle.artifacts.map((artifact) => `
+      <button
+        type="button"
+        class="artifact-tab${artifact.id === pipelineState.selectedArtifactId ? " active" : ""}"
+        onclick="selectArtifact('${artifact.id}')"
+        title="${escapeHtml(artifact.fileName || artifact.artifactName)}"
+      >
+        <span class="artifact-tab-name">${escapeHtml(artifact.artifactName)}</span>
+        <span class="artifact-tab-meta">${escapeHtml(artifact.artifactType)} · ${escapeHtml(artifact.fileName)}</span>
+      </button>
+    `).join("");
+  }
+
+  if (strip) strip.classList.add("visible");
+}
+
+function updateSelectedArtifactPanels(fallbackAuditContent = "") {
   const resultsView = document.getElementById("results-view");
   const codeOutput = document.getElementById("results-code-output");
   const auditOutput = document.getElementById("results-audit-output");
+  const selectedCode = getSelectedArtifactCode();
 
   // Code panel uses highlighted code (already sanitized by highlightCode)
   if (codeOutput) codeOutput.textContent = "";
   if (codeOutput) {
     // Use the same highlightCode function used elsewhere in this codebase
-    const highlighted = highlightCode(codeContent);
+    const highlighted = highlightCode(selectedCode);
     // highlightCode returns hljs-processed HTML which is safe (generated by highlight.js)
     codeOutput.innerHTML = highlighted; // eslint-disable-line -- highlight.js output
   }
   // Audit panel uses renderMarkdownAudit (existing sanitized renderer)
   if (auditOutput) {
-    auditOutput.innerHTML = auditContent; // eslint-disable-line -- renderMarkdownAudit output
+    auditOutput.innerHTML = renderSelectedArtifactReview(fallbackAuditContent); // eslint-disable-line -- renderMarkdownAudit output
   }
   if (resultsView) resultsView.classList.add("visible");
+  renderBundleControls();
+}
+
+function showResultsView(codeContent, auditContent) {
+  if (!pipelineState.selectedArtifactId) {
+    pipelineState.selectedArtifactId = getPrimaryArtifact(pipelineState.artifactBundle).id;
+  }
+  updateSelectedArtifactPanels(auditContent);
 
   // Reset feedback buttons
   const upBtn = document.getElementById("btn-feedback-up");
@@ -5453,12 +5566,116 @@ function showResultsView(codeContent, auditContent) {
   if (downBtn) downBtn.className = "feedback-btn";
 }
 
+function showDebugMultiArtifactResults() {
+  pipelineState.step1Result = JSON.stringify({
+    schemaVersion: "artifact-bundle/v1",
+    id: "debug-agent-ui",
+    title: "Debug Agent UI",
+    artifacts: [
+      {
+        id: "custom-class-agent-event",
+        artifactType: "CustomClass",
+        artifactName: "AgentEvent",
+        fileName: "agent_event.dart",
+        description: "Data model for agent events.",
+      },
+      {
+        id: "custom-widget-agent-timeline",
+        artifactType: "CustomWidget",
+        artifactName: "AgentTimeline",
+        fileName: "agent_timeline.dart",
+        description: "Widget for rendering chronological agent events.",
+      },
+    ],
+    relationships: [
+      {
+        from: "custom-widget-agent-timeline",
+        to: "custom-class-agent-event",
+        type: "imports",
+      },
+    ],
+    deployOrder: ["custom-class-agent-event", "custom-widget-agent-timeline"],
+  });
+  updateBundleSpecFromArchitectResult();
+  pipelineState.step2Result = JSON.stringify({
+    schemaVersion: "artifact-bundle/v1",
+    id: "debug-agent-ui",
+    title: "Debug Agent UI",
+    artifacts: [
+      {
+        id: "custom-class-agent-event",
+        artifactType: "CustomClass",
+        artifactName: "AgentEvent",
+        fileName: "agent_event.dart",
+        code: "class AgentEvent {\n  const AgentEvent({required this.id, required this.label});\n  final String id;\n  final String label;\n}\n",
+      },
+      {
+        id: "custom-widget-agent-timeline",
+        artifactType: "CustomWidget",
+        artifactName: "AgentTimeline",
+        fileName: "agent_timeline.dart",
+        code: "class AgentTimeline extends StatelessWidget {\n  const AgentTimeline({super.key});\n  @override\n  Widget build(BuildContext context) {\n    return const SizedBox.shrink();\n  }\n}\n",
+      },
+    ],
+    relationships: [
+      {
+        from: "custom-widget-agent-timeline",
+        to: "custom-class-agent-event",
+        type: "imports",
+      },
+    ],
+    deployOrder: ["custom-class-agent-event", "custom-widget-agent-timeline"],
+  });
+  updateArtifactBundleFromGeneratedCode();
+  pipelineState.step3Result = JSON.stringify({
+    schemaVersion: "artifact-bundle/v1",
+    id: "debug-agent-ui",
+    artifacts: [
+      {
+        id: "custom-class-agent-event",
+        artifactName: "AgentEvent",
+        artifactType: "CustomClass",
+        review: { status: "pass", findings: [] },
+      },
+      {
+        id: "custom-widget-agent-timeline",
+        artifactName: "AgentTimeline",
+        artifactType: "CustomWidget",
+        review: {
+          status: "warn",
+          findings: [
+            {
+              severity: "warning",
+              message: "Widget is a placeholder.",
+              suggestion: "Render the event collection before shipping.",
+            },
+          ],
+        },
+      },
+    ],
+  });
+  updateBundleReviewFromReviewResult();
+  dismissWelcomeVideo();
+  const paywallEl = document.getElementById("paywall-exhausted");
+  if (paywallEl) paywallEl.classList.add("hidden");
+  const walkthroughModal = document.getElementById("walkthrough-modal");
+  if (walkthroughModal) walkthroughModal.classList.remove("open");
+  const readyState = document.getElementById("ready-state");
+  if (readyState) readyState.classList.add("hidden");
+  const stageContainer = document.getElementById("main-stage-container");
+  if (stageContainer) stageContainer.classList.add("visible");
+  hidePipelineProgress();
+  showResultsView(getSelectedArtifactCode(), renderMarkdownAudit(pipelineState.step3Result));
+}
+
+function selectArtifact(artifactId) {
+  pipelineState.selectedArtifactId = artifactId;
+  updateSelectedArtifactPanels(renderMarkdownAudit(pipelineState.step3Result || ""));
+}
+
 function copyResultsCode() {
   const btn = document.getElementById("btn-copy-results");
-
-  // Use raw data from step2-output (stored by pipeline)
-  const step2El = document.getElementById("step2-output");
-  const rawCode = step2El?.dataset?.raw || "";
+  const rawCode = getSelectedArtifactCode();
 
   navigator.clipboard.writeText(rawCode).then(() => {
     if (btn) {
@@ -5513,6 +5730,7 @@ function hideErrorInputPanel() {
 }
 
 window.copyResultsCode = copyResultsCode;
+window.selectArtifact = selectArtifact;
 window.submitResultsFeedback = submitResultsFeedback;
 window.showErrorInputPanel = showErrorInputPanel;
 window.hideErrorInputPanel = hideErrorInputPanel;

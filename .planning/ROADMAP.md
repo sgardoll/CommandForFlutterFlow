@@ -74,7 +74,7 @@ Plans:
 - [x] 13-02: Parse structured bundle responses with Markdown fallback
 - [x] 13-03: Add per-artifact FlutterFlow compatibility validation by artifact type
 
-#### Phase 14: Multi-Artifact Results UI
+#### ✅ Phase 14: Multi-Artifact Results UI
 **Goal:** Replace the single code/audit results surface with a bundle-aware UI that keeps single-artifact use simple.
 **Depends on:** Phase 12, Phase 13
 **Research:** Complete
@@ -86,9 +86,9 @@ Plans:
 4. Single-artifact output remains visually direct and does not feel like extra workflow.
 
 Plans:
-- [ ] 14-01: Build artifact list/card UI and selected artifact state
-- [ ] 14-02: Render artifact-level code and review panels
-- [ ] 14-03: Render bundle-level dependency and relationship warnings
+- [x] 14-01: Build artifact list/card UI and selected artifact state
+- [x] 14-02: Render artifact-level code and review panels
+- [x] 14-03: Render bundle-level dependency and relationship warnings
 
 #### Phase 15: Multi-File FlutterFlow Deploy
 **Goal:** Extend deploy-to-FlutterFlow from one generated file plus pubspec to a selected bundle of generated artifacts plus merged dependency metadata.
