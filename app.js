@@ -1,4 +1,8 @@
 import posthog from "posthog-js";
+import {
+  getPrimaryArtifact,
+  normalizeArtifactBundle,
+} from "./src/artifactBundle.js";
 
 // --- CONFIGURATION ---
 const IS_DEV = import.meta.env.DEV
@@ -848,6 +852,9 @@ function closeWalkthroughModal(event) {
 }
 
 function showWalkthroughIfNeeded() {
+  // Never show walkthrough for paid users
+  if (authState.isVerified && isSubscriptionResolved() && subscriptionState.tier !== 'free') return;
+
   const hasSeen = localStorage.getItem("hasSeenWalkthrough");
   if (!hasSeen) {
     const modal = document.getElementById("walkthrough-modal");
@@ -1191,9 +1198,66 @@ let pipelineState = {
   step1Result: null,
   step2Result: null,
   step3Result: null,
+  bundleSpec: null,
+  artifactBundle: null,
+  bundleReview: null,
   currentStep: 0,
   isRunning: false,
 };
+
+function resetPipelineResults() {
+  pipelineState.step1Result = null;
+  pipelineState.step2Result = null;
+  pipelineState.step3Result = null;
+  pipelineState.bundleSpec = null;
+  pipelineState.artifactBundle = null;
+  pipelineState.bundleReview = null;
+}
+
+function updateBundleSpecFromArchitectResult() {
+  pipelineState.bundleSpec = normalizeArtifactBundle(pipelineState.step1Result, {
+    artifactType: "CustomWidget",
+    artifactName: "GeneratedWidget",
+  });
+}
+
+function updateArtifactBundleFromGeneratedCode() {
+  const primarySpecArtifact = getPrimaryArtifact(pipelineState.bundleSpec);
+  pipelineState.artifactBundle = normalizeArtifactBundle(pipelineState.step2Result, {
+    id: pipelineState.bundleSpec?.id,
+    title: pipelineState.bundleSpec?.title,
+    description: pipelineState.bundleSpec?.description,
+    artifactType: primarySpecArtifact.artifactType,
+    artifactName: primarySpecArtifact.artifactName,
+    fileName: primarySpecArtifact.fileName,
+    dependencies: primarySpecArtifact.dependencies,
+    relationships: pipelineState.bundleSpec?.relationships,
+    code: pipelineState.step2Result || "",
+  });
+}
+
+function updateBundleReviewFromReviewResult() {
+  pipelineState.bundleReview = normalizeArtifactBundle({
+    id: pipelineState.artifactBundle?.id,
+    title: pipelineState.artifactBundle?.title,
+    artifacts: pipelineState.artifactBundle?.artifacts?.map((artifact) => ({
+      ...artifact,
+      review: pipelineState.step3Result || null,
+    })) || [],
+    relationships: pipelineState.artifactBundle?.relationships,
+    warnings: pipelineState.artifactBundle?.warnings,
+  });
+}
+
+function getCurrentArtifactMetadata() {
+  const artifact = getPrimaryArtifact(
+    pipelineState.artifactBundle || pipelineState.bundleSpec || null,
+  );
+  return {
+    artifactType: artifact.artifactType || "CustomWidget",
+    artifactName: artifact.artifactName || "GeneratedWidget",
+  };
+}
 
 // --- CORE API FUNCTIONS ---
 
@@ -3287,6 +3351,7 @@ Ensure it still adheres to the ORIGINAL SPECIFICATION.
       refinementPrompt,
       selectedModel,
     );
+    updateArtifactBundleFromGeneratedCode();
 
     const step2Output = document.getElementById("step2-output");
     const cleanStep2 = extractCodeFromMarkdown(pipelineState.step2Result);
@@ -3303,6 +3368,7 @@ Ensure it still adheres to the ORIGINAL SPECIFICATION.
       pipelineState.step2Result,
       pipelineState.step1Result,
     );
+    updateBundleReviewFromReviewResult();
 
     const auditOutput = document.getElementById("step3-output");
     auditOutput.textContent = pipelineState.step3Result;
@@ -3410,6 +3476,7 @@ Maintain the original specification and intent.`
     showStepLoading(2, true)
 
     pipelineState.step2Result = await runCodeGenerator(refinementPrompt, selectedModel)
+    updateArtifactBundleFromGeneratedCode()
 
     const step2Output = document.getElementById("step2-output")
     const cleanStep2 = extractCodeFromMarkdown(pipelineState.step2Result)
@@ -3422,6 +3489,7 @@ Maintain the original specification and intent.`
     showStepLoading(3, true)
 
     pipelineState.step3Result = await runCodeReview(pipelineState.step2Result, pipelineState.step1Result)
+    updateBundleReviewFromReviewResult()
 
     const auditOutput = document.getElementById("step3-output")
     auditOutput.textContent = pipelineState.step3Result
@@ -3477,9 +3545,7 @@ async function runThinkingPipeline() {
 
   // Reset state
   pipelineState.isRunning = true;
-  pipelineState.step1Result = null;
-  pipelineState.step2Result = null;
-  pipelineState.step3Result = null;
+  resetPipelineResults();
 
   btn.disabled = true;
   btn.innerHTML = `<svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3507,6 +3573,7 @@ async function runThinkingPipeline() {
     showStepLoading(1, true);
 
     pipelineState.step1Result = await runPromptArchitect(userInput);
+    updateBundleSpecFromArchitectResult();
     trackEvent("Prompt Architect Completed");
 
     const step1Output = document.getElementById("step1-output")
@@ -3524,6 +3591,7 @@ async function runThinkingPipeline() {
       pipelineState.step1Result,
       effectiveModel,
     );
+    updateArtifactBundleFromGeneratedCode();
     trackEvent("Code Generator Completed");
 
     const step2Output = document.getElementById("step2-output");
@@ -3541,6 +3609,7 @@ async function runThinkingPipeline() {
       pipelineState.step2Result,
       pipelineState.step1Result,
     );
+    updateBundleReviewFromReviewResult();
     trackEvent("Code Review Completed");
 
     const auditOutput = document.getElementById("step3-output");
@@ -3672,18 +3741,7 @@ async function initiateCommitToFlutterFlow() {
 
   const code = pipelineState.step2Result;
 
-  let artifactType = "CustomWidget";
-  let artifactName = "GeneratedWidget";
-
-  if (pipelineState.step1Result) {
-    try {
-      const spec = JSON.parse(pipelineState.step1Result);
-      artifactType = spec.artifactType || "CustomWidget";
-      artifactName = spec.artifactName || "GeneratedWidget";
-    } catch (e) {
-      console.warn("Could not parse step 1 result:", e);
-    }
-  }
+  const { artifactType, artifactName } = getCurrentArtifactMetadata();
 
   const codeInfo = prepareCodeForCommit(code, { artifactType, artifactName });
 
@@ -3834,6 +3892,7 @@ Please regenerate the code to fix these errors while maintaining the original sp
       refinementPrompt,
       selectedModel,
     );
+    updateArtifactBundleFromGeneratedCode();
 
     const step2Output = document.getElementById("step2-output");
     const cleanStep2 = extractCodeFromMarkdown(pipelineState.step2Result);
@@ -3850,6 +3909,7 @@ Please regenerate the code to fix these errors while maintaining the original sp
       pipelineState.step2Result,
       pipelineState.step1Result,
     );
+    updateBundleReviewFromReviewResult();
 
     const auditOutput = document.getElementById("step3-output");
     auditOutput.textContent = pipelineState.step3Result;
@@ -5157,18 +5217,7 @@ async function confirmCommitToFlutterFlow() {
 
   const { codeInfo } = pendingCommitData;
 
-  let artifactType = "CustomWidget";
-  let artifactName = "GeneratedWidget";
-
-  if (pipelineState.step1Result) {
-    try {
-      const spec = JSON.parse(pipelineState.step1Result);
-      artifactType = spec.artifactType || "CustomWidget";
-      artifactName = spec.artifactName || "GeneratedWidget";
-    } catch (e) {
-      console.warn("Could not parse step 1 result:", e);
-    }
-  }
+  const { artifactType, artifactName } = getCurrentArtifactMetadata();
 
   const result = await executeCommit(codeInfo.content, {
     artifactType,
