@@ -41,7 +41,7 @@ FlutterFlow custom code generation, multi-artifact pipeline design, BuildShip-ba
 
 **Milestone Goal:** Extend the existing single-artifact FlutterFlow generation pipeline into a multi-artifact workflow that can output, review, refine, regenerate, and deploy one or more custom widgets, custom actions, custom functions, or code files from one request.
 
-#### Phase 12: Bundle Contract and Legacy Adapter
+#### ✅ Phase 12: Bundle Contract and Legacy Adapter
 **Goal:** Introduce the canonical `artifactBundle` model and normalize both new plural outputs and existing single-artifact outputs through it.
 **Depends on:** v1.1 shipped pipeline
 **Research:** Complete (`.planning/research/SUMMARY.md`)
@@ -53,9 +53,9 @@ FlutterFlow custom code generation, multi-artifact pipeline design, BuildShip-ba
 4. Unit fixtures cover one-widget and mixed-artifact bundle parsing without live API calls.
 
 Plans:
-- [ ] 12-01: Define `artifactBundle` schema, parser, and validation fixtures
-- [ ] 12-02: Adapt legacy `step1Result` / `step2Result` single-output state into bundle state
-- [ ] 12-03: Add artifact relationship and dependency metadata helpers
+- [x] 12-01: Define `artifactBundle` schema, parser, and validation fixtures
+- [x] 12-02: Adapt legacy `step1Result` / `step2Result` single-output state into bundle state
+- [x] 12-03: Add artifact relationship and dependency metadata helpers
 
 #### Phase 13: Plural Pipeline Prompts and Review
 **Goal:** Update Prompt Architect, Code Generator, and Code Review contracts so BuildShip stages can produce and audit structured bundles.
