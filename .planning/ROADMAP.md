@@ -139,7 +139,7 @@ Phases execute in numeric order: 12 → 13 → 14 → 15 → 16
 | 7. BuildShip Identity Resolution | v1.1 | 1/1 | Complete | 2026-02-25 |
 | 8. BuildShip LLM Pipeline Migration | v1.1 | 1/1 | Complete | 2026-02-25 |
 | 9. Tier Restrictions & Paywall UI | v1.1 | 1/1 | Complete | 2026-02-25 |
-| 12. Bundle Contract and Legacy Adapter | v1.2 | 3 | Pending | — |
+| 12. Bundle Contract and Legacy Adapter | v1.2 | 3/3 | Complete | 2026-06-05 |
 | 13. Plural Pipeline Prompts and Review | v1.2 | 3 | Pending | — |
 | 14. Multi-Artifact Results UI | v1.2 | 3 | Pending | — |
 | 15. Multi-File FlutterFlow Deploy | v1.2 | 3 | Pending | — |
