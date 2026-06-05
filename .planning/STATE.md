@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Multi-Code Generation
 status: planning
-last_updated: "2026-06-05T09:15:43.527Z"
+last_updated: "2026-06-05T09:17:45.000Z"
 last_activity: 2026-06-05
 progress:
-  total_phases: 0
+  total_phases: 5
   completed_phases: 0
-  total_plans: 0
+  total_plans: 15
   completed_plans: 0
   percent: 0
 ---
@@ -17,18 +17,18 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-02-20)
+See: .planning/PROJECT.md (updated 2026-06-05)
 
-**Core value:** Users can subscribe, pay, and immediately get metered access to frontier AI models — with limits enforced, graceful fallback when exhausted, and correct Australian tax applied at checkout.
+**Core value:** Users can describe a capability once and receive the complete set of FlutterFlow-ready custom code artifacts needed to implement it, with each artifact reviewable, refinable, regenerable, and deployable independently or as a bundle.
 
-**Current focus:** Phase 9 complete — Tier Restrictions & Paywall UI shipped. E2E testing remains.
+**Current focus:** Phase 12 — Bundle Contract and Legacy Adapter.
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 12 of 16 (Bundle Contract and Legacy Adapter)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-06-05 — Milestone v1.2 started
+Status: Roadmap created; ready to discuss or plan Phase 12
+Last activity: 2026-06-05 — Milestone v1.2 roadmap created
 
 ## Performance Metrics
 
@@ -84,6 +84,7 @@ Recent decisions affecting current work:
 
 - Phase 5 added: YouTube Checklist Review (2026-02-21)
 - Milestone v1.1 created: Advanced UI & BuildShip Integration, 4 phases (Phase 6-9) (2026-02-25)
+- Milestone v1.2 created: Multi-Code Generation, 5 phases (Phase 12-16) (2026-06-05)
 
 ### Pending Todos
 

@@ -91,46 +91,46 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| BUND-01 | TBD | Pending |
-| BUND-02 | TBD | Pending |
-| BUND-03 | TBD | Pending |
-| BUND-04 | TBD | Pending |
-| PIPE-01 | TBD | Pending |
-| PIPE-02 | TBD | Pending |
-| PIPE-03 | TBD | Pending |
-| PIPE-04 | TBD | Pending |
-| PIPE-05 | TBD | Pending |
-| REVI-01 | TBD | Pending |
-| REVI-02 | TBD | Pending |
-| REVI-03 | TBD | Pending |
-| REVI-04 | TBD | Pending |
-| REVI-05 | TBD | Pending |
-| UI-01 | TBD | Pending |
-| UI-02 | TBD | Pending |
-| UI-03 | TBD | Pending |
-| UI-04 | TBD | Pending |
-| UI-05 | TBD | Pending |
-| DEPL-01 | TBD | Pending |
-| DEPL-02 | TBD | Pending |
-| DEPL-03 | TBD | Pending |
-| DEPL-04 | TBD | Pending |
-| DEPL-05 | TBD | Pending |
-| COMP-01 | TBD | Pending |
-| COMP-02 | TBD | Pending |
-| COMP-03 | TBD | Pending |
-| COMP-04 | TBD | Pending |
-| COMP-05 | TBD | Pending |
-| FIXT-01 | TBD | Pending |
-| FIXT-02 | TBD | Pending |
-| FIXT-03 | TBD | Pending |
-| FIXT-04 | TBD | Pending |
-| FIXT-05 | TBD | Pending |
+| BUND-01 | Phase 12 | Pending |
+| BUND-02 | Phase 12 | Pending |
+| BUND-03 | Phase 12 | Pending |
+| BUND-04 | Phase 12 | Pending |
+| PIPE-01 | Phase 13 | Pending |
+| PIPE-02 | Phase 13 | Pending |
+| PIPE-03 | Phase 13 | Pending |
+| PIPE-04 | Phase 13 | Pending |
+| PIPE-05 | Phase 13 | Pending |
+| REVI-01 | Phase 14 | Pending |
+| REVI-02 | Phase 14 | Pending |
+| REVI-03 | Phase 14 | Pending |
+| REVI-04 | Phase 16 | Pending |
+| REVI-05 | Phase 16 | Pending |
+| UI-01 | Phase 14 | Pending |
+| UI-02 | Phase 14 | Pending |
+| UI-03 | Phase 14 | Pending |
+| UI-04 | Phase 14 | Pending |
+| UI-05 | Phase 14 | Pending |
+| DEPL-01 | Phase 15 | Pending |
+| DEPL-02 | Phase 15 | Pending |
+| DEPL-03 | Phase 15 | Pending |
+| DEPL-04 | Phase 15 | Pending |
+| DEPL-05 | Phase 15 | Pending |
+| COMP-01 | Phase 13 | Pending |
+| COMP-02 | Phase 13 | Pending |
+| COMP-03 | Phase 13 | Pending |
+| COMP-04 | Phase 13 | Pending |
+| COMP-05 | Phase 13 | Pending |
+| FIXT-01 | Phase 12 | Pending |
+| FIXT-02 | Phase 16 | Pending |
+| FIXT-03 | Phase 16 | Pending |
+| FIXT-04 | Phase 16 | Pending |
+| FIXT-05 | Phase 16 | Pending |
 
 **Coverage:**
 - v1.2 requirements: 34 total
-- Mapped to phases: 0
-- Unmapped: 34
+- Mapped to phases: 34
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-06-05*
-*Last updated: 2026-06-05 after v1.2 milestone research*
+*Last updated: 2026-06-05 after v1.2 roadmap creation*
