@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Multi-Code Generation
-status: planning
-last_updated: "2026-06-05T11:25:00.000Z"
+status: complete
+last_updated: "2026-06-05T11:38:00.000Z"
 last_activity: 2026-06-05
 progress:
   total_phases: 5
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 15
-  completed_plans: 12
-  percent: 80
+  completed_plans: 15
+  percent: 100
 ---
 
 # Project State
@@ -21,14 +21,14 @@ See: .planning/PROJECT.md (updated 2026-06-05)
 
 **Core value:** Users can describe a capability once and receive the complete set of FlutterFlow-ready custom code artifacts needed to implement it, with each artifact reviewable, refinable, regenerable, and deployable independently or as a bundle.
 
-**Current focus:** Phase 16 — Refinement, Regeneration, and Fixture Validation.
+**Current focus:** Milestone v1.2 complete.
 
 ## Current Position
 
 Phase: 16 of 16 (Refinement, Regeneration, and Fixture Validation)
 Plan: —
-Status: Phase 15 complete; ready to discuss or plan Phase 16
-Last activity: 2026-06-05 — Phase 15 verified
+Status: Phase 16 complete; milestone v1.2 shipped locally
+Last activity: 2026-06-05 — Phase 16 verified
 
 ## Performance Metrics
 
@@ -89,6 +89,7 @@ Recent decisions affecting current work:
 - Phase 13 complete: bundle-aware pipeline contracts, BuildShip MCP verification, and FlutterFlow compatibility validation shipped (2026-06-05)
 - Phase 14 complete: bundle-aware results view, selected artifact panels/actions, and browser fixture verification shipped (2026-06-05)
 - Phase 15 complete: multi-file deploy planner, dependency merge, and bundle commit path shipped with local payload verification (2026-06-05)
+- Phase 16 complete: targeted/full-bundle regeneration prompts and fixture validation suite shipped (2026-06-05)
 
 ### Pending Todos
 

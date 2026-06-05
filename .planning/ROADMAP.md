@@ -12,7 +12,7 @@ FlutterFlow custom code generation, multi-artifact pipeline design, BuildShip-ba
 
 - ✅ **[v1 Monetization Foundation](milestones/v1-ROADMAP.md)** — Phases 1-5 (shipped 2026-02-25)
 - ✅ **v1.1 Advanced UI & BuildShip Integration** — Phases 6-9 (shipped 2026-02-25; E2E manual testing still noted in STATE)
-- 🚧 **v1.2 Multi-Code Generation** — Phases 12-16 (planning)
+- ✅ **v1.2 Multi-Code Generation** — Phases 12-16 (shipped 2026-06-05)
 
 ## Phases
 
@@ -37,7 +37,7 @@ FlutterFlow custom code generation, multi-artifact pipeline design, BuildShip-ba
 
 </details>
 
-### 🚧 v1.2 Multi-Code Generation (Planning)
+### ✅ v1.2 Multi-Code Generation (Shipped 2026-06-05)
 
 **Milestone Goal:** Extend the existing single-artifact FlutterFlow generation pipeline into a multi-artifact workflow that can output, review, refine, regenerate, and deploy one or more custom widgets, custom actions, custom functions, or code files from one request.
 
@@ -107,7 +107,7 @@ Plans:
 - [x] 15-02: Merge explicit dependencies and improve dependency warning UX
 - [x] 15-03: Update deploy confirmation, progress, success, and failure UI for bundles
 
-#### Phase 16: Refinement, Regeneration, and Fixture Validation
+#### ✅ Phase 16: Refinement, Regeneration, and Fixture Validation
 **Goal:** Preserve the product's review/refine/regenerate loop for multi-artifact bundles and validate with realistic fixture prompts.
 **Depends on:** Phase 13, Phase 14, Phase 15
 **Research:** Complete
@@ -120,9 +120,9 @@ Plans:
 5. Multi-file deploy payload fixture verifies zip/file map construction without live FlutterFlow API side effects.
 
 Plans:
-- [ ] 16-01: Add per-artifact regeneration flow with bundle context
-- [ ] 16-02: Add bundle-level regeneration from review and pasted build errors
-- [ ] 16-03: Add fixture validation suite for single, mixed, package-backed, regeneration, and deploy payload cases
+- [x] 16-01: Add per-artifact regeneration flow with bundle context
+- [x] 16-02: Add bundle-level regeneration from review and pasted build errors
+- [x] 16-03: Add fixture validation suite for single, mixed, package-backed, regeneration, and deploy payload cases
 
 ## Progress
 
@@ -141,10 +141,10 @@ Phases execute in numeric order: 12 → 13 → 14 → 15 → 16
 | 8. BuildShip LLM Pipeline Migration | v1.1 | 1/1 | Complete | 2026-02-25 |
 | 9. Tier Restrictions & Paywall UI | v1.1 | 1/1 | Complete | 2026-02-25 |
 | 12. Bundle Contract and Legacy Adapter | v1.2 | 3/3 | Complete | 2026-06-05 |
-| 13. Plural Pipeline Prompts and Review | v1.2 | 3 | Pending | — |
-| 14. Multi-Artifact Results UI | v1.2 | 3 | Pending | — |
-| 15. Multi-File FlutterFlow Deploy | v1.2 | 3 | Pending | — |
-| 16. Refinement, Regeneration, and Fixture Validation | v1.2 | 3 | Pending | — |
+| 13. Plural Pipeline Prompts and Review | v1.2 | 3/3 | Complete | 2026-06-05 |
+| 14. Multi-Artifact Results UI | v1.2 | 3/3 | Complete | 2026-06-05 |
+| 15. Multi-File FlutterFlow Deploy | v1.2 | 3/3 | Complete | 2026-06-05 |
+| 16. Refinement, Regeneration, and Fixture Validation | v1.2 | 3/3 | Complete | 2026-06-05 |
 
 ## Traceability Summary
 

@@ -4,6 +4,8 @@ import {
   buildArchitectPrompt,
   buildGeneratorPrompt,
   buildReviewPrompt,
+  buildArtifactRegenerationPrompt,
+  buildBundleRegenerationPrompt,
   createBuildShipContext,
 } from "./pipelineContracts.js";
 
@@ -44,4 +46,31 @@ test("BuildShip context declares multi-artifact contract support", () => {
   assert.deepEqual(context.bundle, { id: "bundle-a" });
   assert.ok(context.supportedArtifactTypes.includes("CustomWidget"));
   assert.ok(context.supportedArtifactTypes.includes("CustomAction"));
+});
+
+test("artifact regeneration prompt preserves siblings and stable ids", () => {
+  const prompt = buildArtifactRegenerationPrompt({
+    bundleSpec: '{"id":"bundle-a"}',
+    artifactBundle: '{"artifacts":[{"id":"widget-a"},{"id":"action-a"}]}',
+    bundleReview: '{"artifacts":[]}',
+    artifactId: "widget-a",
+    userFeedback: "Fix widget layout",
+  });
+
+  assert.match(prompt, /Regenerate only artifact "widget-a"/);
+  assert.match(prompt, /unchanged sibling artifact code/);
+  assert.match(prompt, /full artifact-bundle\/v1 JSON bundle/);
+});
+
+test("bundle regeneration prompt asks for full bundle output", () => {
+  const prompt = buildBundleRegenerationPrompt({
+    bundleSpec: '{"id":"bundle-a"}',
+    artifactBundle: '{"artifacts":[{"id":"widget-a"}]}',
+    bundleReview: '{"status":"warn"}',
+    userFeedback: "FlutterFlow build error",
+  });
+
+  assert.match(prompt, /full bundle regeneration task/);
+  assert.match(prompt, /Preserve stable artifact ids/);
+  assert.match(prompt, /code per artifact/);
 });

@@ -5,6 +5,8 @@ import {
 } from "./src/artifactBundle.js";
 import {
   buildArchitectPrompt,
+  buildArtifactRegenerationPrompt,
+  buildBundleRegenerationPrompt,
   buildGeneratorPrompt,
   buildReviewPrompt,
   createBuildShipContext,
@@ -3492,22 +3494,14 @@ async function runRefinement() {
   });
 
   try {
-    // Construct refinement prompt
-    const refinementPrompt = `CRITICAL: This is a REFINEMENT task.
-The previously generated code has issues that need fixing.
-
-ORIGINAL SPECIFICATION:
-${pipelineState.step1Result}
-
-CURRENT CODE:
-${pipelineState.step2Result}
-
-AUDIT REPORT (ISSUES TO FIX):
-${pipelineState.step3Result}
-
-Please RE-GENERATE the code to fix the issues listed in the AUDIT REPORT.
-Ensure it still adheres to the ORIGINAL SPECIFICATION.
-`;
+    const selectedArtifact = getSelectedArtifact();
+    const refinementPrompt = buildArtifactRegenerationPrompt({
+      bundleSpec: pipelineState.step1Result,
+      artifactBundle: JSON.stringify(pipelineState.artifactBundle || pipelineState.step2Result),
+      bundleReview: pipelineState.step3Result,
+      artifactId: selectedArtifact.id,
+      userFeedback: "Fix the issues listed in the audit report.",
+    });
 
     // Show progress bar for refinement
     showPipelineProgress();
@@ -3625,19 +3619,12 @@ async function regenerateFromPastedErrors() {
   }
 
   try {
-    const refinementPrompt = `CRITICAL: This is a REGENERATION task to fix FlutterFlow/Dart build errors.
-
-ORIGINAL SPECIFICATION:
-${pipelineState.step1Result}
-
-CURRENT CODE (which produced the errors below):
-${pipelineState.step2Result}
-
-FLUTTERFLOW / DART BUILD ERRORS TO FIX:
-${pastedErrors}
-
-Carefully analyse each error. Fix ALL of them in the regenerated code without introducing new issues.
-Maintain the original specification and intent.`
+    const refinementPrompt = buildBundleRegenerationPrompt({
+      bundleSpec: pipelineState.step1Result,
+      artifactBundle: JSON.stringify(pipelineState.artifactBundle || pipelineState.step2Result),
+      bundleReview: pipelineState.step3Result,
+      userFeedback: pastedErrors,
+    });
 
     hideErrorInputPanel()
     showPipelineProgress()
@@ -4085,18 +4072,12 @@ async function regenerateWithErrors(originalError, errorMap) {
       errorContext += `${originalError}\n`;
     }
 
-    const refinementPrompt = `CRITICAL: This is a REGENERATION task to fix FlutterFlow errors.
-
-ORIGINAL SPECIFICATION:
-${pipelineState.step1Result}
-
-CURRENT CODE:
-${pipelineState.step2Result}
-
-FLUTTERFLOW ERRORS TO FIX:
-${errorContext}
-
-Please regenerate the code to fix these errors while maintaining the original specification.`;
+    const refinementPrompt = buildBundleRegenerationPrompt({
+      bundleSpec: pipelineState.step1Result,
+      artifactBundle: JSON.stringify(pipelineState.artifactBundle || pipelineState.step2Result),
+      bundleReview: pipelineState.step3Result,
+      userFeedback: errorContext,
+    });
 
     showPipelineProgress();
     updatePipelineProgressStep(2);

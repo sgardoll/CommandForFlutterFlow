@@ -130,3 +130,46 @@ export function createBuildShipContext(stage, bundle = null) {
   };
 }
 
+export function buildArtifactRegenerationPrompt({ bundleSpec, artifactBundle, bundleReview, artifactId, userFeedback }) {
+  return `
+This is a targeted artifact regeneration task for a FlutterFlow artifact bundle.
+
+Regenerate only artifact "${artifactId}" unless the requested fix requires updating direct dependents.
+Preserve all artifact ids, artifact types, file names, relationships, deploy order, and unchanged sibling artifact code.
+Return the full artifact-bundle/v1 JSON bundle, not a single Dart file.
+
+Original bundle specification:
+${bundleSpec || ""}
+
+Current generated bundle:
+${artifactBundle || ""}
+
+Current review:
+${bundleReview || ""}
+
+Requested change or error report:
+${userFeedback || ""}
+`.trim();
+}
+
+export function buildBundleRegenerationPrompt({ bundleSpec, artifactBundle, bundleReview, userFeedback }) {
+  return `
+This is a full bundle regeneration task for a FlutterFlow artifact bundle.
+
+Regenerate the bundle from the provided review feedback or FlutterFlow build errors.
+Preserve stable artifact ids where the same artifact still exists.
+Return the full artifact-bundle/v1 JSON bundle with code per artifact.
+
+Original bundle specification:
+${bundleSpec || ""}
+
+Current generated bundle:
+${artifactBundle || ""}
+
+Current review:
+${bundleReview || ""}
+
+Requested change or error report:
+${userFeedback || ""}
+`.trim();
+}
