@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --test src/*.test.js"
+    "test": "node --test src/*.test.js",
+    "verify:buildship-mcp": "node scripts/verify-buildship-mcp.mjs"
   },
   "devDependencies": {
     "playwright": "^1.58.2",

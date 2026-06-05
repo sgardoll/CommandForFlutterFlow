@@ -57,7 +57,7 @@ Plans:
 - [x] 12-02: Adapt legacy `step1Result` / `step2Result` single-output state into bundle state
 - [x] 12-03: Add artifact relationship and dependency metadata helpers
 
-#### Phase 13: Plural Pipeline Prompts and Review
+#### ✅ Phase 13: Plural Pipeline Prompts and Review
 **Goal:** Update Prompt Architect, Code Generator, and Code Review contracts so BuildShip stages can produce and audit structured bundles.
 **Depends on:** Phase 12
 **Research:** Complete; phase planning should verify BuildShip response contract details
@@ -67,11 +67,12 @@ Plans:
 2. Generator prompt returns code per artifact rather than one undifferentiated Dart block.
 3. Reviewer prompt returns per-artifact findings and bundle-level integration findings.
 4. Package-backed requests are handled through generic dependency/artifact metadata, not hardcoded package paths.
+5. BuildShip MCP from `sgardoll/buildship` is installed/wired and included in verification.
 
 Plans:
-- [ ] 13-01: Update architect/generator/reviewer prompt contracts for bundles
-- [ ] 13-02: Parse structured bundle responses with Markdown fallback
-- [ ] 13-03: Add per-artifact FlutterFlow compatibility validation by artifact type
+- [x] 13-01: Update architect/generator/reviewer prompt contracts for bundles
+- [x] 13-02: Parse structured bundle responses with Markdown fallback
+- [x] 13-03: Add per-artifact FlutterFlow compatibility validation by artifact type
 
 #### Phase 14: Multi-Artifact Results UI
 **Goal:** Replace the single code/audit results surface with a bundle-aware UI that keeps single-artifact use simple.

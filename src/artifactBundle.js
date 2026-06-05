@@ -5,6 +5,7 @@ const ARTIFACT_TYPE_TO_CODE_TYPE = {
   CustomAction: "A",
   CustomWidget: "W",
   CustomFunction: "F",
+  CustomClass: "O",
   CodeFile: "O",
 };
 
@@ -65,9 +66,10 @@ export function normalizeDependencies(rawDependencies) {
           return { name: dependency, version: null, inferred: false };
         }
         const dep = toObject(dependency);
-        if (!dep.name) return null;
+        const name = dep.name || dep.package;
+        if (!name) return null;
         return {
-          name: dep.name,
+          name,
           version: dep.version || null,
           inferred: Boolean(dep.inferred),
         };

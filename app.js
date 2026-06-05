@@ -3,6 +3,13 @@ import {
   getPrimaryArtifact,
   normalizeArtifactBundle,
 } from "./src/artifactBundle.js";
+import {
+  buildArchitectPrompt,
+  buildGeneratorPrompt,
+  buildReviewPrompt,
+  createBuildShipContext,
+} from "./src/pipelineContracts.js";
+import { validateBundleCompatibility } from "./src/flutterFlowArtifactValidation.js";
 
 // --- CONFIGURATION ---
 const IS_DEV = import.meta.env.DEV
@@ -1234,6 +1241,18 @@ function updateArtifactBundleFromGeneratedCode() {
     relationships: pipelineState.bundleSpec?.relationships,
     code: pipelineState.step2Result || "",
   });
+  const compatibility = validateBundleCompatibility(pipelineState.artifactBundle);
+  pipelineState.artifactBundle = {
+    ...pipelineState.artifactBundle,
+    warnings: [
+      ...pipelineState.artifactBundle.warnings,
+      ...compatibility.findings.map((finding) => finding.message),
+    ],
+    metadata: {
+      ...pipelineState.artifactBundle.metadata,
+      compatibility,
+    },
+  };
 }
 
 function updateBundleReviewFromReviewResult() {
@@ -2873,7 +2892,12 @@ async function executeCommit(code, options = {}) {
 
 async function runPromptArchitect(userInput) {
   try {
-    const result = await callBuildShip("architect", PROMPT_ARCHITECT_MODEL, userInput, {})
+    const result = await callBuildShip(
+      "architect",
+      PROMPT_ARCHITECT_MODEL,
+      buildArchitectPrompt(userInput),
+      createBuildShipContext("architect"),
+    )
     return result
   } catch (error) {
     throw new Error(`Prompt Architect failed: ${error.message}`)
@@ -2881,14 +2905,16 @@ async function runPromptArchitect(userInput) {
 }
 
 async function runCodeGenerator(masterPrompt, selectedModel) {
+  const prompt = buildGeneratorPrompt(masterPrompt)
+  const context = createBuildShipContext("generator", pipelineState.bundleSpec)
   try {
-    const result = await callBuildShip("generator", selectedModel, masterPrompt, {})
+    const result = await callBuildShip("generator", selectedModel, prompt, context)
     return result
   } catch (primaryError) {
     if (selectedModel !== FALLBACK_MODEL) {
       console.warn(`Code Generator failed with ${selectedModel}, retrying with fallback model:`, primaryError.message)
       try {
-        const result = await callBuildShip("generator", FALLBACK_MODEL, masterPrompt, {})
+        const result = await callBuildShip("generator", FALLBACK_MODEL, prompt, context)
         return result
       } catch (fallbackError) {
         throw new Error(`Code Generator failed: primary (${selectedModel}): ${primaryError.message} | fallback (${FALLBACK_MODEL}): ${fallbackError.message}`)
@@ -2899,9 +2925,12 @@ async function runCodeGenerator(masterPrompt, selectedModel) {
 }
 
 async function runCodeReview(code, architectOutput = null) {
-  const context = architectOutput ? { architect_output: architectOutput } : {}
+  const context = {
+    ...createBuildShipContext("review", pipelineState.artifactBundle || pipelineState.bundleSpec),
+    architect_output: architectOutput,
+  }
   try {
-    const result = await callBuildShip("review", CODE_REVIEW_MODEL, code, context)
+    const result = await callBuildShip("review", CODE_REVIEW_MODEL, buildReviewPrompt(code), context)
     return result
   } catch (error) {
     throw new Error(`Code Review failed: ${error.message}`)
