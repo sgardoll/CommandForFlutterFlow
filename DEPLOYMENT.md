@@ -24,12 +24,18 @@ If no deploy script exists, upload every file under `dist/` to the FTP account r
 
 ## FlutterFlow custom-class deploys
 
-`CustomClass` artifacts deploy through `/api/flutterflow-dsl-deploy.php`, which shells out to FlutterFlow AI and runs a generated edit DSL script using `addCustomClass`.
+`CustomClass` artifacts deploy through a Cloud Run runner that executes FlutterFlow AI DSL `addCustomClass`.
 
-The PHP host must have:
+Deploy the runner:
 
-- PHP with `proc_open` enabled
-- `flutterflow` available on `PATH`, or `FLUTTERFLOW_AI_BIN` set to the absolute CLI path
-- a writable temp directory, or `CCC_FFAI_WORKSPACE_ROOT` set to a writable persistent directory
+```bash
+PROJECT_ID=low-code-connect REGION=us-west1 ./scripts/deploy_cloud_run_ffai.sh
+```
 
-The frontend endpoint can be overridden with `VITE_FLUTTERFLOW_DSL_DEPLOY_ENDPOINT` if the DSL runner is moved to BuildShip or another backend.
+The script prints the runner URL. Build the site with:
+
+```bash
+VITE_FLUTTERFLOW_DSL_DEPLOY_ENDPOINT="https://ccc-ffai-runner-y5cyj3473a-uw.a.run.app/deployCustomClasses" npm run build
+```
+
+The Cloud Run runner accepts the existing browser-provided FlutterFlow API key and project ID over HTTPS, writes a generated edit DSL script, and runs `flutterflow ai run` inside the container.

@@ -17,8 +17,7 @@ import { buildBundleDeployPlan } from "./src/bundleDeployPlanner.js";
 // --- CONFIGURATION ---
 const IS_DEV = import.meta.env.DEV
 const FLUTTERFLOW_DSL_DEPLOY_ENDPOINT =
-  import.meta.env.VITE_FLUTTERFLOW_DSL_DEPLOY_ENDPOINT ||
-  "/api/flutterflow-dsl-deploy.php";
+  import.meta.env.VITE_FLUTTERFLOW_DSL_DEPLOY_ENDPOINT || "";
 
 // --- ANALYTICS ---
 const POSTHOG_KEY = import.meta.env.VITE_PUBLIC_POSTHOG_KEY;
@@ -64,6 +63,10 @@ async function deployCustomClassesWithDsl({
       success: true,
       deployed: [],
     };
+  }
+
+  if (!getFlutterFlowDslDeployEndpoint()) {
+    throw new Error("FlutterFlow DSL deploy endpoint is not configured. Deploy the Cloud Run runner and set VITE_FLUTTERFLOW_DSL_DEPLOY_ENDPOINT.");
   }
 
   const response = await fetch(getFlutterFlowDslDeployEndpoint(), {

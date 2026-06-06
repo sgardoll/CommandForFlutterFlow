@@ -1,0 +1,7 @@
+name: ccc_ffai_runner
+description: Cloud Run runner for FlutterFlow AI custom class deploys.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ">=3.7.0 <4.0.0"

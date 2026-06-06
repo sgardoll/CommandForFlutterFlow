@@ -108,8 +108,9 @@ None.
 | 14 | What's the point of all our fingerprinting? | 2026-03-20 | 2b376b0 | [14-what-s-the-point-of-all-our-fingerprinti](./quick/14-what-s-the-point-of-all-our-fingerprinti/) |
 | 15 | Route CustomClass deploys through DSL addCustomClass instead of custom-code sync | 2026-06-06 | this commit | [20260606-custom-class-dsl-deploy](./quick/20260606-custom-class-dsl-deploy/) |
 | 16 | Add FlutterFlow AI DSL runner for CustomClass deploys | 2026-06-06 | this commit | [20260606-custom-class-dsl-runner](./quick/20260606-custom-class-dsl-runner/) |
+| 17 | Move CustomClass DSL runner to Cloud Run | 2026-06-06 | this commit | [20260606-cloud-run-ffai-runner](./quick/20260606-cloud-run-ffai-runner/) |
 
-Last activity: 2026-06-06 - Completed quick task 16: Add FlutterFlow AI DSL runner for CustomClass deploys.
+Last activity: 2026-06-06 - Completed quick task 17: Move CustomClass DSL runner to Cloud Run.
 
 ## Phase 9 Summary
 
