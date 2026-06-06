@@ -1,12 +1,23 @@
-# Connect I/O Custom Code — Advanced UI & BuildShip Integration
+# Connect I/O Custom Code — Multi-Code Generation
 
 ## What This Is
 
-customcode.connectio.com.au is an AI-powered code generation platform for FlutterFlow developers, featuring a 3-step pipeline (Prompt Architect → Code Generator → Code Dissector). This milestone migrates AI inference to BuildShip serverless endpoints, adds tier-based feature restrictions and paywall, resolves user identity, and improves UI responsiveness.
+customcode.connectio.com.au is an AI-powered code generation platform for FlutterFlow developers, featuring a pipeline that turns user requests into FlutterFlow-ready custom code. This milestone extends the product from single-artifact generation into coordinated multi-artifact generation, review, refinement, regeneration, and deployment for custom widgets, actions, functions, and classes.
 
 ## Core Value
 
-Users get a polished, responsive UI with BuildShip-powered AI inference, identity resolution, and tier-based access control — setting the foundation for future monetization enforcement.
+Users can describe a capability once and receive the complete set of FlutterFlow-ready custom code artifacts needed to implement it, with each artifact reviewable, refinable, regenerable, and deployable independently or as a bundle.
+
+## Current Milestone: v1.2 Multi-Code Generation
+
+**Goal:** Extend Connect I/O Custom Code from single-artifact generation into a multi-artifact FlutterFlow code generation workflow that can output, review, refine, regenerate, and deploy one or more custom widgets, custom actions, custom functions, or custom classes from one request.
+
+**Target features:**
+- Accept requests that naturally require one or more FlutterFlow custom code artifacts, including package-backed capabilities, UI components, action flows, helper models, and reusable utilities.
+- Generate a structured multi-artifact bundle where each artifact has type, name, dependencies, FlutterFlow import instructions, call sites, and deployment metadata.
+- Support review, refinement, regeneration, and deployment of each artifact individually or as a coordinated bundle.
+- Make generated artifacts usable in FlutterFlow individually, including child widgets and widget builder parameters where applicable.
+- Treat package examples such as `agent_kit` as validation scenarios only, not as hardcoded product scope.
 
 ## Requirements
 
@@ -35,6 +46,13 @@ Users get a polished, responsive UI with BuildShip-powered AI inference, identit
 - ✓ YouTube Checklist Review pass — v1
 
 ### Active
+
+**Multi-Code Generation (Milestone v1.2)**
+- [ ] User can request one or more FlutterFlow custom code artifacts in a single prompt
+- [ ] Generated output preserves each artifact as an individually reviewable, refinable, regenerable, and deployable unit
+- [ ] Generated bundles support custom widgets, custom actions, custom functions, and custom classes
+- [ ] Artifact metadata includes type, name, dependencies, FlutterFlow placement/import guidance, callable interfaces, and deployment status
+- [ ] Example-driven validation proves the bundle can handle package-backed multi-widget/multi-class requests without hardcoding those examples into the workflow
 
 **Advanced UI & Responsiveness (Phase 6)**
 - [ ] API Keys and Model selection moved to Advanced dropdown (collapsed by default)
@@ -81,6 +99,11 @@ Users get a polished, responsive UI with BuildShip-powered AI inference, identit
 - PHP proxies remain for local dev only
 - BuildShip endpoints: https://4tgke4.buildship.run/authUserCheck and https://4tgke4.buildship.run/service/runpipeline
 
+**Target architecture (v1.2):**
+- Generation output becomes a typed artifact bundle instead of a single code block
+- Each artifact carries enough metadata for UI rendering, review/refinement prompts, regeneration, and FlutterFlow deployment
+- Bundle-level coordination preserves dependencies and call relationships between generated widgets/actions/functions/classes
+
 **Pricing tiers (v1.1):**
 - Free: 2 generations/month, Gemini 3.1 Pro only, no model selection, no BYOK, no regeneration (visible in Advanced dropdown labelled PRO)
 - Pro: $8.99 USD/mo, 50 generations/month, model selection, regeneration and FlutterFlow debugging prompts
@@ -92,6 +115,8 @@ Users get a polished, responsive UI with BuildShip-powered AI inference, identit
 - **Deployment**: Must deploy to existing FTP host (connectio.com.au) — static files + PHP
 - **Pricing display**: Consumer-facing prices must be GST-inclusive per Australian consumer law
 - **Identity**: BuildShip authUserCheck is the single source of truth for user tier and usage
+- **FlutterFlow compatibility**: Generated code must be valid for FlutterFlow custom code surfaces and deployment paths, not generic Flutter-only code
+- **Artifact independence**: Multi-code bundles must preserve per-artifact review, regeneration, and deployment so one failed artifact does not invalidate the whole bundle
 
 ## Key Decisions
 
@@ -104,6 +129,24 @@ Users get a polished, responsive UI with BuildShip-powered AI inference, identit
 | BuildShip for backend | Visual workflow builder for serverless endpoints | Active |
 | Migrate LLM inference to BuildShip | Centralize model execution, enable server-side tier enforcement | Active |
 | API Keys + Model to Advanced dropdown | Declutter primary UI, keep power-user options accessible | Active |
+| Multi-artifact bundle output | FlutterFlow capabilities often require several coordinated widgets/actions/functions/classes, not one file | Active |
+
+## Evolution
+
+This document evolves at phase transitions and milestone boundaries.
+
+**After each phase transition** (via `$gsd-transition`):
+1. Requirements invalidated? → Move to Out of Scope with reason
+2. Requirements validated? → Move to Validated with phase reference
+3. New requirements emerged? → Add to Active
+4. Decisions to log? → Add to Key Decisions
+5. "What This Is" still accurate? → Update if drifted
+
+**After each milestone** (via `$gsd-complete-milestone`):
+1. Full review of all sections
+2. Core Value check — still the right priority?
+3. Audit Out of Scope — reasons still valid?
+4. Update Context with current state
 
 ---
-*Last updated: 2026-02-25 after v1 milestone completion and v1.1 initialization*
+*Last updated: 2026-06-05 after v1.2 milestone initialization*

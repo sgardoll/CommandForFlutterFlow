@@ -1,0 +1,6 @@
+[mcp_servers.buildship]
+command = "node"
+args = ["/Users/home/Projects/buildship/mcp-server/dist/index.js"]
+
+[mcp_servers.buildship.env]
+BUILDSHIP_REPO = "/Users/home/Projects/buildship"

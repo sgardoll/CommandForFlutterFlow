@@ -1,38 +1,39 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.1
-milestone_name: Advanced UI & BuildShip Integration
-status: unknown
-last_updated: "2026-03-20T10:32:09.390Z"
+milestone: v1.2
+milestone_name: Multi-Code Generation
+status: complete
+last_updated: "2026-06-05T11:38:00.000Z"
+last_activity: 2026-06-05
 progress:
-  total_phases: 25
-  completed_phases: 8
-  total_plans: 28
-  completed_plans: 21
+  total_phases: 5
+  completed_phases: 5
+  total_plans: 15
+  completed_plans: 15
+  percent: 100
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-02-20)
+See: .planning/PROJECT.md (updated 2026-06-05)
 
-**Core value:** Users can subscribe, pay, and immediately get metered access to frontier AI models — with limits enforced, graceful fallback when exhausted, and correct Australian tax applied at checkout.
+**Core value:** Users can describe a capability once and receive the complete set of FlutterFlow-ready custom code artifacts needed to implement it, with each artifact reviewable, refinable, regenerable, and deployable independently or as a bundle.
 
-**Current focus:** Phase 9 complete — Tier Restrictions & Paywall UI shipped. E2E testing remains.
+**Current focus:** Milestone v1.2 complete.
 
 ## Current Position
 
-Phase: 9 of 9 (Tier Restrictions & Paywall UI)
-Plan: 09-01 (Tier Restrictions & Paywall) ✅ Complete (code shipped, backend deployed)
-Status: All Phase 9 frontend and backend changes committed. E2E manual testing not yet done.
-Last activity: 2026-02-25 — Phase 9 code review + minor fix committed
-
-Progress: █████████░ 90%
+Phase: 16 of 16 (Refinement, Regeneration, and Fixture Validation)
+Plan: —
+Status: Phase 16 complete; milestone v1.2 shipped locally
+Last activity: 2026-06-05 — Phase 16 verified
 
 ## Performance Metrics
 
 **Velocity:**
+
 - Total plans completed: 2
 - Average duration: ~90min
 - Total execution time: ~3 hours
@@ -45,8 +46,10 @@ Progress: █████████░ 90%
 | 09 | 1/1 | ~60min | ~60min |
 
 **Recent Trend:**
+
 - Last 5 plans: 08-01 (~120min), 09-01 (~60min)
 - Trend: accelerating
+
 | Phase quick P14 | 15m | 2 tasks | 1 files |
 
 ## Accumulated Context
@@ -81,6 +84,12 @@ Recent decisions affecting current work:
 
 - Phase 5 added: YouTube Checklist Review (2026-02-21)
 - Milestone v1.1 created: Advanced UI & BuildShip Integration, 4 phases (Phase 6-9) (2026-02-25)
+- Milestone v1.2 created: Multi-Code Generation, 5 phases (Phase 12-16) (2026-06-05)
+- Phase 12 complete: artifact bundle contract, legacy adapter, and fixture tests shipped (2026-06-05)
+- Phase 13 complete: bundle-aware pipeline contracts, BuildShip MCP verification, and FlutterFlow compatibility validation shipped (2026-06-05)
+- Phase 14 complete: bundle-aware results view, selected artifact panels/actions, and browser fixture verification shipped (2026-06-05)
+- Phase 15 complete: multi-file deploy planner, dependency merge, and bundle commit path shipped with local payload verification (2026-06-05)
+- Phase 16 complete: targeted/full-bundle regeneration prompts and fixture validation suite shipped (2026-06-05)
 
 ### Pending Todos
 
@@ -103,6 +112,7 @@ Last activity: 2026-03-20 - Completed quick task 14: What's the point of all our
 ## Phase 9 Summary
 
 ### What was built:
+
 - `TIER_LIMITS` enforced: free=2, professional=50, power=2000 generations/month
 - `FREE_MODEL` / `PRO_MODELS` constants for model gating
 - `getEffectiveModel()` — forces free tier to Gemini
@@ -114,6 +124,7 @@ Last activity: 2026-03-20 - Completed quick task 14: What's the point of all our
 - Paywall overlay in index.html with View Plans + Sign In buttons
 
 ### Commits on `paywall` branch:
+
 - `17beff1` feat(09-01): tier restrictions and paywall UI
 - `084c44a` feat(09-01): send usage count and tier to BuildShip for server-side logging
 - `ba6cb9c` feat(09-01): handle 429 usage limit response from BuildShip and sync server count

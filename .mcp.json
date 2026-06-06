@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "buildship": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["/Users/home/Projects/buildship/mcp-server/dist/index.js"],
+      "env": {
+        "BUILDSHIP_REPO": "/Users/home/Projects/buildship"
+      }
+    }
+  }
+}

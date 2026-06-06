@@ -1,4 +1,18 @@
 import posthog from "posthog-js";
+import {
+  getPrimaryArtifact,
+  normalizeArtifactBundle,
+} from "./src/artifactBundle.js";
+import {
+  buildArchitectPrompt,
+  buildArtifactRegenerationPrompt,
+  buildBundleRegenerationPrompt,
+  buildGeneratorPrompt,
+  buildReviewPrompt,
+  createBuildShipContext,
+} from "./src/pipelineContracts.js";
+import { validateBundleCompatibility } from "./src/flutterFlowArtifactValidation.js";
+import { buildBundleDeployPlan } from "./src/bundleDeployPlanner.js";
 
 // --- CONFIGURATION ---
 const IS_DEV = import.meta.env.DEV
@@ -848,6 +862,9 @@ function closeWalkthroughModal(event) {
 }
 
 function showWalkthroughIfNeeded() {
+  // Never show walkthrough for paid users
+  if (authState.isVerified && isSubscriptionResolved() && subscriptionState.tier !== 'free') return;
+
   const hasSeen = localStorage.getItem("hasSeenWalkthrough");
   if (!hasSeen) {
     const modal = document.getElementById("walkthrough-modal");
@@ -1191,9 +1208,98 @@ let pipelineState = {
   step1Result: null,
   step2Result: null,
   step3Result: null,
+  bundleSpec: null,
+  artifactBundle: null,
+  bundleReview: null,
+  selectedArtifactId: null,
   currentStep: 0,
   isRunning: false,
 };
+
+function resetPipelineResults() {
+  pipelineState.step1Result = null;
+  pipelineState.step2Result = null;
+  pipelineState.step3Result = null;
+  pipelineState.bundleSpec = null;
+  pipelineState.artifactBundle = null;
+  pipelineState.bundleReview = null;
+  pipelineState.selectedArtifactId = null;
+}
+
+function updateBundleSpecFromArchitectResult() {
+  pipelineState.bundleSpec = normalizeArtifactBundle(pipelineState.step1Result, {
+    artifactType: "CustomWidget",
+    artifactName: "GeneratedWidget",
+  });
+}
+
+function updateArtifactBundleFromGeneratedCode() {
+  const primarySpecArtifact = getPrimaryArtifact(pipelineState.bundleSpec);
+  pipelineState.artifactBundle = normalizeArtifactBundle(pipelineState.step2Result, {
+    id: pipelineState.bundleSpec?.id,
+    title: pipelineState.bundleSpec?.title,
+    description: pipelineState.bundleSpec?.description,
+    artifactType: primarySpecArtifact.artifactType,
+    artifactName: primarySpecArtifact.artifactName,
+    fileName: primarySpecArtifact.fileName,
+    dependencies: primarySpecArtifact.dependencies,
+    relationships: pipelineState.bundleSpec?.relationships,
+    code: pipelineState.step2Result || "",
+  });
+  const compatibility = validateBundleCompatibility(pipelineState.artifactBundle);
+  pipelineState.artifactBundle = {
+    ...pipelineState.artifactBundle,
+    warnings: [
+      ...pipelineState.artifactBundle.warnings,
+      ...compatibility.findings.map((finding) => finding.message),
+    ],
+    metadata: {
+      ...pipelineState.artifactBundle.metadata,
+      compatibility,
+    },
+  };
+  pipelineState.selectedArtifactId = getPrimaryArtifact(pipelineState.artifactBundle).id;
+}
+
+function updateBundleReviewFromReviewResult() {
+  const reviewBundle = normalizeArtifactBundle(pipelineState.step3Result, {
+    id: pipelineState.artifactBundle?.id,
+    title: pipelineState.artifactBundle?.title,
+  });
+  const reviewByArtifactId = new Map(
+    reviewBundle.artifacts.map((artifact) => [artifact.id, artifact.review]),
+  );
+  pipelineState.bundleReview = normalizeArtifactBundle({
+    id: pipelineState.artifactBundle?.id,
+    title: pipelineState.artifactBundle?.title,
+    artifacts: pipelineState.artifactBundle?.artifacts?.map((artifact) => ({
+      ...artifact,
+      review: reviewByArtifactId.get(artifact.id) || artifact.review || pipelineState.step3Result || null,
+    })) || [],
+    relationships: pipelineState.artifactBundle?.relationships,
+    warnings: pipelineState.artifactBundle?.warnings,
+  });
+}
+
+function getCurrentArtifactMetadata() {
+  const artifact = getSelectedArtifact();
+  return {
+    artifactType: artifact.artifactType || "CustomWidget",
+    artifactName: artifact.artifactName || "GeneratedWidget",
+  };
+}
+
+function getSelectedArtifact() {
+  const bundle = pipelineState.artifactBundle || pipelineState.bundleSpec || null;
+  const artifacts = Array.isArray(bundle?.artifacts) ? bundle.artifacts : [];
+  return artifacts.find((artifact) => artifact.id === pipelineState.selectedArtifactId)
+    || getPrimaryArtifact(bundle);
+}
+
+function getSelectedArtifactCode() {
+  const artifact = getSelectedArtifact();
+  return artifact.code || pipelineState.step2Result || "";
+}
 
 // --- CORE API FUNCTIONS ---
 
@@ -2805,11 +2911,140 @@ async function executeCommit(code, options = {}) {
   }
 }
 
+async function executeBundleCommit(bundlePlan, options = {}) {
+  const { pipelineResult } = options;
+
+  try {
+    commitState.setState(CommitState.PREPARING);
+    if (bundlePlan.errors?.length > 0) {
+      throw new Error(`Bundle validation failed:\n${bundlePlan.errors.join("\n")}`);
+    }
+    const fileMap = new Map(
+      bundlePlan.fileEntries.map((entry) => [
+        entry.fileName,
+        {
+          content: entry.content,
+          type: entry.type,
+          path: entry.path,
+        },
+      ]),
+    );
+
+    commitState.setProgress(0, fileMap.size);
+
+    const validation = validateFileMap(fileMap);
+    if (!validation.valid) {
+      throw new Error(`File validation failed:\n${validation.errors.join("\n")}`);
+    }
+
+    commitState.setState(CommitState.VALIDATING);
+    const apiKey = await getApiKey("flutterflow");
+    const projectId = await getApiKey("flutterflow_project_id");
+
+    if (!apiKey) {
+      throw new Error("FlutterFlow API Key not configured. Please add it in API Keys settings.");
+    }
+    if (!projectId) {
+      throw new Error("FlutterFlow Project ID not configured. Please add it in API Keys settings.");
+    }
+    if (!validateFlutterFlowProjectId(projectId)) {
+      throw new Error("Invalid FlutterFlow Project ID format.");
+    }
+
+    let pubspec = createDefaultPubspec();
+    if (!pubspec.dependencies) pubspec.dependencies = {};
+    if (!pubspec.dependencies.flutter) {
+      pubspec.dependencies.flutter = { sdk: "flutter" };
+    }
+    if (Object.keys(bundlePlan.dependencies).length > 0) {
+      pubspec = mergeDependencies(pubspec, bundlePlan.dependencies);
+    }
+    const serializedYaml = serializePubspecToYaml(pubspec);
+    const fileMapContents = buildApiFileMap(fileMap);
+
+    const fileMapWithPubspec = new Map(fileMap);
+    fileMapWithPubspec.set("pubspec.yaml", {
+      content: serializedYaml,
+      type: CodeType.DEPENDENCIES,
+      path: "pubspec.yaml",
+    });
+
+    commitState.setState(CommitState.PUSHING);
+    const endpoint = getFlutterFlowEndpoint();
+    const apiClient = new FlutterFlowApiClient(
+      apiKey,
+      projectId,
+      "main",
+      endpoint,
+    );
+
+    const zippedCustomCode = await createZipFromFileMap(fileMapWithPubspec);
+    const pushRequest = {
+      project_id: projectId,
+      zipped_custom_code: zippedCustomCode,
+      uid: `web_${Date.now()}`,
+      branch_name: apiClient.branchName,
+      serialized_yaml: serializedYaml,
+      file_map: fileMapContents,
+      functions_map: "{}",
+    };
+
+    commitState.setProgress(1, fileMap.size);
+    const response = await apiClient.pushCode(pushRequest);
+    const result = await parsePushCodeResponse(response);
+
+    if (result.success) {
+      const metadata = {
+        ...pipelineResult,
+        artifactType: "Bundle",
+        artifactName: bundlePlan.title,
+        fileName: `${bundlePlan.fileEntries.length} files`,
+        codeSize: bundlePlan.fileEntries.reduce((sum, entry) => sum + entry.content.length, 0),
+        projectId,
+      };
+
+      commitState.setSuccess({
+        ...metadata,
+        fileCount: fileMap.size,
+        warnings: result.errorMap ? Array.from(result.errorMap.entries()) : [],
+      });
+
+      return {
+        success: true,
+        message: `Successfully committed ${bundlePlan.fileEntries.length} files to FlutterFlow`,
+        metadata,
+        warnings: result.errorMap ? Array.from(result.errorMap.entries()) : [],
+        elapsedTime: commitState.getElapsedTime(),
+      };
+    }
+
+    const errorMsg = result.errorMessage || getFlutterFlowErrorMessage(result.responseCode);
+    const errorWithMap = new Error(errorMsg);
+    errorWithMap.errorMap = result.errorMap;
+    throw errorWithMap;
+  } catch (error) {
+    console.error("Bundle commit execution failed:", error);
+    commitState.setError(error);
+    return {
+      success: false,
+      error: error.message,
+      errorMap: error.errorMap || new Map(),
+      state: commitState.currentState,
+      elapsedTime: commitState.getElapsedTime(),
+    };
+  }
+}
+
 // --- PIPELINE FUNCTIONS ---
 
 async function runPromptArchitect(userInput) {
   try {
-    const result = await callBuildShip("architect", PROMPT_ARCHITECT_MODEL, userInput, {})
+    const result = await callBuildShip(
+      "architect",
+      PROMPT_ARCHITECT_MODEL,
+      buildArchitectPrompt(userInput),
+      createBuildShipContext("architect"),
+    )
     return result
   } catch (error) {
     throw new Error(`Prompt Architect failed: ${error.message}`)
@@ -2817,14 +3052,16 @@ async function runPromptArchitect(userInput) {
 }
 
 async function runCodeGenerator(masterPrompt, selectedModel) {
+  const prompt = buildGeneratorPrompt(masterPrompt)
+  const context = createBuildShipContext("generator", pipelineState.bundleSpec)
   try {
-    const result = await callBuildShip("generator", selectedModel, masterPrompt, {})
+    const result = await callBuildShip("generator", selectedModel, prompt, context)
     return result
   } catch (primaryError) {
     if (selectedModel !== FALLBACK_MODEL) {
       console.warn(`Code Generator failed with ${selectedModel}, retrying with fallback model:`, primaryError.message)
       try {
-        const result = await callBuildShip("generator", FALLBACK_MODEL, masterPrompt, {})
+        const result = await callBuildShip("generator", FALLBACK_MODEL, prompt, context)
         return result
       } catch (fallbackError) {
         throw new Error(`Code Generator failed: primary (${selectedModel}): ${primaryError.message} | fallback (${FALLBACK_MODEL}): ${fallbackError.message}`)
@@ -2835,9 +3072,12 @@ async function runCodeGenerator(masterPrompt, selectedModel) {
 }
 
 async function runCodeReview(code, architectOutput = null) {
-  const context = architectOutput ? { architect_output: architectOutput } : {}
+  const context = {
+    ...createBuildShipContext("review", pipelineState.artifactBundle || pipelineState.bundleSpec),
+    architect_output: architectOutput,
+  }
   try {
-    const result = await callBuildShip("review", CODE_REVIEW_MODEL, code, context)
+    const result = await callBuildShip("review", CODE_REVIEW_MODEL, buildReviewPrompt(code), context)
     return result
   } catch (error) {
     throw new Error(`Code Review failed: ${error.message}`)
@@ -3257,22 +3497,14 @@ async function runRefinement() {
   });
 
   try {
-    // Construct refinement prompt
-    const refinementPrompt = `CRITICAL: This is a REFINEMENT task.
-The previously generated code has issues that need fixing.
-
-ORIGINAL SPECIFICATION:
-${pipelineState.step1Result}
-
-CURRENT CODE:
-${pipelineState.step2Result}
-
-AUDIT REPORT (ISSUES TO FIX):
-${pipelineState.step3Result}
-
-Please RE-GENERATE the code to fix the issues listed in the AUDIT REPORT.
-Ensure it still adheres to the ORIGINAL SPECIFICATION.
-`;
+    const selectedArtifact = getSelectedArtifact();
+    const refinementPrompt = buildArtifactRegenerationPrompt({
+      bundleSpec: pipelineState.step1Result,
+      artifactBundle: JSON.stringify(pipelineState.artifactBundle || pipelineState.step2Result),
+      bundleReview: pipelineState.step3Result,
+      artifactId: selectedArtifact.id,
+      userFeedback: "Fix the issues listed in the audit report.",
+    });
 
     // Show progress bar for refinement
     showPipelineProgress();
@@ -3287,6 +3519,7 @@ Ensure it still adheres to the ORIGINAL SPECIFICATION.
       refinementPrompt,
       selectedModel,
     );
+    updateArtifactBundleFromGeneratedCode();
 
     const step2Output = document.getElementById("step2-output");
     const cleanStep2 = extractCodeFromMarkdown(pipelineState.step2Result);
@@ -3303,6 +3536,7 @@ Ensure it still adheres to the ORIGINAL SPECIFICATION.
       pipelineState.step2Result,
       pipelineState.step1Result,
     );
+    updateBundleReviewFromReviewResult();
 
     const auditOutput = document.getElementById("step3-output");
     auditOutput.textContent = pipelineState.step3Result;
@@ -3388,19 +3622,12 @@ async function regenerateFromPastedErrors() {
   }
 
   try {
-    const refinementPrompt = `CRITICAL: This is a REGENERATION task to fix FlutterFlow/Dart build errors.
-
-ORIGINAL SPECIFICATION:
-${pipelineState.step1Result}
-
-CURRENT CODE (which produced the errors below):
-${pipelineState.step2Result}
-
-FLUTTERFLOW / DART BUILD ERRORS TO FIX:
-${pastedErrors}
-
-Carefully analyse each error. Fix ALL of them in the regenerated code without introducing new issues.
-Maintain the original specification and intent.`
+    const refinementPrompt = buildBundleRegenerationPrompt({
+      bundleSpec: pipelineState.step1Result,
+      artifactBundle: JSON.stringify(pipelineState.artifactBundle || pipelineState.step2Result),
+      bundleReview: pipelineState.step3Result,
+      userFeedback: pastedErrors,
+    });
 
     hideErrorInputPanel()
     showPipelineProgress()
@@ -3410,6 +3637,7 @@ Maintain the original specification and intent.`
     showStepLoading(2, true)
 
     pipelineState.step2Result = await runCodeGenerator(refinementPrompt, selectedModel)
+    updateArtifactBundleFromGeneratedCode()
 
     const step2Output = document.getElementById("step2-output")
     const cleanStep2 = extractCodeFromMarkdown(pipelineState.step2Result)
@@ -3422,6 +3650,7 @@ Maintain the original specification and intent.`
     showStepLoading(3, true)
 
     pipelineState.step3Result = await runCodeReview(pipelineState.step2Result, pipelineState.step1Result)
+    updateBundleReviewFromReviewResult()
 
     const auditOutput = document.getElementById("step3-output")
     auditOutput.textContent = pipelineState.step3Result
@@ -3477,9 +3706,7 @@ async function runThinkingPipeline() {
 
   // Reset state
   pipelineState.isRunning = true;
-  pipelineState.step1Result = null;
-  pipelineState.step2Result = null;
-  pipelineState.step3Result = null;
+  resetPipelineResults();
 
   btn.disabled = true;
   btn.innerHTML = `<svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3507,6 +3734,7 @@ async function runThinkingPipeline() {
     showStepLoading(1, true);
 
     pipelineState.step1Result = await runPromptArchitect(userInput);
+    updateBundleSpecFromArchitectResult();
     trackEvent("Prompt Architect Completed");
 
     const step1Output = document.getElementById("step1-output")
@@ -3524,6 +3752,7 @@ async function runThinkingPipeline() {
       pipelineState.step1Result,
       effectiveModel,
     );
+    updateArtifactBundleFromGeneratedCode();
     trackEvent("Code Generator Completed");
 
     const step2Output = document.getElementById("step2-output");
@@ -3541,6 +3770,7 @@ async function runThinkingPipeline() {
       pipelineState.step2Result,
       pipelineState.step1Result,
     );
+    updateBundleReviewFromReviewResult();
     trackEvent("Code Review Completed");
 
     const auditOutput = document.getElementById("step3-output");
@@ -3656,7 +3886,8 @@ function retryWithDifferentModel() {
  * Called when user clicks the "Commit to FlutterFlow" button.
  */
 async function initiateCommitToFlutterFlow() {
-  if (!pipelineState.step2Result) {
+  const code = getSelectedArtifactCode();
+  if (!code) {
     showToast("No code to commit. Please run the pipeline first.", "warning");
     return;
   }
@@ -3670,20 +3901,12 @@ async function initiateCommitToFlutterFlow() {
     return;
   }
 
-  const code = pipelineState.step2Result;
-
-  let artifactType = "CustomWidget";
-  let artifactName = "GeneratedWidget";
-
-  if (pipelineState.step1Result) {
-    try {
-      const spec = JSON.parse(pipelineState.step1Result);
-      artifactType = spec.artifactType || "CustomWidget";
-      artifactName = spec.artifactName || "GeneratedWidget";
-    } catch (e) {
-      console.warn("Could not parse step 1 result:", e);
-    }
+  if (pipelineState.artifactBundle?.artifacts?.length > 1) {
+    await initiateBundleCommitToFlutterFlow();
+    return;
   }
+
+  const { artifactType, artifactName } = getCurrentArtifactMetadata();
 
   const codeInfo = prepareCodeForCommit(code, { artifactType, artifactName });
 
@@ -3717,6 +3940,53 @@ async function initiateCommitToFlutterFlow() {
     trackEvent("Deploy to FlutterFlow Failed", { artifactType, artifactName, error: result.error });
     showCommitFailureModal(result);
   }
+}
+
+async function initiateBundleCommitToFlutterFlow() {
+  const apiKey = await getApiKey("flutterflow");
+  const projectId = await getApiKey("flutterflow_project_id");
+
+  if (!apiKey || !projectId) {
+    showToast("FlutterFlow credentials not configured. Add your API Key and Project ID in settings.", "warning");
+    openApiKeysModal();
+    return;
+  }
+
+  const plan = buildBundleDeployPlan(pipelineState.artifactBundle);
+  if (plan.errors.length > 0) {
+    showToast(`Bundle validation failed: ${plan.errors.join("; ")}`, "error");
+    return;
+  }
+  const fileMap = new Map(
+    plan.fileEntries.map((entry) => [
+      entry.fileName,
+      {
+        content: entry.content,
+        type: entry.type,
+        path: entry.path,
+      },
+    ]),
+  );
+
+  const validation = validateFileMap(fileMap);
+  const checks = {
+    canProceed: validation.valid && plan.errors.length === 0,
+    issues: [...plan.errors, ...validation.errors],
+    warnings: [...plan.warnings, ...validation.warnings],
+  };
+  if (!checks.canProceed) {
+    showToast(`Bundle validation failed: ${checks.issues.join("; ")}`, "error");
+    return;
+  }
+  const codeInfo = {
+    content: plan.fileEntries.map((entry) => `// ${entry.fileName}\n${entry.content}`).join("\n\n"),
+    fileName: `${plan.fileEntries.length} files`,
+    codeType: "bundle",
+    artifactType: "Bundle",
+    artifactName: plan.title,
+  };
+
+  openCommitConfirmModal(codeInfo, checks, plan.dependencies, plan);
 }
 
 /**
@@ -3809,18 +4079,12 @@ async function regenerateWithErrors(originalError, errorMap) {
       errorContext += `${originalError}\n`;
     }
 
-    const refinementPrompt = `CRITICAL: This is a REGENERATION task to fix FlutterFlow errors.
-
-ORIGINAL SPECIFICATION:
-${pipelineState.step1Result}
-
-CURRENT CODE:
-${pipelineState.step2Result}
-
-FLUTTERFLOW ERRORS TO FIX:
-${errorContext}
-
-Please regenerate the code to fix these errors while maintaining the original specification.`;
+    const refinementPrompt = buildBundleRegenerationPrompt({
+      bundleSpec: pipelineState.step1Result,
+      artifactBundle: JSON.stringify(pipelineState.artifactBundle || pipelineState.step2Result),
+      bundleReview: pipelineState.step3Result,
+      userFeedback: errorContext,
+    });
 
     showPipelineProgress();
     updatePipelineProgressStep(2);
@@ -3834,6 +4098,7 @@ Please regenerate the code to fix these errors while maintaining the original sp
       refinementPrompt,
       selectedModel,
     );
+    updateArtifactBundleFromGeneratedCode();
 
     const step2Output = document.getElementById("step2-output");
     const cleanStep2 = extractCodeFromMarkdown(pipelineState.step2Result);
@@ -3850,6 +4115,7 @@ Please regenerate the code to fix these errors while maintaining the original sp
       pipelineState.step2Result,
       pipelineState.step1Result,
     );
+    updateBundleReviewFromReviewResult();
 
     const auditOutput = document.getElementById("step3-output");
     auditOutput.textContent = pipelineState.step3Result;
@@ -3880,6 +4146,16 @@ function escapeHtml(text) {
   const div = document.createElement("div");
   div.textContent = text;
   return div.innerHTML.replace(/\n/g, "<br>");
+}
+
+function escapeAttr(text) {
+  return String(text ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\r?\n/g, " ");
 }
 
 /**
@@ -4812,6 +5088,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   showWalkthroughIfNeeded();
   resolveIdentity();
+  if (IS_DEV && new URLSearchParams(window.location.search).get("debugBundle") === "multi") {
+    setTimeout(showDebugMultiArtifactResults, 0);
+    setTimeout(showDebugMultiArtifactResults, 1600);
+  }
   // Walkthrough step tracking
   const pipelineInput = document.getElementById("pipeline-input");
   if (pipelineInput) {
@@ -4901,8 +5181,8 @@ let pendingCommitData = null;
  * @param {Object} checks - Pre-commit check results
  * @param {Object} deps - Detected dependencies
  */
-function openCommitConfirmModal(codeInfo, checks, deps) {
-  pendingCommitData = { codeInfo, checks, deps };
+function openCommitConfirmModal(codeInfo, checks, deps, bundlePlan = null) {
+  pendingCommitData = { codeInfo, checks, deps, bundlePlan };
 
   document.getElementById("confirm-file-name").textContent = codeInfo.fileName;
   document.getElementById("confirm-artifact-type").textContent =
@@ -4910,7 +5190,7 @@ function openCommitConfirmModal(codeInfo, checks, deps) {
   document.getElementById("confirm-file-size").textContent =
     `${(codeInfo.content.length / 1024).toFixed(1)} KB`;
   document.getElementById("confirm-line-count").textContent =
-    codeInfo.content.split("\n").length;
+    bundlePlan ? `${bundlePlan.fileEntries.length} files` : codeInfo.content.split("\n").length;
 
   getApiKey("flutterflow_project_id").then((projectId) => {
     document.getElementById("confirm-project-id").textContent =
@@ -5146,29 +5426,37 @@ function updateProgressFromState(state) {
  * Confirms the commit after modal review.
  */
 async function confirmCommitToFlutterFlow() {
-  closeCommitConfirmModal();
-
   if (!pendingCommitData) {
     console.error("No pending commit data");
     return;
   }
 
+  const commitData = pendingCommitData;
+  closeCommitConfirmModal();
   showCommitProgress();
 
-  const { codeInfo } = pendingCommitData;
+  if (commitData.bundlePlan) {
+    const result = await executeBundleCommit(commitData.bundlePlan, {
+      pipelineResult: {
+        step1Result: pipelineState.step1Result,
+        selectedModel: document.getElementById("code-generator-model")?.value,
+      },
+    });
 
-  let artifactType = "CustomWidget";
-  let artifactName = "GeneratedWidget";
+    hideCommitProgress();
 
-  if (pipelineState.step1Result) {
-    try {
-      const spec = JSON.parse(pipelineState.step1Result);
-      artifactType = spec.artifactType || "CustomWidget";
-      artifactName = spec.artifactName || "GeneratedWidget";
-    } catch (e) {
-      console.warn("Could not parse step 1 result:", e);
+    if (result.success) {
+      showCommitSuccessModal(result);
+    } else {
+      showCommitFailureModal(result);
     }
+
+    return;
   }
+
+  const { codeInfo } = commitData;
+
+  const { artifactType, artifactName } = getCurrentArtifactMetadata();
 
   const result = await executeCommit(codeInfo.content, {
     artifactType,
@@ -5349,24 +5637,120 @@ function hidePipelineProgress() {
   }, 400);
 }
 
-function showResultsView(codeContent, auditContent) {
+function renderSelectedArtifactReview(fallbackAuditContent = "") {
+  const selectedArtifact = getSelectedArtifact();
+  const reviewArtifact = pipelineState.bundleReview?.artifacts?.find(
+    (artifact) => artifact.id === selectedArtifact.id,
+  );
+  const review = reviewArtifact?.review || selectedArtifact.review;
+
+  if (!review || typeof review === "string") {
+    return typeof review === "string" ? renderMarkdownAudit(review) : fallbackAuditContent;
+  }
+
+  const findings = Array.isArray(review.findings) ? review.findings : [];
+  const status = review.status || "pending";
+  const findingHtml = findings.length > 0
+    ? findings.map((finding) => `
+      <div class="audit-item">
+        <strong>${escapeHtml(finding.severity || "info")}</strong>: ${escapeHtml(finding.message || "")}
+        ${finding.suggestion ? `<br><span>${escapeHtml(finding.suggestion)}</span>` : ""}
+      </div>
+    `).join("")
+    : `<div class="audit-item">No artifact-specific findings.</div>`;
+
+  return `
+    <div class="audit-section">
+      <h3>${escapeHtml(selectedArtifact.artifactName)} review: ${escapeHtml(status)}</h3>
+      ${findingHtml}
+    </div>
+  `;
+}
+
+function renderBundleControls() {
+  const bundle = pipelineState.artifactBundle;
+  const strip = document.getElementById("bundle-strip");
+  const tabs = document.getElementById("artifact-tabs");
+  const artifactCount = document.getElementById("bundle-artifact-count");
+  const deployableCount = document.getElementById("bundle-deployable-count");
+  const warningCount = document.getElementById("bundle-warning-count");
+
+  if (!bundle || !Array.isArray(bundle.artifacts) || bundle.artifacts.length <= 1) {
+    if (strip) strip.classList.remove("visible");
+    if (tabs) tabs.innerHTML = "";
+    return;
+  }
+
+  const compatibilityFindings = bundle.metadata?.compatibility?.findings || [];
+  const errorArtifactIds = new Set(
+    compatibilityFindings
+      .filter((finding) => finding.severity === "error")
+      .map((finding) => finding.artifactId),
+  );
+
+  if (artifactCount) artifactCount.textContent = String(bundle.artifacts.length);
+  if (deployableCount) {
+    deployableCount.textContent = String(
+      bundle.artifacts.filter((artifact) => !errorArtifactIds.has(artifact.id)).length,
+    );
+  }
+  if (warningCount) {
+    warningCount.textContent = String(
+      (bundle.warnings || []).length
+        + compatibilityFindings.filter((finding) => finding.severity !== "error").length,
+    );
+  }
+
+  if (tabs) {
+    tabs.innerHTML = bundle.artifacts.map((artifact) => `
+      <button
+        type="button"
+        class="artifact-tab${artifact.id === pipelineState.selectedArtifactId ? " active" : ""}"
+        data-artifact-id="${escapeAttr(artifact.id)}"
+        title="${escapeAttr(artifact.fileName || artifact.artifactName)}"
+      >
+        <span class="artifact-tab-name">${escapeHtml(artifact.artifactName)}</span>
+        <span class="artifact-tab-meta">${escapeHtml(artifact.artifactType)} · ${escapeHtml(artifact.fileName)}</span>
+      </button>
+    `).join("");
+    tabs.onclick = (event) => {
+      const tab = event.target.closest(".artifact-tab");
+      if (tab?.dataset?.artifactId) {
+        selectArtifact(tab.dataset.artifactId);
+      }
+    };
+  }
+
+  if (strip) strip.classList.add("visible");
+}
+
+function updateSelectedArtifactPanels(fallbackAuditContent = "") {
   const resultsView = document.getElementById("results-view");
   const codeOutput = document.getElementById("results-code-output");
   const auditOutput = document.getElementById("results-audit-output");
+  const selectedCode = getSelectedArtifactCode();
 
   // Code panel uses highlighted code (already sanitized by highlightCode)
   if (codeOutput) codeOutput.textContent = "";
   if (codeOutput) {
     // Use the same highlightCode function used elsewhere in this codebase
-    const highlighted = highlightCode(codeContent);
+    const highlighted = highlightCode(selectedCode);
     // highlightCode returns hljs-processed HTML which is safe (generated by highlight.js)
     codeOutput.innerHTML = highlighted; // eslint-disable-line -- highlight.js output
   }
   // Audit panel uses renderMarkdownAudit (existing sanitized renderer)
   if (auditOutput) {
-    auditOutput.innerHTML = auditContent; // eslint-disable-line -- renderMarkdownAudit output
+    auditOutput.innerHTML = renderSelectedArtifactReview(fallbackAuditContent); // eslint-disable-line -- renderMarkdownAudit output
   }
   if (resultsView) resultsView.classList.add("visible");
+  renderBundleControls();
+}
+
+function showResultsView(codeContent, auditContent) {
+  if (!pipelineState.selectedArtifactId) {
+    pipelineState.selectedArtifactId = getPrimaryArtifact(pipelineState.artifactBundle).id;
+  }
+  updateSelectedArtifactPanels(auditContent);
 
   // Reset feedback buttons
   const upBtn = document.getElementById("btn-feedback-up");
@@ -5375,12 +5759,116 @@ function showResultsView(codeContent, auditContent) {
   if (downBtn) downBtn.className = "feedback-btn";
 }
 
+function showDebugMultiArtifactResults() {
+  pipelineState.step1Result = JSON.stringify({
+    schemaVersion: "artifact-bundle/v1",
+    id: "debug-agent-ui",
+    title: "Debug Agent UI",
+    artifacts: [
+      {
+        id: "custom-class-agent-event",
+        artifactType: "CustomClass",
+        artifactName: "AgentEvent",
+        fileName: "agent_event.dart",
+        description: "Data model for agent events.",
+      },
+      {
+        id: "custom-widget-agent-timeline",
+        artifactType: "CustomWidget",
+        artifactName: "AgentTimeline",
+        fileName: "agent_timeline.dart",
+        description: "Widget for rendering chronological agent events.",
+      },
+    ],
+    relationships: [
+      {
+        from: "custom-widget-agent-timeline",
+        to: "custom-class-agent-event",
+        type: "imports",
+      },
+    ],
+    deployOrder: ["custom-class-agent-event", "custom-widget-agent-timeline"],
+  });
+  updateBundleSpecFromArchitectResult();
+  pipelineState.step2Result = JSON.stringify({
+    schemaVersion: "artifact-bundle/v1",
+    id: "debug-agent-ui",
+    title: "Debug Agent UI",
+    artifacts: [
+      {
+        id: "custom-class-agent-event",
+        artifactType: "CustomClass",
+        artifactName: "AgentEvent",
+        fileName: "agent_event.dart",
+        code: "class AgentEvent {\n  const AgentEvent({required this.id, required this.label});\n  final String id;\n  final String label;\n}\n",
+      },
+      {
+        id: "custom-widget-agent-timeline",
+        artifactType: "CustomWidget",
+        artifactName: "AgentTimeline",
+        fileName: "agent_timeline.dart",
+        code: "class AgentTimeline extends StatelessWidget {\n  const AgentTimeline({super.key});\n  @override\n  Widget build(BuildContext context) {\n    return const SizedBox.shrink();\n  }\n}\n",
+      },
+    ],
+    relationships: [
+      {
+        from: "custom-widget-agent-timeline",
+        to: "custom-class-agent-event",
+        type: "imports",
+      },
+    ],
+    deployOrder: ["custom-class-agent-event", "custom-widget-agent-timeline"],
+  });
+  updateArtifactBundleFromGeneratedCode();
+  pipelineState.step3Result = JSON.stringify({
+    schemaVersion: "artifact-bundle/v1",
+    id: "debug-agent-ui",
+    artifacts: [
+      {
+        id: "custom-class-agent-event",
+        artifactName: "AgentEvent",
+        artifactType: "CustomClass",
+        review: { status: "pass", findings: [] },
+      },
+      {
+        id: "custom-widget-agent-timeline",
+        artifactName: "AgentTimeline",
+        artifactType: "CustomWidget",
+        review: {
+          status: "warn",
+          findings: [
+            {
+              severity: "warning",
+              message: "Widget is a placeholder.",
+              suggestion: "Render the event collection before shipping.",
+            },
+          ],
+        },
+      },
+    ],
+  });
+  updateBundleReviewFromReviewResult();
+  dismissWelcomeVideo();
+  const paywallEl = document.getElementById("paywall-exhausted");
+  if (paywallEl) paywallEl.classList.add("hidden");
+  const walkthroughModal = document.getElementById("walkthrough-modal");
+  if (walkthroughModal) walkthroughModal.classList.remove("open");
+  const readyState = document.getElementById("ready-state");
+  if (readyState) readyState.classList.add("hidden");
+  const stageContainer = document.getElementById("main-stage-container");
+  if (stageContainer) stageContainer.classList.add("visible");
+  hidePipelineProgress();
+  showResultsView(getSelectedArtifactCode(), renderMarkdownAudit(pipelineState.step3Result));
+}
+
+function selectArtifact(artifactId) {
+  pipelineState.selectedArtifactId = artifactId;
+  updateSelectedArtifactPanels(renderMarkdownAudit(pipelineState.step3Result || ""));
+}
+
 function copyResultsCode() {
   const btn = document.getElementById("btn-copy-results");
-
-  // Use raw data from step2-output (stored by pipeline)
-  const step2El = document.getElementById("step2-output");
-  const rawCode = step2El?.dataset?.raw || "";
+  const rawCode = getSelectedArtifactCode();
 
   navigator.clipboard.writeText(rawCode).then(() => {
     if (btn) {
@@ -5435,6 +5923,7 @@ function hideErrorInputPanel() {
 }
 
 window.copyResultsCode = copyResultsCode;
+window.selectArtifact = selectArtifact;
 window.submitResultsFeedback = submitResultsFeedback;
 window.showErrorInputPanel = showErrorInputPanel;
 window.hideErrorInputPanel = hideErrorInputPanel;
