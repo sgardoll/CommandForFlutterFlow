@@ -66,3 +66,26 @@ test("validates a bundle and emits deploy path hints", () => {
     },
   ]);
 });
+
+test("emits DSL deploy hint for custom classes", () => {
+  const result = validateBundleCompatibility({
+    artifacts: [
+      {
+        id: "custom-class-user",
+        artifactName: "UserProfile",
+        artifactType: "CustomClass",
+        fileName: "user_profile.dart",
+        code: "class UserProfile { const UserProfile(); }",
+      },
+    ],
+  });
+
+  assert.equal(result.valid, true);
+  assert.deepEqual(result.deployHints, [
+    {
+      artifactId: "custom-class-user",
+      fileName: "user_profile.dart",
+      pathHint: "dsl:addCustomClass",
+    },
+  ]);
+});

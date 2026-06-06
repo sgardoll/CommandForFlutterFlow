@@ -38,6 +38,11 @@ function trackEvent(eventName, properties = {}) {
   }
 }
 
+function getCustomClassDslDeployMessage(count = 1) {
+  const noun = count === 1 ? "CustomClass artifact" : "CustomClass artifacts";
+  return `${noun} must deploy through FlutterFlow AI DSL addCustomClass. The current browser deploy path only supports syncCustomCodeChanges for widgets, actions, functions, and code files.`;
+}
+
 // --- AUTH / SUBSCRIPTION CONFIG ---
 const BUILDSHIP_BASE_URL = 'https://4tgke4.buildship.run'
 const STRIPE_PRICE_IDS = {
@@ -2599,6 +2604,13 @@ async function commitToFlutterFlow(dartCode, fileName, options = {}) {
   const { pubspecDeps = {} } = options;
 
   // Validate/fix codeType if passed as full string
+  if (codeType === "CustomClass") {
+    return {
+      success: false,
+      error: getCustomClassDslDeployMessage(),
+      state: commitState.currentState,
+    };
+  }
   if (codeType === "CustomWidget") codeType = CodeType.WIDGET;
   if (codeType === "CustomAction") codeType = CodeType.ACTION;
   if (codeType === "CustomFunction") codeType = CodeType.FUNCTION;
@@ -2759,6 +2771,10 @@ async function executeCommit(code, options = {}) {
   console.log(`Starting commit for ${artifactName} (${artifactType})`);
 
   try {
+    if (artifactType === "CustomClass") {
+      throw new Error(getCustomClassDslDeployMessage());
+    }
+
     // Step 1: Prepare the code
     commitState.setState(CommitState.PREPARING);
     const codeInfo = prepareCodeForCommit(code, { artifactType, artifactName });
@@ -2916,6 +2932,9 @@ async function executeBundleCommit(bundlePlan, options = {}) {
 
   try {
     commitState.setState(CommitState.PREPARING);
+    if (bundlePlan.dslEntries?.length > 0) {
+      throw new Error(getCustomClassDslDeployMessage(bundlePlan.dslEntries.length));
+    }
     if (bundlePlan.errors?.length > 0) {
       throw new Error(`Bundle validation failed:\n${bundlePlan.errors.join("\n")}`);
     }
@@ -3908,6 +3927,11 @@ async function initiateCommitToFlutterFlow() {
 
   const { artifactType, artifactName } = getCurrentArtifactMetadata();
 
+  if (artifactType === "CustomClass") {
+    showToast(getCustomClassDslDeployMessage(), "error");
+    return;
+  }
+
   const codeInfo = prepareCodeForCommit(code, { artifactType, artifactName });
 
   const checks = runPreCommitChecks(codeInfo);
@@ -3957,6 +3981,9 @@ async function initiateBundleCommitToFlutterFlow() {
     showToast(`Bundle validation failed: ${plan.errors.join("; ")}`, "error");
     return;
   }
+  const dslDeployIssues = plan.dslEntries?.length
+    ? [getCustomClassDslDeployMessage(plan.dslEntries.length)]
+    : [];
   const fileMap = new Map(
     plan.fileEntries.map((entry) => [
       entry.fileName,
@@ -3970,8 +3997,8 @@ async function initiateBundleCommitToFlutterFlow() {
 
   const validation = validateFileMap(fileMap);
   const checks = {
-    canProceed: validation.valid && plan.errors.length === 0,
-    issues: [...plan.errors, ...validation.errors],
+    canProceed: validation.valid && plan.errors.length === 0 && dslDeployIssues.length === 0,
+    issues: [...plan.errors, ...validation.errors, ...dslDeployIssues],
     warnings: [...plan.warnings, ...validation.warnings],
   };
   if (!checks.canProceed) {

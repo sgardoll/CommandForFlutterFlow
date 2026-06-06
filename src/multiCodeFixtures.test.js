@@ -87,7 +87,7 @@ test("regeneration fixtures preserve selected artifact and full bundle output co
   assert.doesNotMatch(bundlePrompt, /full artifact-bundle\/v1 JSON bundle/);
 });
 
-test("deploy payload fixture contains every planned file without live API calls", () => {
+test("deploy payload fixture separates custom-code files from custom-class DSL", () => {
   const bundle = normalizeArtifactBundle({
     deployOrder: ["class-a", "widget-a"],
     artifacts: [
@@ -97,12 +97,16 @@ test("deploy payload fixture contains every planned file without live API calls"
   });
   const plan = buildBundleDeployPlan(bundle);
 
-  assert.deepEqual(plan.fileEntries.map((entry) => entry.fileName), [
+  assert.deepEqual(plan.dslEntries.map((entry) => entry.fileName), [
     "agent_event.dart",
+  ]);
+  assert.deepEqual(plan.dslEntries.map((entry) => entry.operation), [
+    "addCustomClass",
+  ]);
+  assert.deepEqual(plan.fileEntries.map((entry) => entry.fileName), [
     "agent_view.dart",
   ]);
   assert.deepEqual(plan.fileEntries.map((entry) => entry.path), [
-    "lib/custom_code/actions/agent_event.dart",
     "lib/custom_code/widgets/agent_view.dart",
   ]);
 });

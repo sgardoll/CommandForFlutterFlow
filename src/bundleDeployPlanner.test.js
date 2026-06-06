@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { buildBundleDeployPlan } from "./bundleDeployPlanner.js";
 
-test("builds deploy file entries in deploy order", () => {
+test("builds deploy entries in deploy order", () => {
   const plan = buildBundleDeployPlan({
     id: "bundle-a",
     deployOrder: ["class-a", "widget-a"],
@@ -24,9 +24,11 @@ test("builds deploy file entries in deploy order", () => {
     ],
   });
 
-  assert.deepEqual(plan.fileEntries.map((entry) => entry.artifactId), ["class-a", "widget-a"]);
-  assert.equal(plan.fileEntries[0].path, "lib/custom_code/actions/model_a.dart");
-  assert.equal(plan.fileEntries[1].path, "lib/custom_code/widgets/widget_a.dart");
+  assert.deepEqual(plan.dslEntries.map((entry) => entry.artifactId), ["class-a"]);
+  assert.deepEqual(plan.fileEntries.map((entry) => entry.artifactId), ["widget-a"]);
+  assert.equal(plan.dslEntries[0].operation, "addCustomClass");
+  assert.equal(plan.dslEntries[0].className, "ModelA");
+  assert.equal(plan.fileEntries[0].path, "lib/custom_code/widgets/widget_a.dart");
 });
 
 test("merges bundle and artifact dependencies with missing-version warnings", () => {

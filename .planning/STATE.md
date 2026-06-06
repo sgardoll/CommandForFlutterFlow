@@ -106,8 +106,9 @@ None.
 |---|-------------|------|--------|-----------|
 | 13 | The "loading" icon animation rotates the wrong way. Fix | 2026-03-20 | 252b831 | [13-the-loading-icon-animation-rotates-the-w](./quick/13-the-loading-icon-animation-rotates-the-w/) |
 | 14 | What's the point of all our fingerprinting? | 2026-03-20 | 2b376b0 | [14-what-s-the-point-of-all-our-fingerprinti](./quick/14-what-s-the-point-of-all-our-fingerprinti/) |
+| 15 | Route CustomClass deploys through DSL addCustomClass instead of custom-code sync | 2026-06-06 | this commit | [20260606-custom-class-dsl-deploy](./quick/20260606-custom-class-dsl-deploy/) |
 
-Last activity: 2026-03-20 - Completed quick task 14: What's the point of all our fingerprinting?
+Last activity: 2026-06-06 - Completed quick task 15: Route CustomClass deploys through DSL addCustomClass instead of custom-code sync.
 
 ## Phase 9 Summary
 

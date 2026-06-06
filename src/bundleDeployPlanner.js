@@ -10,8 +10,11 @@ const ARTIFACT_TYPE_TO_CODE_TYPE = {
   CustomAction: CODE_TYPE.ACTION,
   CustomWidget: CODE_TYPE.WIDGET,
   CustomFunction: CODE_TYPE.FUNCTION,
-  CustomClass: CODE_TYPE.OTHER,
   CodeFile: CODE_TYPE.OTHER,
+};
+
+const DSL_OPERATION = {
+  ADD_CUSTOM_CLASS: "addCustomClass",
 };
 
 export function getBundleFilePath(fileName, codeType) {
@@ -35,6 +38,12 @@ function toFileName(artifact) {
   if (artifact.artifactType === "CustomFunction") return "custom_functions.dart";
   const source = artifact.fileName || artifact.artifactName || artifact.id || "generated_code";
   return source.endsWith(".dart") ? source : `${source}.dart`;
+}
+
+function toCustomClassName(artifact, fileName) {
+  return String(artifact.artifactName || fileName.replace(/\.dart$/, "") || artifact.id || "GeneratedClass")
+    .trim()
+    .replace(/\.dart$/, "");
 }
 
 function toDependencyMap(dependencies = []) {
@@ -76,14 +85,34 @@ export function buildBundleDeployPlan(bundle, options = {}) {
     .filter(Boolean);
 
   const warnings = [...(bundle?.warnings || [])];
-  const fileEntries = selected.map((artifact) => {
-    const codeType = artifact.codeType || ARTIFACT_TYPE_TO_CODE_TYPE[artifact.artifactType] || CODE_TYPE.OTHER;
+  const dslEntries = [];
+  const fileEntries = [];
+
+  selected.forEach((artifact) => {
     const fileName = toFileName(artifact);
     const content = artifact.code || "";
+    if (artifact.artifactType === "CustomClass") {
+      if (!content.trim()) {
+        warnings.push(`${artifact.artifactName || artifact.id} has no generated code.`);
+      }
+      dslEntries.push({
+        artifactId: artifact.id,
+        artifactName: artifact.artifactName,
+        artifactType: artifact.artifactType,
+        fileName,
+        className: toCustomClassName(artifact, fileName),
+        content,
+        deployMode: "dsl",
+        operation: DSL_OPERATION.ADD_CUSTOM_CLASS,
+      });
+      return;
+    }
+
+    const codeType = artifact.codeType || ARTIFACT_TYPE_TO_CODE_TYPE[artifact.artifactType] || CODE_TYPE.OTHER;
     if (!content.trim()) {
       warnings.push(`${artifact.artifactName || artifact.id} has no generated code.`);
     }
-    return {
+    fileEntries.push({
       artifactId: artifact.id,
       artifactName: artifact.artifactName,
       artifactType: artifact.artifactType,
@@ -91,7 +120,8 @@ export function buildBundleDeployPlan(bundle, options = {}) {
       content,
       type: codeType,
       path: getBundleFilePath(fileName, codeType),
-    };
+      deployMode: "customCodeSync",
+    });
   });
 
   const dependencies = {
@@ -116,6 +146,7 @@ export function buildBundleDeployPlan(bundle, options = {}) {
     bundleId: bundle?.id || "bundle-current",
     title: bundle?.title || "Generated artifact bundle",
     fileEntries,
+    dslEntries,
     dependencies,
     relationships: bundle?.relationships || [],
     warnings,
