@@ -75,9 +75,16 @@ test("regeneration fixtures preserve selected artifact and full bundle output co
     bundleReview: '{"artifacts":[]}',
     userFeedback: "Build failed",
   });
+  const artifactPayload = JSON.parse(artifactPrompt);
+  const bundlePayload = JSON.parse(bundlePrompt);
 
-  assert.match(artifactPrompt, /Regenerate only artifact "widget-a"/);
-  assert.match(bundlePrompt, /full artifact-bundle\/v1 JSON bundle/);
+  assert.equal(artifactPayload.task, "regenerate_artifact");
+  assert.equal(artifactPayload.artifactId, "widget-a");
+  assert.equal(artifactPayload.artifactBundle.artifacts[1].id, "class-a");
+  assert.equal(bundlePayload.task, "regenerate_bundle");
+  assert.equal(bundlePayload.userFeedback, "Build failed");
+  assert.doesNotMatch(artifactPrompt, /Regenerate only artifact/);
+  assert.doesNotMatch(bundlePrompt, /full artifact-bundle\/v1 JSON bundle/);
 });
 
 test("deploy payload fixture contains every planned file without live API calls", () => {

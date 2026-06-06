@@ -9,46 +9,47 @@ import {
   createBuildShipContext,
 } from "./pipelineContracts.js";
 
-test("architect prompt asks for generic multi-artifact bundle JSON", () => {
+test("architect prompt sends user request data without system instructions", () => {
   const prompt = buildArchitectPrompt("Build code that uses a package");
+  const payload = JSON.parse(prompt);
 
-  assert.match(prompt, /artifact-bundle\/v1/);
-  assert.match(prompt, /one or more FlutterFlow custom code artifacts/);
-  assert.match(prompt, /examples and dependencies, not hardcoded product templates/);
-  assert.match(prompt, /"artifacts"/);
-  assert.match(prompt, /"relationships"/);
+  assert.equal(payload.task, "architect");
+  assert.equal(payload.userRequest, "Build code that uses a package");
+  assert.doesNotMatch(prompt, /You are the Prompt Architect/);
+  assert.doesNotMatch(prompt, /Top-level shape/);
+  assert.doesNotMatch(prompt, /CustomWidget \| CustomAction/);
 });
 
-test("generator prompt preserves ids and asks for code per artifact", () => {
+test("generator prompt sends bundle data without system instructions", () => {
   const prompt = buildGeneratorPrompt('{"artifacts":[{"id":"widget-a"}]}');
+  const payload = JSON.parse(prompt);
 
-  assert.match(prompt, /Preserve artifact ids/);
-  assert.match(prompt, /complete Dart code/);
-  assert.match(prompt, /"code"/);
-  assert.match(prompt, /widget-a/);
+  assert.equal(payload.task, "generate_bundle");
+  assert.equal(payload.bundleSpec.artifacts[0].id, "widget-a");
+  assert.doesNotMatch(prompt, /Preserve artifact ids/);
+  assert.doesNotMatch(prompt, /complete Dart code/);
 });
 
-test("review prompt requests artifact and bundle level findings", () => {
+test("review prompt sends generated bundle data without system instructions", () => {
   const prompt = buildReviewPrompt('{"artifacts":[{"id":"action-a"}]}');
+  const payload = JSON.parse(prompt);
 
-  assert.match(prompt, /Review every generated artifact/);
-  assert.match(prompt, /"bundleReview"/);
-  assert.match(prompt, /"findings"/);
-  assert.match(prompt, /action-a/);
+  assert.equal(payload.task, "review_bundle");
+  assert.equal(payload.generatedBundle.artifacts[0].id, "action-a");
+  assert.doesNotMatch(prompt, /Review every generated artifact/);
+  assert.doesNotMatch(prompt, /bundleReview/);
 });
 
-test("BuildShip context declares multi-artifact contract support", () => {
+test("BuildShip context only sends runtime state", () => {
   const context = createBuildShipContext("generator", { id: "bundle-a" });
 
-  assert.equal(context.contract, "artifact-bundle/v1");
-  assert.equal(context.stage, "generator");
-  assert.equal(context.supportsMultipleArtifacts, true);
-  assert.deepEqual(context.bundle, { id: "bundle-a" });
-  assert.ok(context.supportedArtifactTypes.includes("CustomWidget"));
-  assert.ok(context.supportedArtifactTypes.includes("CustomAction"));
+  assert.deepEqual(context, {
+    stage: "generator",
+    bundle: { id: "bundle-a" },
+  });
 });
 
-test("artifact regeneration prompt preserves siblings and stable ids", () => {
+test("artifact regeneration prompt sends target and bundle data", () => {
   const prompt = buildArtifactRegenerationPrompt({
     bundleSpec: '{"id":"bundle-a"}',
     artifactBundle: '{"artifacts":[{"id":"widget-a"},{"id":"action-a"}]}',
@@ -56,21 +57,31 @@ test("artifact regeneration prompt preserves siblings and stable ids", () => {
     artifactId: "widget-a",
     userFeedback: "Fix widget layout",
   });
+  const payload = JSON.parse(prompt);
 
-  assert.match(prompt, /Regenerate only artifact "widget-a"/);
-  assert.match(prompt, /unchanged sibling artifact code/);
-  assert.match(prompt, /full artifact-bundle\/v1 JSON bundle/);
+  assert.equal(payload.task, "regenerate_artifact");
+  assert.equal(payload.artifactId, "widget-a");
+  assert.equal(payload.bundleSpec.id, "bundle-a");
+  assert.equal(payload.artifactBundle.artifacts[1].id, "action-a");
+  assert.equal(payload.userFeedback, "Fix widget layout");
+  assert.doesNotMatch(prompt, /Regenerate only artifact/);
+  assert.doesNotMatch(prompt, /full artifact-bundle\/v1 JSON bundle/);
 });
 
-test("bundle regeneration prompt asks for full bundle output", () => {
+test("bundle regeneration prompt sends bundle and feedback data", () => {
   const prompt = buildBundleRegenerationPrompt({
     bundleSpec: '{"id":"bundle-a"}',
     artifactBundle: '{"artifacts":[{"id":"widget-a"}]}',
     bundleReview: '{"status":"warn"}',
     userFeedback: "FlutterFlow build error",
   });
+  const payload = JSON.parse(prompt);
 
-  assert.match(prompt, /full bundle regeneration task/);
-  assert.match(prompt, /Preserve stable artifact ids/);
-  assert.match(prompt, /code per artifact/);
+  assert.equal(payload.task, "regenerate_bundle");
+  assert.equal(payload.bundleSpec.id, "bundle-a");
+  assert.equal(payload.artifactBundle.artifacts[0].id, "widget-a");
+  assert.equal(payload.bundleReview.status, "warn");
+  assert.equal(payload.userFeedback, "FlutterFlow build error");
+  assert.doesNotMatch(prompt, /full bundle regeneration task/);
+  assert.doesNotMatch(prompt, /Preserve stable artifact ids/);
 });

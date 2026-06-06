@@ -642,6 +642,91 @@
         display: flex;
         gap: 10px;
       }
+      .bundle-strip {
+        display: none;
+        grid-template-columns: minmax(220px, 0.7fr) minmax(0, 1.3fr);
+        gap: 16px;
+        padding: 14px 24px;
+        border-bottom: 1px solid var(--border);
+        background: #fff;
+        flex-shrink: 0;
+      }
+      .bundle-strip.visible {
+        display: grid;
+      }
+      .bundle-summary {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+      .bundle-stat {
+        min-width: 0;
+        padding: 10px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: #fafbfc;
+      }
+      .bundle-stat-value {
+        display: block;
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--navy);
+        line-height: 1.1;
+      }
+      .bundle-stat-label {
+        display: block;
+        margin-top: 4px;
+        font-size: 10px;
+        font-weight: 700;
+        color: var(--sublabel);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+      .artifact-tabs {
+        display: flex;
+        gap: 8px;
+        overflow-x: auto;
+        padding-bottom: 2px;
+      }
+      .artifact-tab {
+        flex: 0 0 auto;
+        min-width: 168px;
+        max-width: 240px;
+        text-align: left;
+        padding: 10px 12px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: #fff;
+        color: var(--navy);
+        cursor: pointer;
+        transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+      }
+      .artifact-tab:hover {
+        border-color: #cbd5e1;
+        background: #f8fafc;
+      }
+      .artifact-tab.active {
+        border-color: #6366f1;
+        background: #eef2ff;
+        box-shadow: inset 0 0 0 1px #6366f1;
+      }
+      .artifact-tab-name {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 13px;
+        font-weight: 700;
+      }
+      .artifact-tab-meta {
+        display: block;
+        margin-top: 3px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 11px;
+        color: var(--sublabel);
+      }
       .btn-header-action {
         display: flex;
         align-items: center;
@@ -1698,7 +1783,7 @@
         .pm-cards { padding: 0 16px; }
       }
     </style>
-    <script type="module" crossorigin src="/assets/index-Ds2CWeW0.js"></script>
+    <script type="module" crossorigin src="/assets/index-DdQ1oUqx.js"></script>
   </head>
   <body>
     <div class="app-shell">
@@ -1994,6 +2079,24 @@
                     Refine &amp; Regenerate
                   </button>
                 </div>
+              </div>
+
+              <div id="bundle-strip" class="bundle-strip">
+                <div class="bundle-summary">
+                  <div class="bundle-stat">
+                    <span id="bundle-artifact-count" class="bundle-stat-value">1</span>
+                    <span class="bundle-stat-label">Artifacts</span>
+                  </div>
+                  <div class="bundle-stat">
+                    <span id="bundle-deployable-count" class="bundle-stat-value">1</span>
+                    <span class="bundle-stat-label">Ready</span>
+                  </div>
+                  <div class="bundle-stat">
+                    <span id="bundle-warning-count" class="bundle-stat-value">0</span>
+                    <span class="bundle-stat-label">Warnings</span>
+                  </div>
+                </div>
+                <div id="artifact-tabs" class="artifact-tabs"></div>
               </div>
 
               <div class="results-split">
