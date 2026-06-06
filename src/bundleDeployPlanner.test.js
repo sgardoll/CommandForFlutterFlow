@@ -25,7 +25,8 @@ test("builds deploy file entries in deploy order", () => {
   });
 
   assert.deepEqual(plan.fileEntries.map((entry) => entry.artifactId), ["class-a", "widget-a"]);
-  assert.equal(plan.fileEntries[0].path, "lib/custom_code/actions/model_a.dart");
+  assert.equal(plan.fileEntries[0].type, "O");
+  assert.equal(plan.fileEntries[0].path, "lib/custom_code/model_a.dart");
   assert.equal(plan.fileEntries[1].path, "lib/custom_code/widgets/widget_a.dart");
 });
 

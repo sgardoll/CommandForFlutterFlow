@@ -102,7 +102,7 @@ test("deploy payload fixture contains every planned file without live API calls"
     "agent_view.dart",
   ]);
   assert.deepEqual(plan.fileEntries.map((entry) => entry.path), [
-    "lib/custom_code/actions/agent_event.dart",
+    "lib/custom_code/agent_event.dart",
     "lib/custom_code/widgets/agent_view.dart",
   ]);
 });

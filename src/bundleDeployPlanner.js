@@ -25,7 +25,9 @@ export function getBundleFilePath(fileName, codeType) {
     case CODE_TYPE.DEPENDENCIES:
       return "pubspec.yaml";
     case CODE_TYPE.OTHER:
-      return `lib/custom_code/actions/${fileName}`;
+      // Custom classes / generic code files live directly under lib/custom_code/,
+      // matching FlutterFlow's syncCustomCodeChanges contract for OTHER-type files.
+      return `lib/custom_code/${fileName}`;
     default:
       return fileName;
   }

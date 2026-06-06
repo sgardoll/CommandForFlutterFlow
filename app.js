@@ -1736,8 +1736,9 @@ function getFilePathForCodeType(fileName, codeType) {
     case CodeType.DEPENDENCIES:
       return "pubspec.yaml";
     case CodeType.OTHER:
-      // Fallback for unknown types - treat as action/code file
-      return `lib/custom_code/actions/${fileName}`;
+      // Generic custom-code files (e.g. custom classes) live directly under
+      // lib/custom_code/, matching FlutterFlow's syncCustomCodeChanges contract.
+      return `lib/custom_code/${fileName}`;
     default:
       return fileName;
   }
@@ -1768,6 +1769,12 @@ function deriveIdentifierName(fileName, codeType) {
   }
   if (codeType === CodeType.DEPENDENCIES) {
     return "pubspec.yaml";
+  }
+  if (codeType === CodeType.OTHER) {
+    // Generic custom-code files (e.g. custom classes) identify by their file
+    // name including the .dart extension, matching the FlutterFlow custom-code
+    // extension's file_map representation for OTHER-type files.
+    return fileName;
   }
   return baseName;
 }
