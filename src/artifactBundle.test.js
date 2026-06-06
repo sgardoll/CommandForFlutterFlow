@@ -81,3 +81,34 @@ test("returns primary artifact with metadata fallback", () => {
   assert.equal(primary.artifactType, "CustomFunction");
   assert.equal(primary.fileName, "formatTrace.dart");
 });
+
+test("normalizes supplied artifact ids and remaps bundle references", () => {
+  const unsafeId = `Widget'"><img src=x onerror=alert(1)>`;
+  const bundle = normalizeArtifactBundle({
+    artifacts: [
+      {
+        id: unsafeId,
+        artifactType: "CustomWidget",
+        artifactName: "UnsafeWidget",
+      },
+      {
+        id: "helper class",
+        artifactType: "CustomClass",
+        artifactName: "HelperClass",
+      },
+    ],
+    relationships: [
+      {
+        from: unsafeId,
+        to: "helper class",
+        type: "imports",
+      },
+    ],
+    deployOrder: [unsafeId, "helper class"],
+  });
+
+  assert.match(bundle.artifacts[0].id, /^[a-z0-9-]+$/);
+  assert.equal(bundle.relationships[0].from, bundle.artifacts[0].id);
+  assert.equal(bundle.relationships[0].to, "helper-class");
+  assert.deepEqual(bundle.deployOrder, [bundle.artifacts[0].id, "helper-class"]);
+});

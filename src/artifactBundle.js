@@ -38,9 +38,10 @@ export function normalizeArtifact(rawArtifact = {}, index = 0) {
   const artifactType = artifact.artifactType || artifact.type || DEFAULT_ARTIFACT_TYPE;
   const artifactName = artifact.artifactName || artifact.name || DEFAULT_ARTIFACT_NAME;
   const fileName = artifact.fileName || `${artifactName}.dart`;
+  const normalizedProvidedId = slugify(artifact.id);
 
   return {
-    id: artifact.id || createArtifactId({ ...artifact, artifactType, artifactName, fileName }, index),
+    id: normalizedProvidedId || createArtifactId({ ...artifact, artifactType, artifactName, fileName }, index),
     artifactType,
     artifactName,
     fileName,
@@ -144,6 +145,18 @@ export function normalizeArtifactBundle(input, options = {}) {
       ];
 
   const artifacts = rawArtifacts.map((artifact, index) => normalizeArtifact(artifact, index));
+  const idMap = new Map(
+    rawArtifacts
+      .map((artifact, index) => [toObject(artifact).id, artifacts[index]?.id])
+      .filter(([rawId, normalizedId]) => rawId && normalizedId),
+  );
+  const remapId = (id) => idMap.get(id) || id;
+  const relationships = normalizeRelationships(bundleLike.relationships || options.relationships)
+    .map((relationship) => ({
+      ...relationship,
+      from: relationship.from ? remapId(relationship.from) : relationship.from,
+      to: relationship.to ? remapId(relationship.to) : relationship.to,
+    }));
 
   return {
     id: bundleLike.id || options.id || "bundle-current",
@@ -151,9 +164,9 @@ export function normalizeArtifactBundle(input, options = {}) {
     description: bundleLike.description || options.description || "",
     artifacts,
     dependencies: normalizeDependencies(bundleLike.dependencies || options.dependencies),
-    relationships: normalizeRelationships(bundleLike.relationships || options.relationships),
+    relationships,
     deployOrder: Array.isArray(bundleLike.deployOrder)
-      ? bundleLike.deployOrder
+      ? bundleLike.deployOrder.map(remapId)
       : artifacts.map((artifact) => artifact.id),
     warnings: [...warnings, ...(Array.isArray(bundleLike.warnings) ? bundleLike.warnings : [])],
     metadata: toObject(bundleLike.metadata),

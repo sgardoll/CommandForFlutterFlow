@@ -64,3 +64,27 @@ test("uses FlutterFlow custom functions file for function artifacts", () => {
   assert.equal(plan.fileEntries[0].path, "lib/flutter_flow/custom_functions.dart");
   assert.equal(plan.fileEntries[0].type, "F");
 });
+
+test("blocks duplicate deploy targets before file map construction", () => {
+  const plan = buildBundleDeployPlan({
+    artifacts: [
+      {
+        id: "function-a",
+        artifactType: "CustomFunction",
+        artifactName: "formatA",
+        code: "String formatA() => '';",
+      },
+      {
+        id: "function-b",
+        artifactType: "CustomFunction",
+        artifactName: "formatB",
+        code: "String formatB() => '';",
+      },
+    ],
+  });
+
+  assert.equal(plan.fileEntries.length, 2);
+  assert.equal(plan.errors.length, 2);
+  assert.match(plan.errors[0], /Duplicate deploy file name "custom_functions\.dart"/);
+  assert.match(plan.errors[1], /Duplicate deploy path "lib\/flutter_flow\/custom_functions\.dart"/);
+});

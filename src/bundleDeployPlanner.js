@@ -46,6 +46,28 @@ function toDependencyMap(dependencies = []) {
   }, {});
 }
 
+function getDuplicateTargetErrors(fileEntries) {
+  const seenFileNames = new Map();
+  const seenPaths = new Map();
+  const errors = [];
+
+  for (const entry of fileEntries) {
+    if (seenFileNames.has(entry.fileName)) {
+      errors.push(`Duplicate deploy file name "${entry.fileName}" for artifacts "${seenFileNames.get(entry.fileName)}" and "${entry.artifactId}".`);
+    } else {
+      seenFileNames.set(entry.fileName, entry.artifactId);
+    }
+
+    if (seenPaths.has(entry.path)) {
+      errors.push(`Duplicate deploy path "${entry.path}" for artifacts "${seenPaths.get(entry.path)}" and "${entry.artifactId}".`);
+    } else {
+      seenPaths.set(entry.path, entry.artifactId);
+    }
+  }
+
+  return errors;
+}
+
 export function buildBundleDeployPlan(bundle, options = {}) {
   const artifacts = Array.isArray(bundle?.artifacts) ? bundle.artifacts : [];
   const selectedIds = options.selectedArtifactIds || bundle?.deployOrder || artifacts.map((artifact) => artifact.id);
@@ -88,6 +110,7 @@ export function buildBundleDeployPlan(bundle, options = {}) {
       }
     });
   });
+  const errors = getDuplicateTargetErrors(fileEntries);
 
   return {
     bundleId: bundle?.id || "bundle-current",
@@ -96,6 +119,6 @@ export function buildBundleDeployPlan(bundle, options = {}) {
     dependencies,
     relationships: bundle?.relationships || [],
     warnings,
+    errors,
   };
 }
-

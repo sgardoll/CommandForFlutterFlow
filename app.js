@@ -2916,6 +2916,9 @@ async function executeBundleCommit(bundlePlan, options = {}) {
 
   try {
     commitState.setState(CommitState.PREPARING);
+    if (bundlePlan.errors?.length > 0) {
+      throw new Error(`Bundle validation failed:\n${bundlePlan.errors.join("\n")}`);
+    }
     const fileMap = new Map(
       bundlePlan.fileEntries.map((entry) => [
         entry.fileName,
@@ -3950,6 +3953,10 @@ async function initiateBundleCommitToFlutterFlow() {
   }
 
   const plan = buildBundleDeployPlan(pipelineState.artifactBundle);
+  if (plan.errors.length > 0) {
+    showToast(`Bundle validation failed: ${plan.errors.join("; ")}`, "error");
+    return;
+  }
   const fileMap = new Map(
     plan.fileEntries.map((entry) => [
       entry.fileName,
@@ -3963,8 +3970,8 @@ async function initiateBundleCommitToFlutterFlow() {
 
   const validation = validateFileMap(fileMap);
   const checks = {
-    canProceed: validation.valid,
-    issues: validation.errors,
+    canProceed: validation.valid && plan.errors.length === 0,
+    issues: [...plan.errors, ...validation.errors],
     warnings: [...plan.warnings, ...validation.warnings],
   };
   if (!checks.canProceed) {
@@ -4139,6 +4146,16 @@ function escapeHtml(text) {
   const div = document.createElement("div");
   div.textContent = text;
   return div.innerHTML.replace(/\n/g, "<br>");
+}
+
+function escapeAttr(text) {
+  return String(text ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\r?\n/g, " ");
 }
 
 /**
@@ -5689,13 +5706,19 @@ function renderBundleControls() {
       <button
         type="button"
         class="artifact-tab${artifact.id === pipelineState.selectedArtifactId ? " active" : ""}"
-        onclick="selectArtifact(${escapeHtml(JSON.stringify(artifact.id))})"
-        title="${escapeHtml(artifact.fileName || artifact.artifactName)}"
+        data-artifact-id="${escapeAttr(artifact.id)}"
+        title="${escapeAttr(artifact.fileName || artifact.artifactName)}"
       >
         <span class="artifact-tab-name">${escapeHtml(artifact.artifactName)}</span>
         <span class="artifact-tab-meta">${escapeHtml(artifact.artifactType)} · ${escapeHtml(artifact.fileName)}</span>
       </button>
     `).join("");
+    tabs.onclick = (event) => {
+      const tab = event.target.closest(".artifact-tab");
+      if (tab?.dataset?.artifactId) {
+        selectArtifact(tab.dataset.artifactId);
+      }
+    };
   }
 
   if (strip) strip.classList.add("visible");
