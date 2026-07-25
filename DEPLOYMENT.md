@@ -29,11 +29,11 @@ Files through `syncCustomCodeChanges` (`CodeType.CODE_FILE`, wire type `"C"`).
 That endpoint looks up an existing `FFCustomCodeFile` by filename and does not
 create a missing entity.
 
-For a new `CustomClass`, the web app first calls the Cloud Run AI-DSL runner to
-provision the missing entity with `addCustomClass`, re-exports the project to
-confirm `lib/custom_code/<file>.dart` now exists, and then performs the normal
-extension-style sync for the complete bundle. Existing code files skip the
-provisioning step.
+For a new `CustomClass`, the web app calls the Cloud Run AI-DSL runner to
+upsert the complete class source with `addCustomClass` or `updateCustomClass`.
+That class file is then excluded from the extension-style sync; the remaining
+bundle files and dependency changes still use `syncCustomCodeChanges`. Existing
+code files that appear in project exports use the normal sync path directly.
 
 The production runner defaults to:
 

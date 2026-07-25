@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  assertCodeFilesProvisioned,
+  excludeProvisionedCodeFiles,
   findMissingCodeFiles,
 } from "./flutterFlowCodeFileProvisioning.js";
 
@@ -84,16 +84,32 @@ test("derives the provisioning name from the expected file path", () => {
   );
 });
 
-test("fails when provisioning did not create the expected export path", () => {
+test("excludes provisioned code files from the subsequent custom-code sync", () => {
   const entries = [
     {
       fileName: "pipedream_nfc_models.dart",
       path: "lib/custom_code/pipedream_nfc_models.dart",
     },
   ];
+  const fileMap = new Map([
+    [
+      "pipedream_nfc_models.dart",
+      {
+        type: "C",
+        path: "lib/custom_code/pipedream_nfc_models.dart",
+      },
+    ],
+    [
+      "read_nfc_tag.dart",
+      {
+        type: "A",
+        path: "lib/custom_code/actions/read_nfc_tag.dart",
+      },
+    ],
+  ]);
 
-  assert.throws(
-    () => assertCodeFilesProvisioned(entries, new Map()),
-    /did not export the expected code file: pipedream_nfc_models\.dart/,
+  assert.deepEqual(
+    Array.from(excludeProvisionedCodeFiles(fileMap, entries).keys()),
+    ["read_nfc_tag.dart"],
   );
 });

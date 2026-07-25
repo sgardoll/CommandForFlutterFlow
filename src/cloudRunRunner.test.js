@@ -6,6 +6,10 @@ const dockerfile = readFileSync(
   new URL("../cloud-run/ffai-runner/Dockerfile", import.meta.url),
   "utf8",
 );
+const runnerSource = readFileSync(
+  new URL("../cloud-run/ffai-runner/bin/server.dart", import.meta.url),
+  "utf8",
+);
 
 function versionParts(version) {
   return version.split(".").map(Number);
@@ -36,5 +40,12 @@ test("Cloud Run pins a snapshot-compatible FlutterFlow CLI", () => {
     dockerfile,
     /dart pub global list \| grep -F "flutterflow_cli \$FLUTTERFLOW_CLI_VERSION"/,
     "Docker build must verify the installed CLI version",
+  );
+});
+
+test("Cloud Run upserts custom classes in one authoritative write", () => {
+  assert.match(
+    runnerSource,
+    /if \(findCustomClass\(project, name: \$name\) == null\)[\s\S]*addCustomClass\([\s\S]*else \{[\s\S]*updateCustomClass\(/,
   );
 });

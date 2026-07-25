@@ -101,7 +101,7 @@ Future<void> _handle(HttpRequest request) async {
 
     await _json(request, HttpStatus.ok, {
       'success': true,
-      'message': 'Custom classes deployed through FlutterFlow AI DSL addCustomClass.',
+      'message': 'Custom classes upserted through FlutterFlow AI DSL.',
       'deployed': classes
           .map((entry) => {
                 'artifactId': entry.artifactId,
@@ -240,6 +240,12 @@ Future<File> _writeDeployScript(
     return '''
           if (findCustomClass(project, name: $name) == null) {
             addCustomClass(
+              project,
+              name: $name,
+              code: $code,
+            );
+          } else {
+            updateCustomClass(
               project,
               name: $name,
               code: $code,
