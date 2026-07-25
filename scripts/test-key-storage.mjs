@@ -63,6 +63,9 @@ async function assertKeyIsProtected(page) {
 
 async function saveThroughApp(page, secret) {
   await page.waitForFunction(() => typeof window.saveApiKeys === "function");
+  await page.waitForFunction(() =>
+    document.querySelector("#api-keys-modal .bg-blue-500") !== null,
+  );
   await page.evaluate(async (value) => {
     document.getElementById("flutterflow-api-key-input").value = value;
     await window.saveApiKeys();
@@ -82,20 +85,7 @@ async function assertReloadDecrypts(page) {
   }
 }
 
-let browser;
-try {
-  await waitForPreview();
-  try {
-    browser = await chromium.launch();
-  } catch (error) {
-    const brave = "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser";
-    if (process.platform !== "darwin" || !String(error.message).includes("Executable doesn't exist")) {
-      throw error;
-    }
-    browser = await chromium.launch({ executablePath: brave });
-  }
-  const context = await browser.newContext();
-  const page = await context.newPage();
+async function preparePage(page) {
   await page.addInitScript(() => {
     globalThis.confirm = () => true;
     globalThis.hljs = {
@@ -104,18 +94,10 @@ try {
     };
   });
   await page.route("https://**/*", (route) => route.abort());
-  await page.goto(origin, { waitUntil: "domcontentloaded" });
+}
 
-  await saveThroughApp(page, "ff-secret-token-abc123");
-  const ciphertext = await page.evaluate(() => localStorage.getItem("ccc_api_key_flutterflow"));
-  if (!ciphertext || ciphertext.includes("ff-secret-token")) {
-    throw new Error("API key ciphertext was missing or exposed plaintext.");
-  }
-  await assertKeyIsProtected(page);
-  await assertReloadDecrypts(page);
-
-  // Verify migration of ciphertext written by the previous sessionStorage JWK.
-  await page.evaluate(async () => {
+async function seedLegacyCredential(page, secret) {
+  await page.evaluate(async (value) => {
     await new Promise((resolve, reject) => {
       const request = indexedDB.deleteDatabase("ccc_keystore");
       request.onsuccess = () => resolve();
@@ -133,7 +115,7 @@ try {
     const encrypted = await crypto.subtle.encrypt(
       { name: "AES-GCM", iv },
       key,
-      new TextEncoder().encode("legacy-secret-token"),
+      new TextEncoder().encode(value),
     );
     const combined = new Uint8Array(iv.length + encrypted.byteLength);
     combined.set(iv);
@@ -143,7 +125,47 @@ try {
     sessionStorage.setItem("ccc_encryption_key", JSON.stringify(
       await crypto.subtle.exportKey("jwk", key),
     ));
-  });
+  }, secret);
+}
+
+let browser;
+try {
+  await waitForPreview();
+  try {
+    browser = await chromium.launch();
+  } catch (error) {
+    const brave = "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser";
+    if (process.platform !== "darwin" || !String(error.message).includes("Executable doesn't exist")) {
+      throw error;
+    }
+    browser = await chromium.launch({ executablePath: brave });
+  }
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await preparePage(page);
+  await page.goto(origin, { waitUntil: "domcontentloaded" });
+
+  await saveThroughApp(page, "ff-secret-token-abc123");
+  const ciphertext = await page.evaluate(() => localStorage.getItem("ccc_api_key_flutterflow"));
+  if (!ciphertext || ciphertext.includes("ff-secret-token")) {
+    throw new Error("API key ciphertext was missing or exposed plaintext.");
+  }
+  await assertKeyIsProtected(page);
+  await assertReloadDecrypts(page);
+
+  // A second tab must not keep using the key deleted by the first tab.
+  const secondPage = await context.newPage();
+  await preparePage(secondPage);
+  await secondPage.goto(origin, { waitUntil: "domcontentloaded" });
+  await saveThroughApp(secondPage, "");
+  await secondPage.waitForTimeout(1100);
+  await page.evaluate(() => window.clearAllApiKeys());
+  await saveThroughApp(secondPage, "replacement-after-cross-tab-clear");
+  await assertReloadDecrypts(secondPage);
+  await secondPage.close();
+
+  // Verify migration of ciphertext written by the previous sessionStorage JWK.
+  await seedLegacyCredential(page, "legacy-secret-token");
   await assertReloadDecrypts(page);
   await assertKeyIsProtected(page);
 
@@ -170,6 +192,73 @@ try {
   if (cleared.ciphertext !== null || cleared.legacyKey !== null || clearedKey !== null) {
     throw new Error("Clear all API keys left credential material behind.");
   }
+
+  // A failed legacy migration must retain the JWK and keep ciphertext usable.
+  const migrationContext = await browser.newContext();
+  const migrationPage = await migrationContext.newPage();
+  await preparePage(migrationPage);
+  await migrationPage.goto(origin, { waitUntil: "domcontentloaded" });
+  await seedLegacyCredential(migrationPage, "legacy-write-failure-secret");
+  await migrationPage.addInitScript(() => {
+    IDBObjectStore.prototype.put = function put() {
+      throw new DOMException("Forced write failure", "QuotaExceededError");
+    };
+  });
+  await migrationPage.reload({ waitUntil: "domcontentloaded" });
+  await saveThroughApp(migrationPage, "");
+  const retainedLegacy = await migrationPage.evaluate(() => ({
+    key: sessionStorage.getItem("ccc_encryption_key"),
+    ciphertext: localStorage.getItem("ccc_api_key_flutterflow"),
+    status: document.querySelector("#flutterflow-key-status span")?.textContent?.trim(),
+  }));
+  if (!retainedLegacy.key || !retainedLegacy.ciphertext || retainedLegacy.status !== "User key configured") {
+    throw new Error(`Failed migration lost recoverable credentials: ${JSON.stringify(retainedLegacy)}`);
+  }
+  await migrationContext.close();
+
+  // IndexedDB failure falls back to tab-scoped storage without deleting an
+  // inaccessible durable credential.
+  const fallbackContext = await browser.newContext();
+  const fallbackPage = await fallbackContext.newPage();
+  await preparePage(fallbackPage);
+  await fallbackPage.addInitScript(() => {
+    Object.defineProperty(globalThis, "indexedDB", {
+      configurable: true,
+      value: {
+        open() {
+          const request = {};
+          queueMicrotask(() => {
+            request.error = new DOMException("Forced open failure", "InvalidStateError");
+            request.onerror?.();
+          });
+          return request;
+        },
+      },
+    });
+  });
+  await fallbackPage.goto(origin, { waitUntil: "domcontentloaded" });
+  await fallbackPage.evaluate(() => {
+    localStorage.setItem("ccc_api_key_flutterflow", "durable-ciphertext");
+  });
+  await fallbackPage.reload({ waitUntil: "domcontentloaded" });
+  await saveThroughApp(fallbackPage, "");
+  const preserved = await fallbackPage.evaluate(() =>
+    localStorage.getItem("ccc_api_key_flutterflow"),
+  );
+  if (preserved !== "durable-ciphertext") {
+    throw new Error("IndexedDB failure deleted an inaccessible durable credential.");
+  }
+  await saveThroughApp(fallbackPage, "session-only-secret");
+  await assertReloadDecrypts(fallbackPage);
+  const fallbackState = await fallbackPage.evaluate(() => ({
+    key: sessionStorage.getItem("ccc_encryption_key"),
+    credential: sessionStorage.getItem("ccc_session_api_key_flutterflow"),
+    warning: document.body.textContent.includes("Secure browser key storage is unavailable"),
+  }));
+  if (!fallbackState.key || !fallbackState.credential || !fallbackState.warning) {
+    throw new Error(`Session fallback was incomplete: ${JSON.stringify(fallbackState)}`);
+  }
+  await fallbackContext.close();
 
   console.log("Browser key storage checks passed.");
 } finally {

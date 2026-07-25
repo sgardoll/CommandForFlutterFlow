@@ -617,11 +617,62 @@ ${FF_TROUBLESHOOTING_CHECKLIST}`;
 
 // --- SECURE STORAGE (AES-256-GCM encryption) ---
 const STORAGE_KEY_PREFIX = "ccc_api_key_";
+const SESSION_STORAGE_KEY_PREFIX = "ccc_session_api_key_";
 const ENCRYPTION_KEY_NAME = "ccc_encryption_key";
+const SESSION_KEY_SCOPE_NAME = "ccc_encryption_key_scope";
 const KEY_DB_NAME = "ccc_keystore";
 const KEY_DB_STORE = "keys";
+const KEY_VERSION_NAME = "ccc_encryption_key_version";
 /** @type {Promise<CryptoKey> | null} */
 let encryptionKeyPromise = null;
+let cachedEncryptionKeyVersion = null;
+let usingSessionKeyFallback = false;
+let sessionFallbackSupportsDurableCredentials = false;
+let keyStorageWarningShown = false;
+
+class CredentialStorageUnavailableError extends Error {
+  constructor() {
+    super("Secure browser key storage is unavailable.");
+    this.name = "CredentialStorageUnavailableError";
+  }
+}
+
+function notifyKeyStorageFallback() {
+  if (keyStorageWarningShown) return;
+  keyStorageWarningShown = true;
+  const message =
+    "Secure browser key storage is unavailable. Existing credentials were left untouched; new credentials will be available only in this tab session.";
+  console.warn(message);
+  if (document.body) showToast(message, "warning");
+}
+
+function currentEncryptionKeyVersion() {
+  return localStorage.getItem(KEY_VERSION_NAME) || "";
+}
+
+function newEncryptionKeyVersion() {
+  return crypto.randomUUID?.()
+    || arrayBufferToBase64(crypto.getRandomValues(new Uint8Array(16)));
+}
+
+function ensureEncryptionKeyVersion() {
+  const current = currentEncryptionKeyVersion();
+  if (current) return current;
+  const created = newEncryptionKeyVersion();
+  localStorage.setItem(KEY_VERSION_NAME, created);
+  return created;
+}
+
+function invalidateEncryptionKeyCache() {
+  encryptionKeyPromise = null;
+  cachedEncryptionKeyVersion = null;
+  usingSessionKeyFallback = false;
+  sessionFallbackSupportsDurableCredentials = false;
+}
+
+window.addEventListener("storage", (event) => {
+  if (event.key === KEY_VERSION_NAME) invalidateEncryptionKeyCache();
+});
 
 // IndexedDB can persist a CryptoKey object without exposing its raw bytes.
 // This prevents an injected script from exporting the key for offline use.
@@ -652,7 +703,14 @@ async function runKeyDatabaseRequest(mode, operation) {
   const db = /** @type {IDBDatabase} */ (await openKeyDatabase());
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(KEY_DB_STORE, mode);
-    const request = operation(transaction.objectStore(KEY_DB_STORE));
+    let request;
+    try {
+      request = operation(transaction.objectStore(KEY_DB_STORE));
+    } catch (error) {
+      db.close();
+      reject(error);
+      return;
+    }
     let result;
 
     request.onsuccess = () => {
@@ -699,7 +757,7 @@ async function persistEncryptionKey(key) {
 }
 
 async function deleteStoredEncryptionKey() {
-  encryptionKeyPromise = null;
+  invalidateEncryptionKeyCache();
   try {
     await runKeyDatabaseRequest("readwrite", (store) =>
       store.delete(ENCRYPTION_KEY_NAME),
@@ -716,49 +774,116 @@ async function migrateLegacySessionKey() {
   const legacy = sessionStorage.getItem(ENCRYPTION_KEY_NAME);
   if (!legacy) return null;
 
-  try {
-    const key = await crypto.subtle.importKey(
+  const key = await crypto.subtle.importKey(
+    "jwk",
+    JSON.parse(legacy),
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"],
+  );
+  await persistEncryptionKey(key);
+
+  // The legacy JWK is the only recovery path until the IndexedDB write has
+  // committed successfully.
+  sessionStorage.removeItem(ENCRYPTION_KEY_NAME);
+  sessionStorage.removeItem(SESSION_KEY_SCOPE_NAME);
+  localStorage.removeItem(STORAGE_KEY_PREFIX + "salt");
+  return key;
+}
+
+/**
+ * @param {boolean} allowCreation
+ * @returns {Promise<CryptoKey>}
+ */
+async function resolveSessionEncryptionKey(allowCreation) {
+  const stored = sessionStorage.getItem(ENCRYPTION_KEY_NAME);
+  if (stored) {
+    sessionFallbackSupportsDurableCredentials =
+      sessionStorage.getItem(SESSION_KEY_SCOPE_NAME) !== "session";
+    return crypto.subtle.importKey(
       "jwk",
-      JSON.parse(legacy),
+      JSON.parse(stored),
+      { name: "AES-GCM", length: 256 },
+      false,
+      ["encrypt", "decrypt"],
+    );
+  }
+
+  if (!allowCreation) throw new CredentialStorageUnavailableError();
+
+  const exportableKey = await crypto.subtle.generateKey(
+    { name: "AES-GCM", length: 256 },
+    true,
+    ["encrypt", "decrypt"],
+  );
+  const jwk = await crypto.subtle.exportKey("jwk", exportableKey);
+  sessionStorage.setItem(ENCRYPTION_KEY_NAME, JSON.stringify(jwk));
+  sessionStorage.setItem(SESSION_KEY_SCOPE_NAME, "session");
+  sessionFallbackSupportsDurableCredentials = false;
+  return crypto.subtle.importKey(
+    "jwk",
+    jwk,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"],
+  );
+}
+
+/**
+ * @param {boolean} allowSessionFallbackCreation
+ * @returns {Promise<CryptoKey>}
+ */
+async function resolveEncryptionKey(allowSessionFallbackCreation) {
+  if (
+    sessionStorage.getItem(SESSION_KEY_SCOPE_NAME) === "session"
+    && sessionStorage.getItem(ENCRYPTION_KEY_NAME)
+  ) {
+    notifyKeyStorageFallback();
+    usingSessionKeyFallback = true;
+    return resolveSessionEncryptionKey(allowSessionFallbackCreation);
+  }
+
+  try {
+    const stored = await loadStoredEncryptionKey();
+    if (stored) return stored;
+
+    const migrated = await migrateLegacySessionKey();
+    if (migrated) return migrated;
+
+    const key = await crypto.subtle.generateKey(
       { name: "AES-GCM", length: 256 },
       false,
       ["encrypt", "decrypt"],
     );
     await persistEncryptionKey(key);
     return key;
-  } finally {
-    sessionStorage.removeItem(ENCRYPTION_KEY_NAME);
-    localStorage.removeItem(STORAGE_KEY_PREFIX + "salt");
+  } catch (error) {
+    console.warn("IndexedDB encryption-key storage failed:", error);
+    notifyKeyStorageFallback();
+    usingSessionKeyFallback = true;
+    return resolveSessionEncryptionKey(allowSessionFallbackCreation);
   }
 }
 
-/** @returns {Promise<CryptoKey>} */
-async function resolveEncryptionKey() {
-  const stored = await loadStoredEncryptionKey();
-  if (stored) return stored;
-
-  const migrated = await migrateLegacySessionKey();
-  if (migrated) return migrated;
-
-  const key = await crypto.subtle.generateKey(
-    { name: "AES-GCM", length: 256 },
-    false,
-    ["encrypt", "decrypt"],
-  );
-  await persistEncryptionKey(key);
-  return key;
-}
-
-/** @returns {Promise<CryptoKey>} */
-async function getEncryptionKey() {
+/**
+ * @param {{allowSessionFallbackCreation?: boolean}} [options]
+ * @returns {Promise<CryptoKey>}
+ */
+async function getEncryptionKey(options = {}) {
+  const { allowSessionFallbackCreation = true } = options;
+  const version = ensureEncryptionKeyVersion();
+  if (cachedEncryptionKeyVersion !== version) {
+    invalidateEncryptionKeyCache();
+  }
   const pending = /** @type {Promise<CryptoKey>} */ (
-    encryptionKeyPromise || resolveEncryptionKey()
+    encryptionKeyPromise || resolveEncryptionKey(allowSessionFallbackCreation)
   );
   encryptionKeyPromise = pending;
+  cachedEncryptionKeyVersion = version;
   try {
     return await pending;
   } catch (error) {
-    encryptionKeyPromise = null;
+    invalidateEncryptionKeyCache();
     throw error;
   }
 }
@@ -766,6 +891,7 @@ async function getEncryptionKey() {
 // Encrypt data using AES-256-GCM
 async function encryptData(plaintext) {
   const key = /** @type {CryptoKey} */ (await getEncryptionKey());
+  const keyVersion = cachedEncryptionKeyVersion;
   const encoder = new TextEncoder();
   const iv = crypto.getRandomValues(new Uint8Array(12));
 
@@ -780,13 +906,27 @@ async function encryptData(plaintext) {
   combined.set(iv);
   combined.set(new Uint8Array(encrypted), iv.length);
 
-  return arrayBufferToBase64(combined);
+  return {
+    ciphertext: arrayBufferToBase64(combined),
+    keyVersion,
+    sessionFallback: usingSessionKeyFallback,
+  };
 }
 
 // Decrypt data using AES-256-GCM
-async function decryptData(encryptedBase64) {
+async function decryptData(encryptedBase64, options = {}) {
+  const { isSessionCredential = false } = options;
   try {
-    const key = /** @type {CryptoKey} */ (await getEncryptionKey());
+    const key = /** @type {CryptoKey} */ (await getEncryptionKey({
+      allowSessionFallbackCreation: false,
+    }));
+    if (
+      usingSessionKeyFallback
+      && !isSessionCredential
+      && !sessionFallbackSupportsDurableCredentials
+    ) {
+      throw new CredentialStorageUnavailableError();
+    }
     const combined = base64ToArrayBuffer(encryptedBase64);
 
     const iv = combined.slice(0, 12);
@@ -801,6 +941,7 @@ async function decryptData(encryptedBase64) {
     const decoder = new TextDecoder();
     return decoder.decode(decrypted);
   } catch (error) {
+    if (error instanceof CredentialStorageUnavailableError) throw error;
     console.error("Decryption failed:", error);
     return null;
   }
@@ -830,22 +971,54 @@ function base64ToArrayBuffer(base64) {
 async function saveApiKey(provider, apiKey) {
   if (!apiKey || apiKey.trim() === "") {
     localStorage.removeItem(STORAGE_KEY_PREFIX + provider);
+    sessionStorage.removeItem(SESSION_STORAGE_KEY_PREFIX + provider);
     return;
   }
 
-  const encrypted = await encryptData(apiKey.trim());
-  localStorage.setItem(STORAGE_KEY_PREFIX + provider, encrypted);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const encrypted = await encryptData(apiKey.trim());
+    if (encrypted.keyVersion === currentEncryptionKeyVersion()) {
+      const storage = encrypted.sessionFallback ? sessionStorage : localStorage;
+      const prefix = encrypted.sessionFallback
+        ? SESSION_STORAGE_KEY_PREFIX
+        : STORAGE_KEY_PREFIX;
+      storage.setItem(prefix + provider, encrypted.ciphertext);
+      if (!encrypted.sessionFallback) {
+        sessionStorage.removeItem(SESSION_STORAGE_KEY_PREFIX + provider);
+      }
+      return;
+    }
+    invalidateEncryptionKeyCache();
+  }
+
+  throw new Error("Encryption key changed while saving. Please try again.");
 }
 
 async function getApiKey(provider) {
   // Only check user-stored key - no environment fallback
-  const encrypted = localStorage.getItem(STORAGE_KEY_PREFIX + provider);
+  const sessionEncrypted = sessionStorage.getItem(
+    SESSION_STORAGE_KEY_PREFIX + provider,
+  );
+  const encrypted = sessionEncrypted
+    || localStorage.getItem(STORAGE_KEY_PREFIX + provider);
   if (encrypted) {
-    const decrypted = await decryptData(encrypted);
+    let decrypted;
+    try {
+      decrypted = await decryptData(encrypted, {
+        isSessionCredential: Boolean(sessionEncrypted),
+      });
+    } catch (error) {
+      if (error instanceof CredentialStorageUnavailableError) return "";
+      throw error;
+    }
     if (decrypted) return decrypted;
 
     // If decryption failed, clean up the stale encrypted data
-    localStorage.removeItem(STORAGE_KEY_PREFIX + provider);
+    const storage = sessionEncrypted ? sessionStorage : localStorage;
+    const prefix = sessionEncrypted
+      ? SESSION_STORAGE_KEY_PREFIX
+      : STORAGE_KEY_PREFIX;
+    storage.removeItem(prefix + provider);
   }
 
   // Return empty string if no user key is configured
@@ -1157,11 +1330,23 @@ async function saveApiKeys() {
 async function clearAllApiKeys() {
   if (!confirm("Are you sure you want to clear all stored API keys?")) return;
 
+  // Rotate before and after deletion. Other tabs cannot continue treating a
+  // cached key as current, and any save that raced with the clear is removed.
+  localStorage.setItem(KEY_VERSION_NAME, newEncryptionKeyVersion());
+  invalidateEncryptionKeyCache();
   localStorage.removeItem(STORAGE_KEY_PREFIX + "flutterflow");
   localStorage.removeItem(STORAGE_KEY_PREFIX + "flutterflow_project_id");
+  sessionStorage.removeItem(SESSION_STORAGE_KEY_PREFIX + "flutterflow");
+  sessionStorage.removeItem(SESSION_STORAGE_KEY_PREFIX + "flutterflow_project_id");
   sessionStorage.removeItem(ENCRYPTION_KEY_NAME);
+  sessionStorage.removeItem(SESSION_KEY_SCOPE_NAME);
   localStorage.removeItem(STORAGE_KEY_PREFIX + "salt");
   await deleteStoredEncryptionKey();
+  localStorage.setItem(KEY_VERSION_NAME, newEncryptionKeyVersion());
+  localStorage.removeItem(STORAGE_KEY_PREFIX + "flutterflow");
+  localStorage.removeItem(STORAGE_KEY_PREFIX + "flutterflow_project_id");
+  sessionStorage.removeItem(SESSION_STORAGE_KEY_PREFIX + "flutterflow");
+  sessionStorage.removeItem(SESSION_STORAGE_KEY_PREFIX + "flutterflow_project_id");
 
   // Reinitialize keys
   await initializeApiKeys();
