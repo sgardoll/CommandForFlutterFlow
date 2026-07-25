@@ -17,9 +17,25 @@ import {
   mergeDependenciesIntoYaml,
   validateProjectPubspec,
 } from "./src/pubspecSync.js";
+import { escapeAttr, escapeHtml, escapeHtmlText } from "./src/htmlEscape.js";
+import {
+  extractCodeFromMarkdown,
+  highlightCode,
+  renderMarkdownAudit,
+} from "./src/auditRenderer.js";
+import {
+  buildSnapshotCommitMessage,
+  deriveSnapshotEndpoint,
+  evaluateSnapshotOutcome,
+} from "./src/preDeployBackup.js";
 
 // --- CONFIGURATION ---
 const IS_DEV = import.meta.env.DEV
+// FlutterFlow AI DSL runner. Used for the pre-deploy backup commit: the
+// custom-code sync API carries no commit message, so it leaves no restore
+// point, while the DSL CLI does.
+const FLUTTERFLOW_DSL_DEPLOY_ENDPOINT =
+  import.meta.env.VITE_FLUTTERFLOW_DSL_DEPLOY_ENDPOINT || "";
 
 // --- ANALYTICS ---
 const POSTHOG_KEY = import.meta.env.VITE_PUBLIC_POSTHOG_KEY;
@@ -1877,6 +1893,66 @@ function getFileNameFromPath(filePath) {
   return filePath.split("/").pop();
 }
 
+// --- PRE-DEPLOY BACKUP ---
+
+/**
+ * Asks the DSL runner to record a commit of the project's current state, then
+ * decides whether the deploy may continue.
+ *
+ * Called before every push. A push through syncCustomCodeChanges leaves no
+ * restore point of its own, so this is the project's rollback path if a deploy
+ * turns out badly.
+ *
+ * @param {Object} params
+ * @param {string} params.apiKey - FlutterFlow API key
+ * @param {string} params.projectId - Target project
+ * @param {string} [params.label] - What is being deployed, for the message
+ * @returns {Promise<{proceed: boolean, severity: string, message: string}>}
+ */
+async function createPreDeployBackup({ apiKey, projectId, label }) {
+  const endpoint = deriveSnapshotEndpoint(FLUTTERFLOW_DSL_DEPLOY_ENDPOINT);
+  if (!endpoint) {
+    return evaluateSnapshotOutcome({ configured: false });
+  }
+
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        apiKey,
+        projectId,
+        baseUrl: getFlutterFlowEndpoint(),
+        commitMessage: buildSnapshotCommitMessage(label),
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok || data.success === false) {
+      return evaluateSnapshotOutcome({
+        configured: true,
+        ok: false,
+        error: data.details || data.error || `HTTP ${response.status}`,
+      });
+    }
+
+    // The runner returns what the CLI actually did rather than assuming a
+    // commit was made; log it so the undocumented behaviour is observable.
+    console.log("Pre-deploy backup:", data.committed ? "commit recorded" : "no commit recorded", data.output || "");
+    return evaluateSnapshotOutcome({
+      configured: true,
+      ok: true,
+      committed: data.committed === true,
+    });
+  } catch (error) {
+    return evaluateSnapshotOutcome({
+      configured: true,
+      ok: false,
+      error: error.message,
+    });
+  }
+}
+
 // --- PUBSPEC.YAML UTILITIES ---
 
 // The project's own pubspec.yaml, cached per project for the session. Fetching
@@ -2608,6 +2684,16 @@ async function commitToFlutterFlow(dartCode, fileName, options = {}) {
     commitState.setState(CommitState.PUSHING);
     commitState.setProgress(1, fileMap.size);
 
+    // Failsafe: record a restore point before overwriting anything. A push
+    // through syncCustomCodeChanges leaves no commit of its own.
+    const backup = await createPreDeployBackup({
+      apiKey,
+      projectId,
+      label: fileName,
+    });
+    if (!backup.proceed) throw new Error(backup.message);
+    if (backup.severity !== "ok") console.warn(backup.message);
+
     // FlutterFlow may apply a push whose response we never successfully read, so
     // once a dependency-changing push is in flight the cached manifest can no
     // longer be trusted. Drop it now rather than on success: merging a later
@@ -2772,6 +2858,16 @@ async function executeCommit(code, options = {}) {
 
     commitState.setProgress(1, fileMap.size);
 
+    // Failsafe: record a restore point before overwriting anything. A push
+    // through syncCustomCodeChanges leaves no commit of its own.
+    const backup = await createPreDeployBackup({
+      apiKey,
+      projectId,
+      label: codeInfo.fileName,
+    });
+    if (!backup.proceed) throw new Error(backup.message);
+    if (backup.severity !== "ok") console.warn(backup.message);
+
     // FlutterFlow may apply a push whose response we never successfully read, so
     // once a dependency-changing push is in flight the cached manifest can no
     // longer be trusted. Drop it now rather than on success: merging a later
@@ -2910,6 +3006,16 @@ async function executeBundleCommit(bundlePlan, options = {}) {
     };
 
     commitState.setProgress(1, fileMap.size);
+    // Failsafe: record a restore point before overwriting anything. A push
+    // through syncCustomCodeChanges leaves no commit of its own.
+    const backup = await createPreDeployBackup({
+      apiKey,
+      projectId,
+      label: bundlePlan.title,
+    });
+    if (!backup.proceed) throw new Error(backup.message);
+    if (backup.severity !== "ok") console.warn(backup.message);
+
     // FlutterFlow may apply a push whose response we never successfully read, so
     // once a dependency-changing push is in flight the cached manifest can no
     // longer be trusted. Drop it now rather than on success: merging a later
@@ -3012,205 +3118,6 @@ async function runCodeReview(code, architectOutput = null) {
 }
 
 // --- MARKDOWN RENDERING ---
-
-function renderMarkdownAudit(markdown) {
-  // Parse markdown and convert to rich HTML
-  let html = `<div class="audit-report space-y-4">`;
-
-  // Split by lines and process
-  const lines = markdown.split("\n");
-  let currentSection = "";
-  let inCodeBlock = false;
-  let codeBlockContent = "";
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-
-    // Handle code blocks
-    if (line.startsWith("```")) {
-      if (inCodeBlock) {
-        const language = detectLanguage(codeBlockContent);
-        const highlightedCode = highlightCode(
-          codeBlockContent.trim(),
-          language,
-        );
-        html += `<div class="bg-gray-900 rounded-lg p-3 border border-gray-200">
-          <pre class="text-xs font-mono overflow-x-auto text-gray-100"><code class="language-${language}">${highlightedCode}</code></pre>
-        </div>`;
-        codeBlockContent = "";
-        inCodeBlock = false;
-      } else {
-        inCodeBlock = true;
-      }
-      continue;
-    }
-
-    if (inCodeBlock) {
-      codeBlockContent += line + "\n";
-      continue;
-    }
-
-    // Handle headers
-    if (line.startsWith("# ")) {
-      const title = line.substring(2).trim();
-      const icon = getSectionIcon(title);
-      html += `<div class="audit-header mb-4">
-        <h2 class="text-xl font-bold text-gray-900 flex items-center gap-2">
-          <span>${icon}</span>
-          <span>${title}</span>
-        </h2>
-      </div>`;
-      continue;
-    }
-
-    if (line.startsWith("## ")) {
-      const title = line.substring(3).trim();
-      const icon = getSubsectionIcon(title);
-      html += `<div class="audit-subsection mb-3 mt-4">
-        <h3 class="text-lg font-semibold text-gray-800 flex items-center gap-2">
-          <span>${icon}</span>
-          <span>${title}</span>
-        </h3>
-      </div>`;
-      continue;
-    }
-
-    // Handle lists
-    if (line.match(/^[-*+]\s+/)) {
-      const item = line.replace(/^[-*+]\s+/, "").trim();
-      html += `<div class="audit-list-item flex items-start gap-2 mb-2">
-        <span class="text-blue-600 mt-1">•</span>
-        <span class="text-gray-700 text-sm">${processInlineFormatting(item)}</span>
-      </div>`;
-      continue;
-    }
-
-    // Handle numbered lists
-    if (line.match(/^\d+\.\s+/)) {
-      const item = line.replace(/^\d+\.\s+/, "").trim();
-      html += `<div class="audit-list-item flex items-start gap-2 mb-2">
-        <span class="text-blue-600 mt-1">•</span>
-        <span class="text-gray-700 text-sm">${processInlineFormatting(item)}</span>
-      </div>`;
-      continue;
-    }
-
-    // Handle empty lines
-    if (line.trim() === "") {
-      continue;
-    }
-
-    // Handle regular paragraphs
-    html += `<p class="text-gray-700 text-sm mb-2">${processInlineFormatting(line)}</p>`;
-  }
-
-  html += `</div>`;
-
-  // Wrap in styled container
-  return `
-    <div class="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-      <div class="flex items-center gap-2 mb-4 pb-4 border-b border-gray-100">
-        <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-        <span class="text-xs font-bold text-green-600 uppercase tracking-wider">Live Audit Report</span>
-      </div>
-      ${html}
-    </div>
-  `;
-}
-
-function getSectionIcon(title) {
-  const icons = {
-    "Integration Audit Report": "📋",
-    "Critical Issues": "❌",
-    Warnings: "⚠️",
-    Recommendations: "✅",
-    "Overall Score": "📊",
-  };
-
-  for (const [key, icon] of Object.entries(icons)) {
-    if (title.toLowerCase().includes(key.toLowerCase())) {
-      return icon;
-    }
-  }
-  return "📄";
-}
-
-function getSubsectionIcon(title) {
-  const icons = {
-    critical: "❌",
-    warning: "⚠️",
-    recommendation: "✅",
-    score: "📊",
-    issue: "🔍",
-    fix: "🔧",
-  };
-
-  for (const [key, icon] of Object.entries(icons)) {
-    if (title.toLowerCase().includes(key.toLowerCase())) {
-      return icon;
-    }
-  }
-  return "📝";
-}
-
-function detectLanguage(code) {
-  // Simple language detection based on code content
-  if (
-    (code.includes("class ") && code.includes("extends ")) ||
-    code.includes("StatelessWidget") ||
-    code.includes("StatefulWidget") ||
-    code.includes("import 'package:flutter/")
-  ) {
-    return "dart";
-  }
-  if (
-    code.includes("def ") ||
-    code.includes("import ") ||
-    code.includes("print(")
-  ) {
-    return "python";
-  }
-  if (
-    code.includes("function ") ||
-    code.includes("const ") ||
-    code.includes("console.")
-  ) {
-    return "javascript";
-  }
-  return "dart"; // Default to dart for this use case
-}
-
-function processInlineFormatting(text) {
-  // Bold text **text**
-  text = text.replace(
-    /\*\*(.*?)\*\*/g,
-    '<strong class="text-gray-900 font-semibold">$1</strong>',
-  );
-
-  // Italic text *text*
-  text = text.replace(/\*(.*?)\*/g, '<em class="text-blue-600">$1</em>');
-
-  // Inline code `code`
-  text = text.replace(/`(.*?)`/g, (match, code) => {
-    return `<code class="bg-gray-100 text-gray-800 px-1.5 py-0.5 rounded text-xs font-mono border border-gray-200">${code}</code>`;
-  });
-
-  // Highlight important terms
-  text = text.replace(
-    /\b(FAIL|ERROR|CRITICAL)\b/g,
-    '<span class="text-red-600 font-bold">$1</span>',
-  );
-  text = text.replace(
-    /\b(WARN|WARNING)\b/g,
-    '<span class="text-amber-600 font-bold">$1</span>',
-  );
-  text = text.replace(
-    /\b(PASS|SUCCESS|OK)\b/g,
-    '<span class="text-green-600 font-bold">$1</span>',
-  );
-
-  return text;
-}
 
 // --- UI FUNCTIONS ---
 
@@ -4054,22 +3961,6 @@ async function regenerateWithErrors(originalError, errorMap) {
   }
 }
 
-function escapeHtml(text) {
-  if (!text) return "";
-  const div = document.createElement("div");
-  div.textContent = text;
-  return div.innerHTML.replace(/\n/g, "<br>");
-}
-
-function escapeAttr(text) {
-  return String(text ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/\r?\n/g, " ");
-}
 
 /**
  * Updates the FlutterFlow credential status indicator in Step 3.
@@ -4101,37 +3992,6 @@ async function updateFlutterFlowCredentialStatus() {
 // --- SYNTAX HIGHLIGHTING ---
 
 // Extract code from markdown code blocks (strips ```dart ... ```)
-function extractCodeFromMarkdown(text) {
-  if (!text) return ''
-  if (typeof text !== 'string') return String(text)
-
-  // Match ```language\n...code...\n``` pattern
-  const codeBlockRegex = /```(?:\w+)?\n?([\s\S]*?)```/;
-  const match = text.match(codeBlockRegex);
-
-  if (match) {
-    return match[1].trim();
-  }
-
-  // If no code block found, return original text trimmed
-  return text.trim();
-}
-
-function highlightCode(code, language = "dart") {
-  if (!code) return ""
-  try {
-    const cleanCode = extractCodeFromMarkdown(code)
-    return hljs.highlight(cleanCode, { language }).value
-  } catch (error) {
-    console.warn("Syntax highlighting failed:", error)
-    try {
-      return hljs.highlight(extractCodeFromMarkdown(code), { language: 'json' }).value
-    } catch {
-      return extractCodeFromMarkdown(code) || ""
-    }
-  }
-}
-
 // --- AUTH FUNCTIONS ---
 
 async function sendMagicLink(email) {
@@ -5105,7 +4965,7 @@ function openCommitConfirmModal(codeInfo, checks, deps, bundlePlan = null) {
   const depsSection = document.getElementById("confirm-deps-section");
   if (deps && Object.keys(deps).length > 0) {
     depsList.innerHTML = Object.entries(deps)
-      .map(([name, version]) => `<li>• ${name}: ${version}</li>`)
+      .map(([name, version]) => `<li>• ${escapeHtmlText(name)}: ${escapeHtmlText(version)}</li>`)
       .join("");
     depsSection.classList.remove("hidden");
   } else {
@@ -5116,7 +4976,7 @@ function openCommitConfirmModal(codeInfo, checks, deps, bundlePlan = null) {
   const warningsSection = document.getElementById("confirm-warnings-section");
   if (checks.warnings && checks.warnings.length > 0) {
     warningsList.innerHTML = checks.warnings
-      .map((w) => `<li>• ${w}</li>`)
+      .map((w) => `<li>• ${escapeHtmlText(w)}</li>`)
       .join("");
     warningsSection.classList.remove("hidden");
   } else {
@@ -5648,7 +5508,7 @@ function updateSelectedArtifactPanels(fallbackAuditContent = "") {
     // highlightCode returns hljs-processed HTML which is safe (generated by highlight.js)
     codeOutput.innerHTML = highlighted; // eslint-disable-line -- highlight.js output
   }
-  // Audit panel uses renderMarkdownAudit (existing sanitized renderer)
+  // renderMarkdownAudit escapes the model output before adding its own markup.
   if (auditOutput) {
     auditOutput.innerHTML = renderSelectedArtifactReview(fallbackAuditContent); // eslint-disable-line -- renderMarkdownAudit output
   }
