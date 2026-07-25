@@ -17,6 +17,12 @@ import {
   mergeDependenciesIntoYaml,
   validateProjectPubspec,
 } from "./src/pubspecSync.js";
+import { escapeAttr, escapeHtml, escapeHtmlText } from "./src/htmlEscape.js";
+import {
+  extractCodeFromMarkdown,
+  highlightCode,
+  renderMarkdownAudit,
+} from "./src/auditRenderer.js";
 
 // --- CONFIGURATION ---
 const IS_DEV = import.meta.env.DEV
@@ -3013,205 +3019,6 @@ async function runCodeReview(code, architectOutput = null) {
 
 // --- MARKDOWN RENDERING ---
 
-function renderMarkdownAudit(markdown) {
-  // Parse markdown and convert to rich HTML
-  let html = `<div class="audit-report space-y-4">`;
-
-  // Split by lines and process
-  const lines = markdown.split("\n");
-  let currentSection = "";
-  let inCodeBlock = false;
-  let codeBlockContent = "";
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-
-    // Handle code blocks
-    if (line.startsWith("```")) {
-      if (inCodeBlock) {
-        const language = detectLanguage(codeBlockContent);
-        const highlightedCode = highlightCode(
-          codeBlockContent.trim(),
-          language,
-        );
-        html += `<div class="bg-gray-900 rounded-lg p-3 border border-gray-200">
-          <pre class="text-xs font-mono overflow-x-auto text-gray-100"><code class="language-${language}">${highlightedCode}</code></pre>
-        </div>`;
-        codeBlockContent = "";
-        inCodeBlock = false;
-      } else {
-        inCodeBlock = true;
-      }
-      continue;
-    }
-
-    if (inCodeBlock) {
-      codeBlockContent += line + "\n";
-      continue;
-    }
-
-    // Handle headers
-    if (line.startsWith("# ")) {
-      const title = line.substring(2).trim();
-      const icon = getSectionIcon(title);
-      html += `<div class="audit-header mb-4">
-        <h2 class="text-xl font-bold text-gray-900 flex items-center gap-2">
-          <span>${icon}</span>
-          <span>${title}</span>
-        </h2>
-      </div>`;
-      continue;
-    }
-
-    if (line.startsWith("## ")) {
-      const title = line.substring(3).trim();
-      const icon = getSubsectionIcon(title);
-      html += `<div class="audit-subsection mb-3 mt-4">
-        <h3 class="text-lg font-semibold text-gray-800 flex items-center gap-2">
-          <span>${icon}</span>
-          <span>${title}</span>
-        </h3>
-      </div>`;
-      continue;
-    }
-
-    // Handle lists
-    if (line.match(/^[-*+]\s+/)) {
-      const item = line.replace(/^[-*+]\s+/, "").trim();
-      html += `<div class="audit-list-item flex items-start gap-2 mb-2">
-        <span class="text-blue-600 mt-1">•</span>
-        <span class="text-gray-700 text-sm">${processInlineFormatting(item)}</span>
-      </div>`;
-      continue;
-    }
-
-    // Handle numbered lists
-    if (line.match(/^\d+\.\s+/)) {
-      const item = line.replace(/^\d+\.\s+/, "").trim();
-      html += `<div class="audit-list-item flex items-start gap-2 mb-2">
-        <span class="text-blue-600 mt-1">•</span>
-        <span class="text-gray-700 text-sm">${processInlineFormatting(item)}</span>
-      </div>`;
-      continue;
-    }
-
-    // Handle empty lines
-    if (line.trim() === "") {
-      continue;
-    }
-
-    // Handle regular paragraphs
-    html += `<p class="text-gray-700 text-sm mb-2">${processInlineFormatting(line)}</p>`;
-  }
-
-  html += `</div>`;
-
-  // Wrap in styled container
-  return `
-    <div class="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-      <div class="flex items-center gap-2 mb-4 pb-4 border-b border-gray-100">
-        <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-        <span class="text-xs font-bold text-green-600 uppercase tracking-wider">Live Audit Report</span>
-      </div>
-      ${html}
-    </div>
-  `;
-}
-
-function getSectionIcon(title) {
-  const icons = {
-    "Integration Audit Report": "📋",
-    "Critical Issues": "❌",
-    Warnings: "⚠️",
-    Recommendations: "✅",
-    "Overall Score": "📊",
-  };
-
-  for (const [key, icon] of Object.entries(icons)) {
-    if (title.toLowerCase().includes(key.toLowerCase())) {
-      return icon;
-    }
-  }
-  return "📄";
-}
-
-function getSubsectionIcon(title) {
-  const icons = {
-    critical: "❌",
-    warning: "⚠️",
-    recommendation: "✅",
-    score: "📊",
-    issue: "🔍",
-    fix: "🔧",
-  };
-
-  for (const [key, icon] of Object.entries(icons)) {
-    if (title.toLowerCase().includes(key.toLowerCase())) {
-      return icon;
-    }
-  }
-  return "📝";
-}
-
-function detectLanguage(code) {
-  // Simple language detection based on code content
-  if (
-    (code.includes("class ") && code.includes("extends ")) ||
-    code.includes("StatelessWidget") ||
-    code.includes("StatefulWidget") ||
-    code.includes("import 'package:flutter/")
-  ) {
-    return "dart";
-  }
-  if (
-    code.includes("def ") ||
-    code.includes("import ") ||
-    code.includes("print(")
-  ) {
-    return "python";
-  }
-  if (
-    code.includes("function ") ||
-    code.includes("const ") ||
-    code.includes("console.")
-  ) {
-    return "javascript";
-  }
-  return "dart"; // Default to dart for this use case
-}
-
-function processInlineFormatting(text) {
-  // Bold text **text**
-  text = text.replace(
-    /\*\*(.*?)\*\*/g,
-    '<strong class="text-gray-900 font-semibold">$1</strong>',
-  );
-
-  // Italic text *text*
-  text = text.replace(/\*(.*?)\*/g, '<em class="text-blue-600">$1</em>');
-
-  // Inline code `code`
-  text = text.replace(/`(.*?)`/g, (match, code) => {
-    return `<code class="bg-gray-100 text-gray-800 px-1.5 py-0.5 rounded text-xs font-mono border border-gray-200">${code}</code>`;
-  });
-
-  // Highlight important terms
-  text = text.replace(
-    /\b(FAIL|ERROR|CRITICAL)\b/g,
-    '<span class="text-red-600 font-bold">$1</span>',
-  );
-  text = text.replace(
-    /\b(WARN|WARNING)\b/g,
-    '<span class="text-amber-600 font-bold">$1</span>',
-  );
-  text = text.replace(
-    /\b(PASS|SUCCESS|OK)\b/g,
-    '<span class="text-green-600 font-bold">$1</span>',
-  );
-
-  return text;
-}
-
 // --- UI FUNCTIONS ---
 
 function updateStepIndicator(step, status) {
@@ -4054,22 +3861,6 @@ async function regenerateWithErrors(originalError, errorMap) {
   }
 }
 
-function escapeHtml(text) {
-  if (!text) return "";
-  const div = document.createElement("div");
-  div.textContent = text;
-  return div.innerHTML.replace(/\n/g, "<br>");
-}
-
-function escapeAttr(text) {
-  return String(text ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/\r?\n/g, " ");
-}
 
 /**
  * Updates the FlutterFlow credential status indicator in Step 3.
@@ -4101,37 +3892,6 @@ async function updateFlutterFlowCredentialStatus() {
 // --- SYNTAX HIGHLIGHTING ---
 
 // Extract code from markdown code blocks (strips ```dart ... ```)
-function extractCodeFromMarkdown(text) {
-  if (!text) return ''
-  if (typeof text !== 'string') return String(text)
-
-  // Match ```language\n...code...\n``` pattern
-  const codeBlockRegex = /```(?:\w+)?\n?([\s\S]*?)```/;
-  const match = text.match(codeBlockRegex);
-
-  if (match) {
-    return match[1].trim();
-  }
-
-  // If no code block found, return original text trimmed
-  return text.trim();
-}
-
-function highlightCode(code, language = "dart") {
-  if (!code) return ""
-  try {
-    const cleanCode = extractCodeFromMarkdown(code)
-    return hljs.highlight(cleanCode, { language }).value
-  } catch (error) {
-    console.warn("Syntax highlighting failed:", error)
-    try {
-      return hljs.highlight(extractCodeFromMarkdown(code), { language: 'json' }).value
-    } catch {
-      return extractCodeFromMarkdown(code) || ""
-    }
-  }
-}
-
 // --- AUTH FUNCTIONS ---
 
 async function sendMagicLink(email) {
@@ -5105,7 +4865,7 @@ function openCommitConfirmModal(codeInfo, checks, deps, bundlePlan = null) {
   const depsSection = document.getElementById("confirm-deps-section");
   if (deps && Object.keys(deps).length > 0) {
     depsList.innerHTML = Object.entries(deps)
-      .map(([name, version]) => `<li>• ${name}: ${version}</li>`)
+      .map(([name, version]) => `<li>• ${escapeHtmlText(name)}: ${escapeHtmlText(version)}</li>`)
       .join("");
     depsSection.classList.remove("hidden");
   } else {
@@ -5116,7 +4876,7 @@ function openCommitConfirmModal(codeInfo, checks, deps, bundlePlan = null) {
   const warningsSection = document.getElementById("confirm-warnings-section");
   if (checks.warnings && checks.warnings.length > 0) {
     warningsList.innerHTML = checks.warnings
-      .map((w) => `<li>• ${w}</li>`)
+      .map((w) => `<li>• ${escapeHtmlText(w)}</li>`)
       .join("");
     warningsSection.classList.remove("hidden");
   } else {
@@ -5648,7 +5408,7 @@ function updateSelectedArtifactPanels(fallbackAuditContent = "") {
     // highlightCode returns hljs-processed HTML which is safe (generated by highlight.js)
     codeOutput.innerHTML = highlighted; // eslint-disable-line -- highlight.js output
   }
-  // Audit panel uses renderMarkdownAudit (existing sanitized renderer)
+  // renderMarkdownAudit escapes the model output before adding its own markup.
   if (auditOutput) {
     auditOutput.innerHTML = renderSelectedArtifactReview(fallbackAuditContent); // eslint-disable-line -- renderMarkdownAudit output
   }
