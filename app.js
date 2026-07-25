@@ -13,11 +13,13 @@ import {
 } from "./src/pipelineContracts.js";
 import { validateBundleCompatibility } from "./src/flutterFlowArtifactValidation.js";
 import { buildBundleDeployPlan } from "./src/bundleDeployPlanner.js";
+import {
+  mergeDependenciesIntoYaml,
+  validateProjectPubspec,
+} from "./src/pubspecSync.js";
 
 // --- CONFIGURATION ---
 const IS_DEV = import.meta.env.DEV
-const FLUTTERFLOW_DSL_DEPLOY_ENDPOINT =
-  import.meta.env.VITE_FLUTTERFLOW_DSL_DEPLOY_ENDPOINT || "";
 
 // --- ANALYTICS ---
 const POSTHOG_KEY = import.meta.env.VITE_PUBLIC_POSTHOG_KEY;
@@ -38,56 +40,6 @@ function trackEvent(eventName, properties = {}) {
       console.error("PostHog tracking failed", e);
     }
   }
-}
-
-function deriveCustomClassName({ artifactName, fileName, content }) {
-  const classMatch = String(content || "").match(/\bclass\s+([A-Z][A-Za-z0-9_]*)\b/);
-  if (classMatch) return classMatch[1];
-  return String(artifactName || fileName || "GeneratedClass")
-    .replace(/\.dart$/, "")
-    .trim();
-}
-
-function getFlutterFlowDslDeployEndpoint() {
-  return FLUTTERFLOW_DSL_DEPLOY_ENDPOINT;
-}
-
-async function deployCustomClassesWithDsl({
-  apiKey,
-  projectId,
-  customClasses,
-  commitMessage,
-}) {
-  if (!Array.isArray(customClasses) || customClasses.length === 0) {
-    return {
-      success: true,
-      deployed: [],
-    };
-  }
-
-  if (!getFlutterFlowDslDeployEndpoint()) {
-    throw new Error("FlutterFlow DSL deploy endpoint is not configured. Deploy the Cloud Run runner and set VITE_FLUTTERFLOW_DSL_DEPLOY_ENDPOINT.");
-  }
-
-  const response = await fetch(getFlutterFlowDslDeployEndpoint(), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      apiKey,
-      projectId,
-      baseUrl: getFlutterFlowEndpoint(),
-      commitMessage,
-      customClasses,
-    }),
-  });
-  const data = await response.json().catch(() => ({}));
-
-  if (!response.ok || data.success === false) {
-    const details = data.details ? ` ${data.details}` : "";
-    throw new Error(`${data.error || "FlutterFlow AI DSL deploy failed."}${details}`);
-  }
-
-  return data;
 }
 
 // --- AUTH / SUBSCRIPTION CONFIG ---
@@ -146,20 +98,40 @@ const SUBSCRIPTION_CACHE_KEY = 'ccc_subscription'
 const SUBSCRIPTION_CACHE_VERSION = 3
 const PAID_SUBSCRIPTION_STATUSES = new Set(['active', 'trialing', 'paid'])
 
-const FREE_MODEL = 'google/gemini-3.5-flash'
+const FREE_MODEL = 'google/gemini-3.6-flash'
 const PRO_MODELS = [
-  'anthropic/claude-4.6-opus',
-  'openai/gpt-5.3-codex',
+  'anthropic/claude-opus-5',
+  'openai/gpt-5.6-sol',
+  'z-ai/glm-5.2',
+  'moonshotai/kimi-k3',
   'openrouter/auto',
   'openrouter/free',
   'openrouter/deepseek/deepseek-v4-pro',
 ]
+
+// Display names for every selectable model. Keep in sync with the
+// #code-generator-model options in index.html.
+const MODEL_LABELS = {
+  'google/gemini-3.6-flash': 'Gemini 3.6 Flash',
+  'anthropic/claude-opus-5': 'Claude Opus 5',
+  'openai/gpt-5.6-sol': 'GPT-5.6 Sol',
+  'z-ai/glm-5.2': 'GLM 5.2',
+  'moonshotai/kimi-k3': 'Kimi K3',
+  'openrouter/auto': 'OpenRouter: Auto Router',
+  'openrouter/free': 'OpenRouter: Free Models',
+  'openrouter/deepseek/deepseek-v4-pro': 'DeepSeek v4 Pro',
+}
+
+function getModelLabel(model) {
+  return MODEL_LABELS[model] || model
+}
+
 const USAGE_STORAGE_KEY = 'ccc_usage'
 
 // Model Configuration
-const PROMPT_ARCHITECT_MODEL = "google/gemini-3.5-flash"
-const CODE_REVIEW_MODEL = "google/gemini-3.5-flash"
-const FALLBACK_MODEL = "google/gemini-3.5-flash"
+const PROMPT_ARCHITECT_MODEL = "google/gemini-3.6-flash"
+const CODE_REVIEW_MODEL = "google/gemini-3.6-flash"
+const FALLBACK_MODEL = "google/gemini-3.6-flash"
 
 // --- DYNAMIC PRICING ---
 const BASE_PRICES_AUD = { professional: 11, power: 49 }
@@ -818,6 +790,12 @@ function openApiKeysModal() {
 
   // Load current keys into inputs (masked)
   loadApiKeyInputs();
+
+  // The project dropdown is the only way to pick a project, so populate it as
+  // soon as a stored key is available.
+  if (flutterflowApiKey) {
+    fetchProjects(flutterflowApiKey);
+  }
 }
 
 function closeApiKeysModal(event) {
@@ -930,22 +908,12 @@ function showWalkthroughIfNeeded() {
 
 async function loadApiKeyInputs() {
   const flutterflowInput = document.getElementById("flutterflow-api-key-input");
-  const projectIdInput = document.getElementById(
-    "flutterflow-project-id-input",
-  );
 
   if (flutterflowApiKey) {
     flutterflowInput.value = "";
     flutterflowInput.placeholder = "Key saved (enter new to replace)";
   } else {
     flutterflowInput.placeholder = "Enter your FlutterFlow API key";
-  }
-
-  if (flutterflowProjectId) {
-    projectIdInput.value = "";
-    projectIdInput.placeholder = "Project ID saved (enter new to replace)";
-  } else {
-    projectIdInput.placeholder = "Enter your FlutterFlow Project ID";
   }
 
   updateModalKeyStatuses();
@@ -983,12 +951,14 @@ function updateDeployButtonVisibility() {
   const deployBtn = document.getElementById("btn-deploy-to-ff");
   const runBtn = document.getElementById("btn-run-pipeline");
 
-  if (flutterFlowConfigured && hasGeneratedCode) {
-    if (deployBtn) deployBtn.classList.remove("hidden");
-    if (runBtn) runBtn.classList.add("hidden");
-  } else {
-    if (deployBtn) deployBtn.classList.add("hidden");
-    if (runBtn) runBtn.classList.remove("hidden");
+  // Run Pipeline stays visible next to Deploy so a generation can be restarted
+  // without closing the results.
+  if (runBtn) runBtn.classList.remove("hidden");
+  if (deployBtn) {
+    deployBtn.classList.toggle(
+      "hidden",
+      !(flutterFlowConfigured && hasGeneratedCode),
+    );
   }
 }
 
@@ -1040,21 +1010,21 @@ function updateApiKeyStatusIndicators() {
 
 async function saveApiKeys() {
   const flutterflowInput = document.getElementById("flutterflow-api-key-input");
-  const projectIdInput = document.getElementById(
-    "flutterflow-project-id-input",
-  );
+  const projectSelect = document.getElementById("flutterflow-projects-select");
 
   // Only save if user entered a new value
   if (flutterflowInput.value.trim()) {
     await saveApiKey("flutterflow", flutterflowInput.value);
   }
-  if (projectIdInput.value.trim()) {
-    if (!validateFlutterFlowProjectId(projectIdInput.value)) {
-      showToast("Invalid FlutterFlow Project ID. Must be at least 5 characters (letters, numbers, dashes).", "error");
-      projectIdInput.focus();
+
+  const selectedProjectId = projectSelect?.value.trim() || "";
+  if (selectedProjectId) {
+    if (!validateFlutterFlowProjectId(selectedProjectId)) {
+      showToast("The selected FlutterFlow project has an unexpected ID format.", "error");
+      projectSelect.focus();
       return;
     }
-    await saveApiKey("flutterflow_project_id", projectIdInput.value);
+    await saveApiKey("flutterflow_project_id", selectedProjectId);
   }
 
   // Reinitialize keys
@@ -1087,6 +1057,12 @@ async function clearAllApiKeys() {
   // Reinitialize keys
   await initializeApiKeys();
 
+  const projectSelect = document.getElementById("flutterflow-projects-select");
+  if (projectSelect) {
+    projectSelect.innerHTML =
+      '<option value="">Enter your API key to load projects</option>';
+  }
+
   // Update UI
   loadApiKeyInputs();
 }
@@ -1117,18 +1093,8 @@ function updateInputValidationState(inputId, isValid) {
   }
 }
 
-function showValidationError(errorId, show) {
-  const errorEl = document.getElementById(errorId);
-  if (errorEl) {
-    errorEl.style.display = show ? "block" : "none";
-  }
-}
-
 function setupFlutterFlowValidation() {
   const apiKeyInput = document.getElementById("flutterflow-api-key-input");
-  const projectIdInput = document.getElementById(
-    "flutterflow-project-id-input",
-  );
 
   if (apiKeyInput) {
     apiKeyInput.addEventListener("input", (e) => {
@@ -1144,17 +1110,6 @@ function setupFlutterFlowValidation() {
         }
       }, 500),
     );
-  }
-
-  if (projectIdInput) {
-    projectIdInput.addEventListener("input", (e) => {
-      const isValid = validateFlutterFlowProjectId(e.target.value);
-      updateInputValidationState("flutterflow-project-id-input", isValid);
-      showValidationError(
-        "flutterflow-project-id-error",
-        e.target.value && !isValid,
-      );
-    });
   }
 }
 
@@ -1177,21 +1132,20 @@ function debounce(func, wait) {
 }
 
 /**
- * Fetches projects from FlutterFlow API and populates dropdown.
+ * Fetches projects from FlutterFlow API and populates the always-visible
+ * project dropdown, which is the only way to choose a target project.
  * @param {string} apiKey - FlutterFlow API key
  */
 async function fetchProjects(apiKey) {
-  const container = document.getElementById("flutterflow-projects-container");
   const select = document.getElementById("flutterflow-projects-select");
   const errorElement = document.getElementById("flutterflow-projects-error");
 
-  if (!container || !select) {
-    console.error("Projects dropdown elements not found");
+  if (!select) {
+    console.error("Projects dropdown element not found");
     return;
   }
 
   // Show loading state
-  container.classList.remove("hidden");
   select.innerHTML = '<option value="">Loading projects...</option>';
   if (errorElement) errorElement.classList.add("hidden");
 
@@ -1215,17 +1169,10 @@ async function fetchProjects(apiKey) {
       select.appendChild(option);
     });
 
-    // Connect selection to Project ID input
-    select.addEventListener("change", () => {
-      const projectIdInput = document.getElementById(
-        "flutterflow-project-id-input",
-      );
-      if (projectIdInput && select.value) {
-        projectIdInput.value = select.value;
-        // Trigger validation
-        projectIdInput.dispatchEvent(new Event("input"));
-      }
-    });
+    // Re-select the already configured project so the dropdown reflects state
+    if (flutterflowProjectId) {
+      select.value = flutterflowProjectId;
+    }
   } catch (error) {
     console.error("Failed to fetch projects:", error);
     select.innerHTML = '<option value="">Error loading projects</option>';
@@ -1434,48 +1381,95 @@ class FlutterFlowApiClient {
   }
 
   /**
-   * Pulls code from FlutterFlow and returns it as a structured object.
-   * @returns {Promise<Object>} Object containing file contents mapped by path
+   * Exports the project source and returns the base64 zip, mirroring the
+   * VS Code extension's exportCode call.
+   * @returns {Promise<string>} Base64-encoded project zip
    */
-  async pullCode() {
+  async exportProjectZip() {
     console.log(
-      `Pulling code from FlutterFlow project: ${this.projectId}, branch: ${this.branchName || "main"}`,
+      `Exporting code from FlutterFlow project: ${this.projectId}, branch: ${this.branchName || "main"}`,
     );
 
-    try {
-      const response = await fetch(`${this.baseUrl}exportCode`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${this.apiKey}`,
-        },
-        body: JSON.stringify({
-          project_id: this.projectId,
-          branch_name: this.branchName,
-          include_assets: false,
-          export_as_module: false,
-        }),
-      });
+    // The extension's request shape is tried first; the flat shape is kept as a
+    // fallback for API deployments that still expect it.
+    const requestBodies = [
+      {
+        project: { path: `projects/${this.projectId}` },
+        ...(this.branchName ? { branch_name: this.branchName } : {}),
+        export_as_module: false,
+        include_assets_map: false,
+        format: false,
+        export_as_debug: false,
+      },
+      {
+        project_id: this.projectId,
+        branch_name: this.branchName,
+        include_assets: false,
+        export_as_module: false,
+      },
+    ];
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Export failed: ${response.status} - ${errorText}`);
+    let lastError = null;
+    for (const body of requestBodies) {
+      try {
+        const response = await fetch(`${this.baseUrl}exportCode`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${this.apiKey}`,
+          },
+          body: JSON.stringify(body),
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          lastError = new Error(
+            `Export failed: ${response.status} - ${errorText}`,
+          );
+          continue;
+        }
+
+        const data = await response.json();
+        const projectZip = data?.value?.project_zip || data?.project_zip;
+        if (!projectZip) {
+          lastError = new Error(
+            "Export response did not include project source.",
+          );
+          continue;
+        }
+        return projectZip;
+      } catch (error) {
+        lastError = error;
       }
-
-      const data = await response.json();
-
-      // The response should contain a download_url or direct content
-      // For now, return the parsed response
-      return {
-        success: true,
-        downloadUrl: data.download_url,
-        projectId: this.projectId,
-        branchName: this.branchName,
-      };
-    } catch (error) {
-      console.error("Error pulling code from FlutterFlow:", error);
-      throw error;
     }
+
+    throw lastError || new Error("Export failed for an unknown reason.");
+  }
+
+  /**
+   * Reads the project's current pubspec.yaml out of an export.
+   * @returns {Promise<string>} Raw pubspec.yaml content
+   */
+  async fetchProjectPubspec() {
+    const base64Zip = await this.exportProjectZip();
+    const zip = await JSZip.loadAsync(base64Zip, { base64: true });
+
+    // Exports are nested under a single project folder. Pick the shallowest
+    // pubspec.yaml so a bundled sub-package's manifest can't be mistaken for
+    // the project's own.
+    const pubspecPath = Object.keys(zip.files)
+      .filter(
+        (path) =>
+          !zip.files[path].dir &&
+          (path === "pubspec.yaml" || path.endsWith("/pubspec.yaml")),
+      )
+      .sort((a, b) => a.split("/").length - b.split("/").length)[0];
+
+    if (!pubspecPath) {
+      throw new Error("Export did not contain a pubspec.yaml.");
+    }
+
+    return zip.files[pubspecPath].async("string");
   }
 
   /**
@@ -1720,6 +1714,10 @@ const CodeType = {
   ACTION: "A",
   WIDGET: "W",
   FUNCTION: "F",
+  // Standalone custom code file under lib/custom_code/, e.g. a plain Dart
+  // class. FlutterFlow syncs these through syncCustomCodeChanges like any
+  // other custom code file.
+  CODE_FILE: "C",
   DEPENDENCIES: "D",
   OTHER: "O",
 };
@@ -1732,7 +1730,7 @@ const STATE_CLASS_REGEX = /extends\s+State<\w+>/;
  * Detects the type of custom code based on file name and content.
  * @param {string} fileName - Name of the file
  * @param {string} [content] - Optional file content for additional detection
- * @returns {string} Code type (A, W, F, D, or O)
+ * @returns {string} Code type (A, W, F, C, D, or O)
  */
 function detectCodeType(fileName, content = "") {
   if (fileName === "pubspec.yaml") {
@@ -1768,13 +1766,15 @@ function detectCodeType(fileName, content = "") {
     }
   }
 
-  return CodeType.OTHER;
+  // Anything else that is still Dart — a plain class, an enum, a mixin, a
+  // utility library — is a standalone custom code file.
+  return CodeType.CODE_FILE;
 }
 
 /**
  * Gets the relative file path based on code type.
  * @param {string} fileName - Original file name
- * @param {string} codeType - Code type (A, W, F, D, O)
+ * @param {string} codeType - Code type (A, W, F, C, D, O)
  * @returns {string} Relative path in FlutterFlow structure
  */
 function getFilePathForCodeType(fileName, codeType) {
@@ -1785,11 +1785,13 @@ function getFilePathForCodeType(fileName, codeType) {
       return `lib/custom_code/widgets/${fileName}`;
     case CodeType.FUNCTION:
       return "lib/flutter_flow/custom_functions.dart";
+    case CodeType.CODE_FILE:
+      // Standalone custom code files are flat under lib/custom_code/.
+      return `lib/custom_code/${fileName}`;
     case CodeType.DEPENDENCIES:
       return "pubspec.yaml";
     case CodeType.OTHER:
-      // Fallback for unknown types - treat as action/code file
-      return `lib/custom_code/actions/${fileName}`;
+      return `lib/custom_code/${fileName}`;
     default:
       return fileName;
   }
@@ -1797,9 +1799,11 @@ function getFilePathForCodeType(fileName, codeType) {
 
 /**
  * Derives the FlutterFlow identifier name from a file name and code type.
- * Widgets use PascalCase, actions use camelCase.
+ * Widgets use PascalCase, actions use camelCase, and standalone custom code
+ * files keep the file name (including .dart) to match the server's
+ * FFCustomCodeFile identifier.
  * @param {string} fileName - File name (e.g., 'BigRedBox.dart')
- * @param {string} codeType - Code type (A, W, F, D, O)
+ * @param {string} codeType - Code type (A, W, F, C, D, O)
  * @returns {string} Identifier name for FlutterFlow
  */
 function deriveIdentifierName(fileName, codeType) {
@@ -1818,6 +1822,9 @@ function deriveIdentifierName(fileName, codeType) {
   if (codeType === CodeType.FUNCTION) {
     return "CustomFunctions";
   }
+  if (codeType === CodeType.CODE_FILE) {
+    return fileName.endsWith(".dart") ? fileName : `${fileName}.dart`;
+  }
   if (codeType === CodeType.DEPENDENCIES) {
     return "pubspec.yaml";
   }
@@ -1835,8 +1842,11 @@ function deriveIdentifierName(fileName, codeType) {
 function buildApiFileMap(fileMap) {
   const apiFileMap = {};
   for (const [name, info] of fileMap.entries()) {
-    // Skip pubspec.yaml - the VS Code extension filters out DEPENDENCIES type
-    if (info.type === CodeType.DEPENDENCIES) continue;
+    // The VS Code extension filters DEPENDENCIES (pubspec.yaml travels in
+    // serialized_yaml) and OTHER (untracked files) out of the wire file map.
+    if (info.type === CodeType.DEPENDENCIES || info.type === CodeType.OTHER) {
+      continue;
+    }
     const identifierName = deriveIdentifierName(name, info.type);
     apiFileMap[name] = {
       old_identifier_name: identifierName,
@@ -1869,170 +1879,60 @@ function getFileNameFromPath(filePath) {
 
 // --- PUBSPEC.YAML UTILITIES ---
 
-/**
- * Creates a default pubspec.yaml structure for FlutterFlow.
- * @returns {Object} Default pubspec.yaml structure
- */
-function createDefaultPubspec() {
-  const pubspec = {
-    name: "flutter_flow_custom_code",
-    description: "Custom code for FlutterFlow project",
-    version: "1.0.0",
-    environment: {
-      sdk: ">=3.0.0 <4.0.0",
-    },
-    dependencies: {
-      flutter: {
-        sdk: "flutter",
-      },
-    },
-    dev_dependencies: {
-      flutter_test: {
-        sdk: "flutter",
-      },
-    },
-    flutter: {
-      uses_material_design: true,
-    },
-  };
+// The project's own pubspec.yaml, cached per project for the session. Fetching
+// it means a full project export, and a deploy of several artifacts should not
+// pay for that more than once.
+const projectPubspecCache = new Map();
 
-  return pubspec;
+function pubspecCacheKey(apiClient) {
+  return `${apiClient.baseUrl}|${apiClient.projectId}|${apiClient.branchName}`;
+}
+
+function invalidateProjectPubspecCache(apiClient) {
+  projectPubspecCache.delete(pubspecCacheKey(apiClient));
 }
 
 /**
- * Parses pubspec.yaml to extract dependencies.
- * Note: This is a simplified parser for the web context.
- * Full YAML parsing would require a library like js-yaml.
- * @param {string} yamlContent - Raw pubspec.yaml content
- * @returns {Object} Parsed dependencies object
+ * Reads the project's current pubspec.yaml, then merges in the packages the
+ * generated code needs.
+ *
+ * FlutterFlow applies the pushed `serialized_yaml` as the project's complete
+ * dependency set, so this must start from the file already in the project.
+ * Synthesizing one would silently drop every package the project already had.
+ *
+ * @param {FlutterFlowApiClient} apiClient - Client for the target project
+ * @param {Object<string, string>} newDependencies - name -> version constraint
+ * @returns {Promise<{yaml: string, added: string[], alreadyPresent: string[]}>}
+ * @throws If the project's pubspec.yaml cannot be read, so a deploy fails
+ *   rather than overwriting the project's dependencies with a guess.
  */
-function parsePubspecDependencies(yamlContent) {
-  const dependencies = {};
-  let inDependencies = false;
-  let currentIndent = 0;
+async function resolveProjectPubspec(apiClient, newDependencies = {}) {
+  const cacheKey = pubspecCacheKey(apiClient);
 
-  const lines = yamlContent.split("\n");
-
-  for (const line of lines) {
-    // Check if we're entering dependencies section
-    if (line.trim() === "dependencies:") {
-      inDependencies = true;
-      currentIndent = line.search(/\S/);
-      continue;
+  let existingYaml = projectPubspecCache.get(cacheKey);
+  if (existingYaml === undefined) {
+    try {
+      existingYaml = await apiClient.fetchProjectPubspec();
+    } catch (error) {
+      throw new Error(
+        `Could not read your project's pubspec.yaml (${error.message}). ` +
+          "Deploy was stopped so your existing package dependencies aren't overwritten. " +
+          "Check your FlutterFlow API key and project, then try again.",
+      );
     }
 
-    // Check if we're leaving dependencies section (new section at same or lower indent)
-    if (inDependencies) {
-      const indent = line.search(/\S/);
-      if (line.trim() && indent <= currentIndent && line.trim().endsWith(":")) {
-        inDependencies = false;
-        continue;
-      }
-
-      // Parse dependency line
-      if (line.trim() && !line.trim().startsWith("#")) {
-        const match = line.match(/^(\s*)(\w+):\s*(.+)?$/);
-        if (match) {
-          const [, indentStr, name, version] = match;
-          if (indentStr.length > currentIndent) {
-            dependencies[name] = version ? version.trim() : null;
-          }
-        }
-      }
+    const validation = validateProjectPubspec(existingYaml);
+    if (!validation.valid) {
+      throw new Error(
+        `Your project's pubspec.yaml could not be read reliably (${validation.errors.join("; ")}). ` +
+          "Deploy was stopped so your existing package dependencies aren't overwritten.",
+      );
     }
+
+    projectPubspecCache.set(cacheKey, existingYaml);
   }
 
-  return dependencies;
-}
-
-/**
- * Merges custom dependencies into pubspec structure.
- * @param {Object} basePubspec - Base pubspec object
- * @param {Object} customDeps - Custom dependencies to add
- * @returns {Object} Merged pubspec structure
- */
-function mergeDependencies(basePubspec, customDeps) {
-  const merged = { ...basePubspec };
-
-  if (!merged.dependencies) {
-    merged.dependencies = {};
-  }
-
-  // Add custom dependencies
-  for (const [name, version] of Object.entries(customDeps)) {
-    // Skip Flutter SDK dependency
-    if (name === "flutter") continue;
-    merged.dependencies[name] = version;
-  }
-
-  return merged;
-}
-
-/**
- * Serializes a pubspec object to YAML string format.
- * Note: This is a simplified serializer for FlutterFlow pubspec structure.
- * @param {Object} pubspec - Pubspec object to serialize
- * @returns {string} YAML formatted string
- */
-function serializePubspecToYaml(pubspec) {
-  const lines = [];
-
-  // Add basic fields
-  lines.push(`name: ${pubspec.name}`);
-  lines.push(`description: ${pubspec.description}`);
-  lines.push(`version: ${pubspec.version}`);
-  lines.push("");
-
-  lines.push("environment:");
-  for (const [key, value] of Object.entries(pubspec.environment)) {
-    lines.push(`  ${key}: '${value}'`);
-  }
-  lines.push("");
-
-  // Add dependencies
-  lines.push("dependencies:");
-  for (const [name, value] of Object.entries(pubspec.dependencies)) {
-    if (typeof value === "object" && value !== null) {
-      lines.push(`  ${name}:`);
-      for (const [k, v] of Object.entries(value)) {
-        lines.push(`    ${k}: ${v}`);
-      }
-    } else {
-      lines.push(`  ${name}: ${value || ""}`);
-    }
-  }
-  lines.push("");
-
-  // Add dev_dependencies if present
-  if (pubspec.dev_dependencies) {
-    lines.push("dev_dependencies:");
-    for (const [name, value] of Object.entries(pubspec.dev_dependencies)) {
-      if (typeof value === "object" && value !== null) {
-        lines.push(`  ${name}:`);
-        for (const [k, v] of Object.entries(value)) {
-          lines.push(`    ${k}: ${v}`);
-        }
-      } else {
-        lines.push(`  ${name}: ${value || ""}`);
-      }
-    }
-    lines.push("");
-  }
-
-  // Add flutter section
-  if (pubspec.flutter) {
-    lines.push("flutter:");
-    for (const [key, value] of Object.entries(pubspec.flutter)) {
-      if (typeof value === "boolean") {
-        lines.push(`  ${key}: ${value}`);
-      }
-    }
-  }
-
-  // FlutterFlow requires dependency_overrides section (must be a map, not null)
-  lines.push("dependency_overrides: {}");
-
-  return lines.join("\n");
+  return mergeDependenciesIntoYaml(existingYaml, newDependencies);
 }
 
 /**
@@ -2191,7 +2091,7 @@ function prepareCodeForCommit(rawCode, options = {}) {
   }
 
   // Determine code type from artifact type
-  let codeType = CodeType.OTHER;
+  let codeType = CodeType.CODE_FILE;
   switch (artifactType) {
     case "CustomAction":
       codeType = CodeType.ACTION;
@@ -2203,10 +2103,10 @@ function prepareCodeForCommit(rawCode, options = {}) {
       codeType = CodeType.FUNCTION;
       fileName = "custom_functions.dart";
       break;
+    case "CustomClass":
     case "CodeFile":
-      // Code Files are treated as Actions for file structure purposes
-      // They live in lib/custom_code/actions/
-      codeType = CodeType.ACTION;
+      // Standalone custom code files, synced to lib/custom_code/ as type "C".
+      codeType = CodeType.CODE_FILE;
       break;
   }
 
@@ -2440,34 +2340,6 @@ function validateDartFile(fileName, content, codeType) {
 }
 
 /**
- * Validates pubspec.yaml content.
- * @param {string} content - pubspec.yaml content
- * @returns {Object} Validation result { valid: boolean, errors: string[] }
- */
-function validatePubspec(content) {
-  const errors = [];
-
-  // Check for required fields
-  if (!content.includes("name:")) {
-    errors.push("pubspec.yaml missing name field");
-  }
-
-  if (!content.includes("dependencies:")) {
-    errors.push("pubspec.yaml missing dependencies section");
-  }
-
-  // Check for Flutter SDK
-  if (!content.includes("flutter:") && !content.includes("sdk: flutter")) {
-    errors.push("pubspec.yaml missing Flutter SDK dependency");
-  }
-
-  return {
-    valid: errors.length === 0,
-    errors,
-  };
-}
-
-/**
  * Validates a file map before commit.
  * @param {Map<string, Object>} fileMap - Map of file paths to file info
  * @returns {Object} Validation result { valid: boolean, errors: string[], warnings: string[] }
@@ -2502,7 +2374,7 @@ function validateFileMap(fileMap) {
 
     // Validate pubspec
     if (path === "pubspec.yaml") {
-      const result = validatePubspec(fileInfo.content);
+      const result = validateProjectPubspec(fileInfo.content);
       if (!result.valid) {
         errors.push(...result.errors);
       }
@@ -2651,51 +2523,11 @@ async function commitToFlutterFlow(dartCode, fileName, options = {}) {
   const { pubspecDeps = {} } = options;
 
   // Validate/fix codeType if passed as full string
-  if (codeType === "CustomClass") {
-    commitState.reset();
-    commitState.setState(CommitState.PREPARING);
-    try {
-      const apiKey = await getApiKey("flutterflow");
-      const projectId = await getApiKey("flutterflow_project_id");
-      if (!apiKey || !projectId) {
-        throw new Error(
-          "FlutterFlow credentials not configured. Please set your API key and Project ID in the API Keys settings.",
-        );
-      }
-      if (!validateFlutterFlowProjectId(projectId)) {
-        throw new Error("Invalid FlutterFlow Project ID format.");
-      }
-      commitState.setState(CommitState.PUSHING);
-      const className = deriveCustomClassName({ artifactName: fileName, fileName, content: dartCode });
-      const result = await deployCustomClassesWithDsl({
-        apiKey,
-        projectId,
-        commitMessage: `Deploy custom class ${className}`,
-        customClasses: [{
-          artifactId: className,
-          className,
-          content: dartCode,
-        }],
-      });
-      commitState.setSuccess({ fileCount: 1, projectId, warnings: [] });
-      return {
-        success: true,
-        message: result.message || `Successfully committed ${className} to FlutterFlow`,
-        warnings: [],
-      };
-    } catch (error) {
-      commitState.setError(error);
-      return {
-        success: false,
-        error: error.message,
-        state: commitState.currentState,
-      };
-    }
-  }
   if (codeType === "CustomWidget") codeType = CodeType.WIDGET;
   if (codeType === "CustomAction") codeType = CodeType.ACTION;
   if (codeType === "CustomFunction") codeType = CodeType.FUNCTION;
-  if (codeType === "CodeFile") codeType = CodeType.ACTION;
+  if (codeType === "CustomClass") codeType = CodeType.CODE_FILE;
+  if (codeType === "CodeFile") codeType = CodeType.CODE_FILE;
 
   // Reset and start
   commitState.reset();
@@ -2746,15 +2578,10 @@ async function commitToFlutterFlow(dartCode, fileName, options = {}) {
       throw new Error(`Validation failed:\n${validation.errors.join("\n")}`);
     }
 
-    // Prepare pubspec
-    let serializedYaml = serializePubspecToYaml(createDefaultPubspec());
-
-    // Check if we need to merge dependencies
-    if (Object.keys(pubspecDeps).length > 0) {
-      let basePubspec = createDefaultPubspec();
-      basePubspec = mergeDependencies(basePubspec, pubspecDeps);
-      serializedYaml = serializePubspecToYaml(basePubspec);
-    }
+    // Read the project's pubspec.yaml, add whatever the code needs, and push
+    // the merged file back so existing packages are preserved.
+    const pubspecMerge = await resolveProjectPubspec(apiClient, pubspecDeps);
+    const serializedYaml = pubspecMerge.yaml;
 
     const fileMapContents = buildApiFileMap(fileMap);
 
@@ -2781,6 +2608,12 @@ async function commitToFlutterFlow(dartCode, fileName, options = {}) {
     commitState.setState(CommitState.PUSHING);
     commitState.setProgress(1, fileMap.size);
 
+    // FlutterFlow may apply a push whose response we never successfully read, so
+    // once a dependency-changing push is in flight the cached manifest can no
+    // longer be trusted. Drop it now rather than on success: merging a later
+    // deploy into a stale copy would drop the packages this push added.
+    if (pubspecMerge.added.length > 0) invalidateProjectPubspecCache(apiClient);
+
     const response = await apiClient.pushCode(pushRequest);
     const result = await parsePushCodeResponse(response);
 
@@ -2802,6 +2635,7 @@ async function commitToFlutterFlow(dartCode, fileName, options = {}) {
     return {
       success: true,
       message: `Successfully committed ${fileName} to FlutterFlow project ${projectId}`,
+      addedDependencies: pubspecMerge.added,
       warnings: result.errorMap ? Array.from(result.errorMap.entries()) : [],
     };
   } catch (error) {
@@ -2880,38 +2714,6 @@ async function executeCommit(code, options = {}) {
       throw new Error("Invalid FlutterFlow Project ID format.");
     }
 
-    if (artifactType === "CustomClass") {
-      commitState.setState(CommitState.PUSHING);
-      const className = deriveCustomClassName({
-        artifactName,
-        fileName: codeInfo.fileName,
-        content: codeInfo.content,
-      });
-      const dslResult = await deployCustomClassesWithDsl({
-        apiKey,
-        projectId,
-        commitMessage: `Deploy custom class ${className}`,
-        customClasses: [{
-          artifactId: artifactName,
-          className,
-          content: codeInfo.content,
-        }],
-      });
-      const metadata = { ...buildCommitMetadata(codeInfo, pipelineResult), projectId };
-      commitState.setSuccess({
-        ...metadata,
-        fileCount: 1,
-        warnings: [],
-      });
-      return {
-        success: true,
-        message: dslResult.message || `Successfully committed ${className} to FlutterFlow`,
-        metadata,
-        warnings: [],
-        elapsedTime: commitState.getElapsedTime(),
-      };
-    }
-
     // Step 5: Prepare file map
     const fileMap = new Map();
     fileMap.set(codeInfo.fileName, {
@@ -2934,29 +2736,6 @@ async function executeCommit(code, options = {}) {
       console.warn("Validation warnings:", validation.warnings);
     }
 
-    // Step 7: Prepare pubspec with dependencies
-    // createDefaultPubspec returns an object, no need to JSON.parse
-    let pubspec = createDefaultPubspec();
-
-    // Add default flutter dependency
-    if (!pubspec.dependencies) pubspec.dependencies = {};
-    if (!pubspec.dependencies.flutter)
-      pubspec.dependencies.flutter = { sdk: "flutter" };
-
-    if (Object.keys(deps).length > 0) {
-      pubspec = mergeDependencies(pubspec, deps);
-    }
-    const serializedYaml = serializePubspecToYaml(pubspec);
-
-    const fileMapContents = buildApiFileMap(fileMap);
-
-    const fileMapWithPubspec = new Map(fileMap);
-    fileMapWithPubspec.set("pubspec.yaml", {
-      content: serializedYaml,
-      type: "D",
-      path: "pubspec.yaml",
-    });
-
     commitState.setState(CommitState.PUSHING);
     const endpoint = getFlutterFlowEndpoint();
     const apiClient = new FlutterFlowApiClient(
@@ -2965,6 +2744,19 @@ async function executeCommit(code, options = {}) {
       "main",
       endpoint,
     );
+
+    // Step 7: Merge the code's dependencies into the project's own pubspec.yaml
+    const pubspecMerge = await resolveProjectPubspec(apiClient, deps);
+    const serializedYaml = pubspecMerge.yaml;
+
+    const fileMapContents = buildApiFileMap(fileMap);
+
+    const fileMapWithPubspec = new Map(fileMap);
+    fileMapWithPubspec.set("pubspec.yaml", {
+      content: serializedYaml,
+      type: CodeType.DEPENDENCIES,
+      path: "pubspec.yaml",
+    });
 
     const zippedCustomCode = await createZipFromFileMap(fileMapWithPubspec);
 
@@ -2979,6 +2771,12 @@ async function executeCommit(code, options = {}) {
     };
 
     commitState.setProgress(1, fileMap.size);
+
+    // FlutterFlow may apply a push whose response we never successfully read, so
+    // once a dependency-changing push is in flight the cached manifest can no
+    // longer be trusted. Drop it now rather than on success: merging a later
+    // deploy into a stale copy would drop the packages this push added.
+    if (pubspecMerge.added.length > 0) invalidateProjectPubspecCache(apiClient);
 
     const response = await apiClient.pushCode(pushRequest);
     const result = await parsePushCodeResponse(response);
@@ -2997,6 +2795,7 @@ async function executeCommit(code, options = {}) {
         success: true,
         message: `Successfully committed ${codeInfo.fileName} to FlutterFlow`,
         metadata,
+        addedDependencies: pubspecMerge.added,
         warnings: result.errorMap ? Array.from(result.errorMap.entries()) : [],
         elapsedTime: commitState.getElapsedTime(),
       };
@@ -3076,65 +2875,6 @@ async function executeBundleCommit(bundlePlan, options = {}) {
       throw new Error("Invalid FlutterFlow Project ID format.");
     }
 
-    const dslEntries = bundlePlan.dslEntries || [];
-    let dslResult = null;
-    if (dslEntries.length > 0) {
-      commitState.setState(CommitState.PUSHING);
-      dslResult = await deployCustomClassesWithDsl({
-        apiKey,
-        projectId,
-        commitMessage: `Deploy ${bundlePlan.title} custom classes`,
-        customClasses: dslEntries.map((entry) => ({
-          artifactId: entry.artifactId,
-          className: entry.className,
-          content: entry.content,
-        })),
-      });
-    }
-
-    if (bundlePlan.fileEntries.length === 0) {
-      const metadata = {
-        ...pipelineResult,
-        artifactType: "Bundle",
-        artifactName: bundlePlan.title,
-        fileName: `${dslEntries.length} DSL artifacts`,
-        codeSize: dslEntries.reduce((sum, entry) => sum + entry.content.length, 0),
-        projectId,
-      };
-
-      commitState.setSuccess({
-        ...metadata,
-        fileCount: dslEntries.length,
-        warnings: [],
-      });
-
-      return {
-        success: true,
-        message: dslResult?.message || `Successfully committed ${dslEntries.length} custom classes to FlutterFlow`,
-        metadata,
-        warnings: [],
-        elapsedTime: commitState.getElapsedTime(),
-      };
-    }
-
-    let pubspec = createDefaultPubspec();
-    if (!pubspec.dependencies) pubspec.dependencies = {};
-    if (!pubspec.dependencies.flutter) {
-      pubspec.dependencies.flutter = { sdk: "flutter" };
-    }
-    if (Object.keys(bundlePlan.dependencies).length > 0) {
-      pubspec = mergeDependencies(pubspec, bundlePlan.dependencies);
-    }
-    const serializedYaml = serializePubspecToYaml(pubspec);
-    const fileMapContents = buildApiFileMap(fileMap);
-
-    const fileMapWithPubspec = new Map(fileMap);
-    fileMapWithPubspec.set("pubspec.yaml", {
-      content: serializedYaml,
-      type: CodeType.DEPENDENCIES,
-      path: "pubspec.yaml",
-    });
-
     commitState.setState(CommitState.PUSHING);
     const endpoint = getFlutterFlowEndpoint();
     const apiClient = new FlutterFlowApiClient(
@@ -3143,6 +2883,20 @@ async function executeBundleCommit(bundlePlan, options = {}) {
       "main",
       endpoint,
     );
+
+    const pubspecMerge = await resolveProjectPubspec(
+      apiClient,
+      bundlePlan.dependencies,
+    );
+    const serializedYaml = pubspecMerge.yaml;
+    const fileMapContents = buildApiFileMap(fileMap);
+
+    const fileMapWithPubspec = new Map(fileMap);
+    fileMapWithPubspec.set("pubspec.yaml", {
+      content: serializedYaml,
+      type: CodeType.DEPENDENCIES,
+      path: "pubspec.yaml",
+    });
 
     const zippedCustomCode = await createZipFromFileMap(fileMapWithPubspec);
     const pushRequest = {
@@ -3156,6 +2910,12 @@ async function executeBundleCommit(bundlePlan, options = {}) {
     };
 
     commitState.setProgress(1, fileMap.size);
+    // FlutterFlow may apply a push whose response we never successfully read, so
+    // once a dependency-changing push is in flight the cached manifest can no
+    // longer be trusted. Drop it now rather than on success: merging a later
+    // deploy into a stale copy would drop the packages this push added.
+    if (pubspecMerge.added.length > 0) invalidateProjectPubspecCache(apiClient);
+
     const response = await apiClient.pushCode(pushRequest);
     const result = await parsePushCodeResponse(response);
 
@@ -3164,22 +2924,22 @@ async function executeBundleCommit(bundlePlan, options = {}) {
         ...pipelineResult,
         artifactType: "Bundle",
         artifactName: bundlePlan.title,
-        fileName: `${bundlePlan.fileEntries.length + dslEntries.length} artifacts`,
-        codeSize: bundlePlan.fileEntries.reduce((sum, entry) => sum + entry.content.length, 0)
-          + dslEntries.reduce((sum, entry) => sum + entry.content.length, 0),
+        fileName: `${bundlePlan.fileEntries.length} artifacts`,
+        codeSize: bundlePlan.fileEntries.reduce((sum, entry) => sum + entry.content.length, 0),
         projectId,
       };
 
       commitState.setSuccess({
         ...metadata,
-        fileCount: fileMap.size + dslEntries.length,
+        fileCount: fileMap.size,
         warnings: result.errorMap ? Array.from(result.errorMap.entries()) : [],
       });
 
       return {
         success: true,
-        message: `Successfully committed ${bundlePlan.fileEntries.length + dslEntries.length} artifacts to FlutterFlow`,
+        message: `Successfully committed ${bundlePlan.fileEntries.length} artifacts to FlutterFlow`,
         metadata,
+        addedDependencies: pubspecMerge.added,
         warnings: result.errorMap ? Array.from(result.errorMap.entries()) : [],
         elapsedTime: commitState.getElapsedTime(),
       };
@@ -3593,24 +3353,10 @@ function copyCode(elementId) {
 }
 
 function updateModelInfo(selectedModel) {
-  const modelNames = {
-    "google/gemini-3.5-flash": "Gemini 3.5 Flash",
-    "anthropic/claude-4.6-opus": "Claude 4.6 Opus",
-    "openai/gpt-5.3-codex": "GPT-5.3-Codex",
-    "openrouter/auto": "OpenRouter: Auto",
-    "openrouter/free": "OpenRouter: Free Models",
-    "openrouter/deepseek/deepseek-v4-pro": "DeepSeek v4 Pro",
-  }
-
-  // Helper function to get display name
-  function getDisplayName(model) {
-    return modelNames[model] || model
-  }
-
   // Update step 1 (Prompt Architect) model label - uses PROMPT_ARCHITECT_MODEL
   const step1Label = document.getElementById("step1-model-label")
   if (step1Label) {
-    step1Label.textContent = getDisplayName(PROMPT_ARCHITECT_MODEL)
+    step1Label.textContent = getModelLabel(PROMPT_ARCHITECT_MODEL)
   }
 
   // Update step 2 (Code Generator) model label - shows selected model
@@ -3620,26 +3366,26 @@ function updateModelInfo(selectedModel) {
   if (step2Label) {
     if (effectiveModel !== selectedModel) {
       // Free tier user selected a paid model - show both
-      step2Label.textContent = `${getDisplayName(selectedModel)} → ${getDisplayName(effectiveModel)} (Free Tier)`
+      step2Label.textContent = `${getModelLabel(selectedModel)} → ${getModelLabel(effectiveModel)} (Free Tier)`
     } else {
       // User's selection matches effective model
-      step2Label.textContent = getDisplayName(selectedModel)
+      step2Label.textContent = getModelLabel(selectedModel)
     }
   }
 
   // Update step 3 (Code Review) model label - uses CODE_REVIEW_MODEL
   const step3Label = document.getElementById("step3-model-label")
   if (step3Label) {
-    step3Label.textContent = getDisplayName(CODE_REVIEW_MODEL)
+    step3Label.textContent = getModelLabel(CODE_REVIEW_MODEL)
   }
 
-  console.log(`Step 1 (Prompt Architect): ${getDisplayName(PROMPT_ARCHITECT_MODEL)}`)
+  console.log(`Step 1 (Prompt Architect): ${getModelLabel(PROMPT_ARCHITECT_MODEL)}`)
   if (effectiveModel !== selectedModel) {
-    console.log(`Step 2 (Code Generator): ${getDisplayName(selectedModel)} → ${getDisplayName(effectiveModel)} (Free Tier fallback)`)
+    console.log(`Step 2 (Code Generator): ${getModelLabel(selectedModel)} → ${getModelLabel(effectiveModel)} (Free Tier fallback)`)
   } else {
-    console.log(`Step 2 (Code Generator): ${getDisplayName(selectedModel)}`)
+    console.log(`Step 2 (Code Generator): ${getModelLabel(selectedModel)}`)
   }
-  console.log(`Step 3 (Code Review): ${getDisplayName(CODE_REVIEW_MODEL)}`)
+  console.log(`Step 3 (Code Review): ${getModelLabel(CODE_REVIEW_MODEL)}`)
 }
 
 async function runRefinement() {
@@ -3993,7 +3739,7 @@ async function runThinkingPipeline() {
       let errorMessage = error.message;
       if (error.message.includes("image input")) {
         errorMessage =
-          "This model doesn't support image input. Please use Gemini 3.5 Flash for image-based requests or remove image references from your prompt.";
+          `This model doesn't support image input. Please use ${getModelLabel(FREE_MODEL)} for image-based requests or remove image references from your prompt.`;
       } else if (
         error.message.includes("Load failed") ||
         error.message.includes("CORS")
@@ -4030,9 +3776,9 @@ function retryWithDifferentModel() {
   // Show model selection dialog
   const currentModel = document.getElementById("code-generator-model").value;
   const otherModels = [
-    "google/gemini-3.5-flash",
-    "anthropic/claude-4.6-opus",
-    "openai/gpt-5.3-codex",
+    FREE_MODEL,
+    "anthropic/claude-opus-5",
+    "openai/gpt-5.6-sol",
   ].filter((model) => model !== currentModel);
 
   const selectedModel = prompt(
@@ -4828,17 +4574,8 @@ function updateModelSelectorGating() {
   const unresolvedSignedIn = authState.isVerified && !isSubscriptionResolved()
   const isFree = !unresolvedSignedIn && tier === 'free'
 
-  const modelLabels = {
-    'google/gemini-3.5-flash': 'Gemini 3.5 Flash',
-    'anthropic/claude-4.6-opus': 'Claude 4.6 Opus',
-    'openai/gpt-5.3-codex': 'GPT-5.3-Codex',
-    'openrouter/auto': 'OpenRouter: Auto Router',
-    'openrouter/free': 'OpenRouter: Free Models',
-    'openrouter/deepseek/deepseek-v4-pro': 'DeepSeek v4 Pro',
-  }
-
   Array.from(select.options).forEach(opt => {
-    const baseLabel = modelLabels[opt.value] || opt.value
+    const baseLabel = getModelLabel(opt.value)
     const isPro = PRO_MODELS.includes(opt.value)
     opt.textContent = isPro && isFree ? `${baseLabel} (PRO)` : baseLabel
     opt.disabled = false
@@ -5466,6 +5203,12 @@ function showCommitSuccessModal(result) {
   set("success-artifact-type", artifactType);
   set("success-time", elapsed);
   set("success-size", size);
+
+  // Only worth a row when the deploy actually changed the project's pubspec.
+  const addedDeps = result.addedDependencies || [];
+  const depsRow = document.getElementById("success-deps-row");
+  if (depsRow) depsRow.classList.toggle("hidden", addedDeps.length === 0);
+  set("success-deps", addedDeps.join(", "));
 
   const ffLink = document.getElementById("success-open-ff-link");
   if (ffLink && projectId) {

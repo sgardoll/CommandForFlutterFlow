@@ -67,7 +67,7 @@ test("validates a bundle and emits deploy path hints", () => {
   ]);
 });
 
-test("emits DSL deploy hint for custom classes", () => {
+test("emits custom code file deploy hint for custom classes", () => {
   const result = validateBundleCompatibility({
     artifacts: [
       {
@@ -85,7 +85,7 @@ test("emits DSL deploy hint for custom classes", () => {
     {
       artifactId: "custom-class-user",
       fileName: "user_profile.dart",
-      pathHint: "dsl:addCustomClass",
+      pathHint: "custom_code/",
     },
   ]);
 });

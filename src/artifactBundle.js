@@ -5,8 +5,10 @@ const ARTIFACT_TYPE_TO_CODE_TYPE = {
   CustomAction: "A",
   CustomWidget: "W",
   CustomFunction: "F",
-  CustomClass: "O",
-  CodeFile: "O",
+  // Plain Dart classes and loose code files are both standalone custom code
+  // files, which FlutterFlow syncs as type "C".
+  CustomClass: "C",
+  CodeFile: "C",
 };
 
 function toObject(value) {

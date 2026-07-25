@@ -43,7 +43,7 @@ test("preserves mixed-artifact metadata, relationships, and deploy order", () =>
 
   assert.equal(bundle.id, "agent-view-bundle");
   assert.equal(bundle.artifacts.length, 3);
-  assert.equal(bundle.artifacts[0].codeType, "O");
+  assert.equal(bundle.artifacts[0].codeType, "C");
   assert.equal(bundle.artifacts[1].codeType, "A");
   assert.equal(bundle.artifacts[2].codeType, "W");
   assert.deepEqual(bundle.relationships, [

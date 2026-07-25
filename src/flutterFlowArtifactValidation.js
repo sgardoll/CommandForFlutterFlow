@@ -10,7 +10,7 @@ const TYPE_FILE_HINTS = {
   CustomWidget: "custom_widgets/",
   CustomAction: "actions/",
   CustomFunction: "custom_functions/",
-  CustomClass: "dsl:addCustomClass",
+  CustomClass: "custom_code/",
   CodeFile: "custom_code/",
 };
 
