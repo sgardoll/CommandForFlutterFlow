@@ -13,6 +13,7 @@ import {
 } from "./src/pipelineContracts.js";
 import { validateBundleCompatibility } from "./src/flutterFlowArtifactValidation.js";
 import { buildBundleDeployPlan } from "./src/bundleDeployPlanner.js";
+import { buildFlutterFlowSyncMetadata } from "./src/flutterFlowSyncMetadata.js";
 import {
   mergeDependenciesIntoYaml,
   validateProjectPubspec,
@@ -1731,10 +1732,11 @@ class FlutterFlowApiClient {
   }
 
   /**
-   * Reads the project's current pubspec.yaml out of an export.
-   * @returns {Promise<string>} Raw pubspec.yaml content
+   * Reads the project's current pubspec.yaml and custom-code source files out
+   * of one export.
+   * @returns {Promise<{pubspecYaml: string, files: Map<string, string>}>}
    */
-  async fetchProjectPubspec() {
+  async fetchProjectSource() {
     const base64Zip = await this.exportProjectZip();
     const zip = await JSZip.loadAsync(base64Zip, { base64: true });
 
@@ -1753,7 +1755,36 @@ class FlutterFlowApiClient {
       throw new Error("Export did not contain a pubspec.yaml.");
     }
 
-    return zip.files[pubspecPath].async("string");
+    const rootPrefix = pubspecPath.slice(
+      0,
+      pubspecPath.length - "pubspec.yaml".length,
+    );
+    const files = new Map();
+    const sourcePaths = Object.keys(zip.files).filter((archivePath) => {
+      if (zip.files[archivePath].dir || !archivePath.startsWith(rootPrefix)) {
+        return false;
+      }
+      const projectPath = archivePath.slice(rootPrefix.length);
+      return (
+        projectPath === "lib/flutter_flow/custom_functions.dart" ||
+        (projectPath.startsWith("lib/custom_code/") &&
+          projectPath.endsWith(".dart"))
+      );
+    });
+
+    await Promise.all(
+      sourcePaths.map(async (archivePath) => {
+        files.set(
+          archivePath.slice(rootPrefix.length),
+          await zip.files[archivePath].async("string"),
+        );
+      }),
+    );
+
+    return {
+      pubspecYaml: await zip.files[pubspecPath].async("string"),
+      files,
+    };
   }
 
   /**
@@ -2082,64 +2113,15 @@ function getFilePathForCodeType(fileName, codeType) {
 }
 
 /**
- * Derives the FlutterFlow identifier name from a file name and code type.
- * Widgets use PascalCase, actions use camelCase, and standalone custom code
- * files keep the file name (including .dart) to match the server's
- * FFCustomCodeFile identifier.
- * @param {string} fileName - File name (e.g., 'BigRedBox.dart')
- * @param {string} codeType - Code type (A, W, F, C, D, O)
- * @returns {string} Identifier name for FlutterFlow
- */
-function deriveIdentifierName(fileName, codeType) {
-  const baseName = fileName.replace(/\.dart$/, "");
-  if (codeType === CodeType.WIDGET) {
-    // PascalCase - first letter of each word uppercase
-    return baseName.replace(/(^|_)(\w)/g, (_, __, c) => c.toUpperCase());
-  }
-  if (codeType === CodeType.ACTION) {
-    // camelCase - first word lowercase, rest uppercase
-    const pascal = baseName.replace(/(^|_)(\w)/g, (_, __, c) =>
-      c.toUpperCase(),
-    );
-    return pascal.charAt(0).toLowerCase() + pascal.slice(1);
-  }
-  if (codeType === CodeType.FUNCTION) {
-    return "CustomFunctions";
-  }
-  if (codeType === CodeType.CODE_FILE) {
-    return fileName.endsWith(".dart") ? fileName : `${fileName}.dart`;
-  }
-  if (codeType === CodeType.DEPENDENCIES) {
-    return "pubspec.yaml";
-  }
-  return baseName;
-}
-
-/**
  * Builds the file_map in the format expected by FlutterFlow's syncCustomCodeChanges API.
- * Must match the VS Code extension's FileInfo format:
- * { old_identifier_name, new_identifier_name, type, is_deleted }
- * Does NOT include content (content goes in the zip only).
+ * New files carry current_checksum without original_checksum; existing files
+ * carry both, matching FlutterFlow's VS Code extension.
  * @param {Map} fileMap - Internal file map with content/type/path
- * @returns {string} JSON string of file_map for the API
+ * @param {Map<string, string>} remoteFiles - Current project source by path
+ * @returns {Promise<{fileMapContents: string, functionsMapContents: string}>}
  */
-function buildApiFileMap(fileMap) {
-  const apiFileMap = {};
-  for (const [name, info] of fileMap.entries()) {
-    // The VS Code extension filters DEPENDENCIES (pubspec.yaml travels in
-    // serialized_yaml) and OTHER (untracked files) out of the wire file map.
-    if (info.type === CodeType.DEPENDENCIES || info.type === CodeType.OTHER) {
-      continue;
-    }
-    const identifierName = deriveIdentifierName(name, info.type);
-    apiFileMap[name] = {
-      old_identifier_name: identifierName,
-      new_identifier_name: identifierName,
-      type: info.type,
-      is_deleted: false,
-    };
-  }
-  return JSON.stringify(apiFileMap);
+async function buildApiSyncMetadata(fileMap, remoteFiles = new Map()) {
+  return buildFlutterFlowSyncMetadata(fileMap, remoteFiles);
 }
 
 /**
@@ -2163,17 +2145,16 @@ function getFileNameFromPath(filePath) {
 
 // --- PUBSPEC.YAML UTILITIES ---
 
-// The project's own pubspec.yaml, cached per project for the session. Fetching
-// it means a full project export, and a deploy of several artifacts should not
-// pay for that more than once.
-const projectPubspecCache = new Map();
+// The project's current pubspec and custom-code files, cached per project for
+// the session. Fetching them means one full project export.
+const projectSourceCache = new Map();
 
-function pubspecCacheKey(apiClient) {
+function projectSourceCacheKey(apiClient) {
   return `${apiClient.baseUrl}|${apiClient.projectId}|${apiClient.branchName}`;
 }
 
-function invalidateProjectPubspecCache(apiClient) {
-  projectPubspecCache.delete(pubspecCacheKey(apiClient));
+function invalidateProjectSourceCache(apiClient) {
+  projectSourceCache.delete(projectSourceCacheKey(apiClient));
 }
 
 /**
@@ -2186,17 +2167,22 @@ function invalidateProjectPubspecCache(apiClient) {
  *
  * @param {FlutterFlowApiClient} apiClient - Client for the target project
  * @param {Object<string, string>} newDependencies - name -> version constraint
- * @returns {Promise<{yaml: string, added: string[], alreadyPresent: string[]}>}
+ * @returns {Promise<{
+ *   yaml: string,
+ *   added: string[],
+ *   alreadyPresent: string[],
+ *   remoteFiles: Map<string, string>,
+ * }>}
  * @throws If the project's pubspec.yaml cannot be read, so a deploy fails
  *   rather than overwriting the project's dependencies with a guess.
  */
 async function resolveProjectPubspec(apiClient, newDependencies = {}) {
-  const cacheKey = pubspecCacheKey(apiClient);
+  const cacheKey = projectSourceCacheKey(apiClient);
 
-  let existingYaml = projectPubspecCache.get(cacheKey);
-  if (existingYaml === undefined) {
+  let projectSource = projectSourceCache.get(cacheKey);
+  if (projectSource === undefined) {
     try {
-      existingYaml = await apiClient.fetchProjectPubspec();
+      projectSource = await apiClient.fetchProjectSource();
     } catch (error) {
       throw new Error(
         `Could not read your project's pubspec.yaml (${error.message}). ` +
@@ -2205,7 +2191,7 @@ async function resolveProjectPubspec(apiClient, newDependencies = {}) {
       );
     }
 
-    const validation = validateProjectPubspec(existingYaml);
+    const validation = validateProjectPubspec(projectSource.pubspecYaml);
     if (!validation.valid) {
       throw new Error(
         `Your project's pubspec.yaml could not be read reliably (${validation.errors.join("; ")}). ` +
@@ -2213,10 +2199,13 @@ async function resolveProjectPubspec(apiClient, newDependencies = {}) {
       );
     }
 
-    projectPubspecCache.set(cacheKey, existingYaml);
+    projectSourceCache.set(cacheKey, projectSource);
   }
 
-  return mergeDependenciesIntoYaml(existingYaml, newDependencies);
+  return {
+    ...mergeDependenciesIntoYaml(projectSource.pubspecYaml, newDependencies),
+    remoteFiles: projectSource.files,
+  };
 }
 
 /**
@@ -2867,7 +2856,10 @@ async function commitToFlutterFlow(dartCode, fileName, options = {}) {
     const pubspecMerge = await resolveProjectPubspec(apiClient, pubspecDeps);
     const serializedYaml = pubspecMerge.yaml;
 
-    const fileMapContents = buildApiFileMap(fileMap);
+    const syncMetadata = await buildApiSyncMetadata(
+      fileMap,
+      pubspecMerge.remoteFiles,
+    );
 
     const fileMapWithPubspec = new Map(fileMap);
     fileMapWithPubspec.set("pubspec.yaml", {
@@ -2884,19 +2876,17 @@ async function commitToFlutterFlow(dartCode, fileName, options = {}) {
       uid: `web_${Date.now()}`,
       branch_name: apiClient.branchName,
       serialized_yaml: serializedYaml,
-      file_map: fileMapContents,
-      functions_map: "{}",
+      file_map: syncMetadata.fileMapContents,
+      functions_map: syncMetadata.functionsMapContents,
     };
 
     // Push to FlutterFlow
     commitState.setState(CommitState.PUSHING);
     commitState.setProgress(1, fileMap.size);
 
-    // FlutterFlow may apply a push whose response we never successfully read, so
-    // once a dependency-changing push is in flight the cached manifest can no
-    // longer be trusted. Drop it now rather than on success: merging a later
-    // deploy into a stale copy would drop the packages this push added.
-    if (pubspecMerge.added.length > 0) invalidateProjectPubspecCache(apiClient);
+    // A push can change custom code, functions, or dependencies even when its
+    // response is lost, so the exported project snapshot is now stale.
+    invalidateProjectSourceCache(apiClient);
 
     const response = await apiClient.pushCode(pushRequest);
     const result = await parsePushCodeResponse(response);
@@ -3004,6 +2994,8 @@ async function executeCommit(code, options = {}) {
       content: codeInfo.content,
       type: codeInfo.codeType,
       path: getFilePathForCodeType(codeInfo.fileName, codeInfo.codeType),
+      functionName:
+        codeInfo.codeType === CodeType.FUNCTION ? artifactName : undefined,
     });
 
     commitState.setProgress(0, fileMap.size);
@@ -3033,7 +3025,10 @@ async function executeCommit(code, options = {}) {
     const pubspecMerge = await resolveProjectPubspec(apiClient, deps);
     const serializedYaml = pubspecMerge.yaml;
 
-    const fileMapContents = buildApiFileMap(fileMap);
+    const syncMetadata = await buildApiSyncMetadata(
+      fileMap,
+      pubspecMerge.remoteFiles,
+    );
 
     const fileMapWithPubspec = new Map(fileMap);
     fileMapWithPubspec.set("pubspec.yaml", {
@@ -3050,17 +3045,15 @@ async function executeCommit(code, options = {}) {
       uid: `web_${Date.now()}`,
       branch_name: apiClient.branchName,
       serialized_yaml: serializedYaml,
-      file_map: fileMapContents,
-      functions_map: "{}",
+      file_map: syncMetadata.fileMapContents,
+      functions_map: syncMetadata.functionsMapContents,
     };
 
     commitState.setProgress(1, fileMap.size);
 
-    // FlutterFlow may apply a push whose response we never successfully read, so
-    // once a dependency-changing push is in flight the cached manifest can no
-    // longer be trusted. Drop it now rather than on success: merging a later
-    // deploy into a stale copy would drop the packages this push added.
-    if (pubspecMerge.added.length > 0) invalidateProjectPubspecCache(apiClient);
+    // A push can change custom code, functions, or dependencies even when its
+    // response is lost, so the exported project snapshot is now stale.
+    invalidateProjectSourceCache(apiClient);
 
     const response = await apiClient.pushCode(pushRequest);
     const result = await parsePushCodeResponse(response);
@@ -3134,6 +3127,10 @@ async function executeBundleCommit(bundlePlan, options = {}) {
           content: entry.content,
           type: entry.type,
           path: entry.path,
+          functionName:
+            entry.type === CodeType.FUNCTION
+              ? entry.artifactName
+              : undefined,
         },
       ]),
     );
@@ -3173,7 +3170,10 @@ async function executeBundleCommit(bundlePlan, options = {}) {
       bundlePlan.dependencies,
     );
     const serializedYaml = pubspecMerge.yaml;
-    const fileMapContents = buildApiFileMap(fileMap);
+    const syncMetadata = await buildApiSyncMetadata(
+      fileMap,
+      pubspecMerge.remoteFiles,
+    );
 
     const fileMapWithPubspec = new Map(fileMap);
     fileMapWithPubspec.set("pubspec.yaml", {
@@ -3189,16 +3189,14 @@ async function executeBundleCommit(bundlePlan, options = {}) {
       uid: `web_${Date.now()}`,
       branch_name: apiClient.branchName,
       serialized_yaml: serializedYaml,
-      file_map: fileMapContents,
-      functions_map: "{}",
+      file_map: syncMetadata.fileMapContents,
+      functions_map: syncMetadata.functionsMapContents,
     };
 
     commitState.setProgress(1, fileMap.size);
-    // FlutterFlow may apply a push whose response we never successfully read, so
-    // once a dependency-changing push is in flight the cached manifest can no
-    // longer be trusted. Drop it now rather than on success: merging a later
-    // deploy into a stale copy would drop the packages this push added.
-    if (pubspecMerge.added.length > 0) invalidateProjectPubspecCache(apiClient);
+    // A push can change custom code, functions, or dependencies even when its
+    // response is lost, so the exported project snapshot is now stale.
+    invalidateProjectSourceCache(apiClient);
 
     const response = await apiClient.pushCode(pushRequest);
     const result = await parsePushCodeResponse(response);
