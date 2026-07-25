@@ -11,8 +11,13 @@ import {
   buildReviewPrompt,
   createBuildShipContext,
 } from "./src/pipelineContracts.js";
+import { createModelArmorError } from "./src/modelArmorResponse.js";
 import { validateBundleCompatibility } from "./src/flutterFlowArtifactValidation.js";
 import { buildBundleDeployPlan } from "./src/bundleDeployPlanner.js";
+import {
+  assertCodeFilesProvisioned,
+  findMissingCodeFiles,
+} from "./src/flutterFlowCodeFileProvisioning.js";
 import { buildFlutterFlowSyncMetadata } from "./src/flutterFlowSyncMetadata.js";
 import {
   mergeDependenciesIntoYaml,
@@ -27,6 +32,10 @@ import {
 
 // --- CONFIGURATION ---
 const IS_DEV = import.meta.env.DEV
+const FLUTTERFLOW_CLASS_PROVISION_ENDPOINT =
+  import.meta.env.VITE_FLUTTERFLOW_CLASS_PROVISION_ENDPOINT ||
+  import.meta.env.VITE_FLUTTERFLOW_DSL_DEPLOY_ENDPOINT ||
+  "https://ccc-ffai-runner-y5cyj3473a-uw.a.run.app/deployCustomClasses";
 
 // --- ANALYTICS ---
 const POSTHOG_KEY = import.meta.env.VITE_PUBLIC_POSTHOG_KEY;
@@ -2157,6 +2166,50 @@ function invalidateProjectSourceCache(apiClient) {
   projectSourceCache.delete(projectSourceCacheKey(apiClient));
 }
 
+async function provisionMissingCodeFiles(
+  apiClient,
+  fileMap,
+  remoteFiles,
+  commitMessage,
+) {
+  const missingCodeFiles = findMissingCodeFiles(fileMap, remoteFiles);
+  if (missingCodeFiles.length === 0) return remoteFiles;
+
+  console.log(
+    `Provisioning ${missingCodeFiles.length} new FlutterFlow custom code file(s) before sync.`,
+  );
+  const response = await fetch(FLUTTERFLOW_CLASS_PROVISION_ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      apiKey: apiClient.apiKey,
+      projectId: apiClient.projectId,
+      baseUrl: apiClient.baseUrl,
+      commitMessage,
+      customClasses: missingCodeFiles,
+    }),
+  });
+  const responseText = await response.text();
+  let result = {};
+  try {
+    result = responseText ? JSON.parse(responseText) : {};
+  } catch {
+    result = {};
+  }
+
+  if (!response.ok || result.success === false) {
+    const details = result.details ? ` ${result.details}` : "";
+    throw new Error(
+      `${result.error || "FlutterFlow custom class provisioning failed."}${details}`,
+    );
+  }
+
+  invalidateProjectSourceCache(apiClient);
+  const refreshedProject = await apiClient.fetchProjectSource();
+  assertCodeFilesProvisioned(missingCodeFiles, refreshedProject.files);
+  return refreshedProject.files;
+}
+
 /**
  * Reads the project's current pubspec.yaml, then merges in the packages the
  * generated code needs.
@@ -2793,7 +2846,7 @@ const commitState = {
  */
 async function commitToFlutterFlow(dartCode, fileName, options = {}) {
   let { codeType = "W" } = options;
-  const { pubspecDeps = {} } = options;
+  const { pubspecDeps = {}, artifactName = fileName } = options;
 
   // Validate/fix codeType if passed as full string
   if (codeType === "CustomWidget") codeType = CodeType.WIDGET;
@@ -2838,6 +2891,7 @@ async function commitToFlutterFlow(dartCode, fileName, options = {}) {
     const filePath = getFilePathForCodeType(fileName, detectedType);
 
     fileMap.set(fileName, {
+      artifactName,
       content: dartCode,
       type: detectedType,
       path: filePath,
@@ -2855,10 +2909,16 @@ async function commitToFlutterFlow(dartCode, fileName, options = {}) {
     // the merged file back so existing packages are preserved.
     const pubspecMerge = await resolveProjectPubspec(apiClient, pubspecDeps);
     const serializedYaml = pubspecMerge.yaml;
+    const remoteFiles = await provisionMissingCodeFiles(
+      apiClient,
+      fileMap,
+      pubspecMerge.remoteFiles,
+      `Provision ${artifactName} custom class`,
+    );
 
     const syncMetadata = await buildApiSyncMetadata(
       fileMap,
-      pubspecMerge.remoteFiles,
+      remoteFiles,
     );
 
     const fileMapWithPubspec = new Map(fileMap);
@@ -2991,6 +3051,7 @@ async function executeCommit(code, options = {}) {
     // Step 5: Prepare file map
     const fileMap = new Map();
     fileMap.set(codeInfo.fileName, {
+      artifactName,
       content: codeInfo.content,
       type: codeInfo.codeType,
       path: getFilePathForCodeType(codeInfo.fileName, codeInfo.codeType),
@@ -3024,10 +3085,16 @@ async function executeCommit(code, options = {}) {
     // Step 7: Merge the code's dependencies into the project's own pubspec.yaml
     const pubspecMerge = await resolveProjectPubspec(apiClient, deps);
     const serializedYaml = pubspecMerge.yaml;
+    const remoteFiles = await provisionMissingCodeFiles(
+      apiClient,
+      fileMap,
+      pubspecMerge.remoteFiles,
+      `Provision ${artifactName} custom class`,
+    );
 
     const syncMetadata = await buildApiSyncMetadata(
       fileMap,
-      pubspecMerge.remoteFiles,
+      remoteFiles,
     );
 
     const fileMapWithPubspec = new Map(fileMap);
@@ -3124,6 +3191,8 @@ async function executeBundleCommit(bundlePlan, options = {}) {
       bundlePlan.fileEntries.map((entry) => [
         entry.fileName,
         {
+          artifactId: entry.artifactId,
+          artifactName: entry.artifactName,
           content: entry.content,
           type: entry.type,
           path: entry.path,
@@ -3170,9 +3239,15 @@ async function executeBundleCommit(bundlePlan, options = {}) {
       bundlePlan.dependencies,
     );
     const serializedYaml = pubspecMerge.yaml;
-    const syncMetadata = await buildApiSyncMetadata(
+    const remoteFiles = await provisionMissingCodeFiles(
+      apiClient,
       fileMap,
       pubspecMerge.remoteFiles,
+      `Provision ${bundlePlan.title} custom classes`,
+    );
+    const syncMetadata = await buildApiSyncMetadata(
+      fileMap,
+      remoteFiles,
     );
 
     const fileMapWithPubspec = new Map(fileMap);
@@ -3256,6 +3331,7 @@ async function runPromptArchitect(userInput) {
     )
     return result
   } catch (error) {
+    if (error.isModelArmor) throw error
     throw new Error(`Prompt Architect failed: ${error.message}`)
   }
 }
@@ -3267,12 +3343,14 @@ async function runCodeGenerator(masterPrompt, selectedModel) {
     const result = await callBuildShip("generator", selectedModel, prompt, context)
     return result
   } catch (primaryError) {
+    if (primaryError.isModelArmor) throw primaryError
     if (selectedModel !== FALLBACK_MODEL) {
       console.warn(`Code Generator failed with ${selectedModel}, retrying with fallback model:`, primaryError.message)
       try {
         const result = await callBuildShip("generator", FALLBACK_MODEL, prompt, context)
         return result
       } catch (fallbackError) {
+        if (fallbackError.isModelArmor) throw fallbackError
         throw new Error(`Code Generator failed: primary (${selectedModel}): ${primaryError.message} | fallback (${FALLBACK_MODEL}): ${fallbackError.message}`)
       }
     }
@@ -3289,8 +3367,16 @@ async function runCodeReview(code, architectOutput = null) {
     const result = await callBuildShip("review", CODE_REVIEW_MODEL, buildReviewPrompt(code), context)
     return result
   } catch (error) {
+    if (error.isModelArmor) throw error
     throw new Error(`Code Review failed: ${error.message}`)
   }
+}
+
+function getPipelineErrorMessage(error, prefix) {
+  if (error.isModelArmor) {
+    return `${error.userTitle}: ${error.userMessage}`;
+  }
+  return `${prefix}: ${error.message}`;
 }
 
 // --- MARKDOWN RENDERING ---
@@ -3546,7 +3632,7 @@ async function runRefinement() {
   } catch (error) {
     console.error("Refinement failed:", error);
     hidePipelineProgress();
-    showToast(`Refinement failed: ${error.message}`, "error");
+    showToast(getPipelineErrorMessage(error, "Refinement failed"), "error");
   } finally {
     pipelineState.isRunning = false;
     btns.forEach((btn) => {
@@ -3660,7 +3746,7 @@ async function regenerateFromPastedErrors() {
   } catch (error) {
     console.error("Fix from errors failed:", error)
     hidePipelineProgress()
-    showToast(`Failed to fix errors: ${error.message}`, "error")
+    showToast(getPipelineErrorMessage(error, "Failed to fix errors"), "error")
   } finally {
     pipelineState.isRunning = false
     if (btn) {
@@ -3797,14 +3883,19 @@ async function runThinkingPipeline() {
     });
 
     // Determine which step failed based on the error context
-    let errorStep = 1; // Default to step 1
-    if (
+    const modelArmorSteps = {
+      architect: 1,
+      generator: 2,
+      review: 3,
+    };
+    let errorStep = modelArmorSteps[error.pipelineStep] || 1;
+    if (!error.pipelineStep && (
       error.message.includes("Claude") ||
       error.message.includes("OpenAI") ||
       error.message.includes("Code Generator")
-    ) {
+    )) {
       errorStep = 2;
-    } else if (error.message.includes("Code Review")) {
+    } else if (!error.pipelineStep && error.message.includes("Code Review")) {
       errorStep = 3;
     }
 
@@ -3818,28 +3909,36 @@ async function runThinkingPipeline() {
     if (resultDiv) resultDiv.classList.remove("hidden");
 
     if (output) {
-      // Format error message based on type
-      let errorMessage = error.message;
-      if (error.message.includes("image input")) {
-        errorMessage =
-          `This model doesn't support image input. Please use ${getModelLabel(FREE_MODEL)} for image-based requests or remove image references from your prompt.`;
-      } else if (
-        error.message.includes("Load failed") ||
-        error.message.includes("CORS")
-      ) {
-        errorMessage =
-          "API connection failed. This might be due to CORS restrictions or network issues. Please check your API key and try again.";
-      }
+      if (error.isModelArmor) {
+        output.innerHTML = `<div role="alert" class="bg-amber-50 border border-amber-200 rounded-lg p-4" style="white-space:normal;overflow-wrap:anywhere;font-family:'Delight','DM Sans',sans-serif;line-height:1.5;">
+          <h4 class="text-amber-800 font-bold text-xs uppercase mb-2">${escapeHtml(error.userTitle)}</h4>
+          <p class="text-sm text-amber-900">${escapeHtml(error.userMessage)}</p>
+          <p class="mt-3 text-xs text-amber-700">${escapeHtml(error.retryExplanation)}</p>
+        </div>`;
+      } else {
+        // Format error message based on type
+        let errorMessage = error.message;
+        if (error.message.includes("image input")) {
+          errorMessage =
+            `This model doesn't support image input. Please use ${getModelLabel(FREE_MODEL)} for image-based requests or remove image references from your prompt.`;
+        } else if (
+          error.message.includes("Load failed") ||
+          error.message.includes("CORS")
+        ) {
+          errorMessage =
+            "API connection failed. This might be due to CORS restrictions or network issues. Please check your API key and try again.";
+        }
 
-      output.innerHTML = `<div class="bg-red-50 border border-red-200 rounded-lg p-4">
-        <h4 class="text-red-600 font-bold text-xs uppercase mb-2">Connection Error</h4>
-        <p class="text-sm text-red-700">${escapeHtml(errorMessage)}</p>
-        <div class="mt-3 text-xs text-gray-500">
-          <p>Check if API key is valid</p>
-          <p>Try using a different model</p>
-          <p>Ensure network allows API calls</p>
-        </div>
-      </div>`;
+        output.innerHTML = `<div class="bg-red-50 border border-red-200 rounded-lg p-4">
+          <h4 class="text-red-600 font-bold text-xs uppercase mb-2">Connection Error</h4>
+          <p class="text-sm text-red-700">${escapeHtml(errorMessage)}</p>
+          <div class="mt-3 text-xs text-gray-500">
+            <p>Check if API key is valid</p>
+            <p>Try using a different model</p>
+            <p>Ensure network allows API calls</p>
+          </div>
+        </div>`;
+      }
     }
 
     updateStepIndicator(errorStep, "error");
@@ -4124,7 +4223,7 @@ async function regenerateWithErrors(originalError, errorMap) {
   } catch (error) {
     console.error("Regeneration failed:", error);
     hidePipelineProgress();
-    showToast(`Regeneration failed: ${error.message}`, "error");
+    showToast(getPipelineErrorMessage(error, "Regeneration failed"), "error");
   } finally {
     pipelineState.isRunning = false;
 
@@ -4853,6 +4952,9 @@ async function callBuildShip(step, model, prompt, context = {}) {
       usageError.isUsageLimit = true
       throw usageError
     }
+
+    const modelArmorError = createModelArmorError(data, step)
+    if (modelArmorError) throw modelArmorError
 
     console.log(`[BuildShip] ${step} response keys:`, Object.keys(data), 'content type:', typeof data.content)
     if (!res.ok) {

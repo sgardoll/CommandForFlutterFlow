@@ -24,15 +24,30 @@ If no deploy script exists, upload every file under `dist/` to the FTP account r
 
 ## FlutterFlow custom-class deploys
 
-`CustomClass` artifacts deploy through the same `syncCustomCodeChanges` call as
-actions and widgets. FlutterFlow's VS Code extension now supports standalone
-custom code files (`CodeType.CODE_FILE`, wire type `"C"`), so a generated class
-is pushed as `lib/custom_code/<file>.dart` with no extra infrastructure.
+FlutterFlow's VS Code extension supports editing existing standalone Custom Code
+Files through `syncCustomCodeChanges` (`CodeType.CODE_FILE`, wire type `"C"`).
+That endpoint looks up an existing `FFCustomCodeFile` by filename and does not
+create a missing entity.
 
-The Cloud Run AI-DSL runner (`cloud-run/ffai-runner`,
-`scripts/deploy_cloud_run_ffai.sh`) that previously handled these deploys is no
-longer called by the app and can be torn down. `VITE_FLUTTERFLOW_DSL_DEPLOY_ENDPOINT`
-is no longer read at build time.
+For a new `CustomClass`, the web app first calls the Cloud Run AI-DSL runner to
+provision the missing entity with `addCustomClass`, re-exports the project to
+confirm `lib/custom_code/<file>.dart` now exists, and then performs the normal
+extension-style sync for the complete bundle. Existing code files skip the
+provisioning step.
+
+The production runner defaults to:
+
+```text
+https://ccc-ffai-runner-y5cyj3473a-uw.a.run.app/deployCustomClasses
+```
+
+Override it at build time with `VITE_FLUTTERFLOW_CLASS_PROVISION_ENDPOINT`.
+`VITE_FLUTTERFLOW_DSL_DEPLOY_ENDPOINT` remains accepted for compatibility.
+Deploy the runner with:
+
+```bash
+PROJECT_ID=low-code-connect REGION=us-west1 ./scripts/deploy_cloud_run_ffai.sh
+```
 
 ## pubspec.yaml dependency sync
 
