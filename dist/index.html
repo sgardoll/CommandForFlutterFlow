@@ -874,15 +874,6 @@
       .btn-footer:active { transform: scale(0.97); }
       .btn-footer:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 
-      .btn-deploy-footer {
-        background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
-        color: #fff;
-        box-shadow: 0 3px 12px -2px rgba(249,115,22,0.4);
-      }
-      .btn-deploy-footer:hover:not(:disabled) {
-        box-shadow: 0 5px 18px -2px rgba(249,115,22,0.5);
-      }
-
       .btn-copy-footer {
         background: #f1f5f9;
         color: var(--navy);
@@ -1783,7 +1774,7 @@
         .pm-cards { padding: 0 16px; }
       }
     </style>
-    <script type="module" crossorigin src="/assets/index-DdQ1oUqx.js"></script>
+    <script type="module" crossorigin src="/assets/index-LHvBBwLh.js"></script>
   </head>
   <body>
     <div class="app-shell">
@@ -1853,9 +1844,11 @@
               <span class="sb-sublabel">Code Generation Model</span>
               <div id="code-options-content">
                 <select id="code-generator-model">
-                  <option value="google/gemini-3.5-flash" selected>Gemini 3.5 Flash</option>
-                  <option value="anthropic/claude-4.6-opus">Claude 4.6 Opus</option>
-                  <option value="openai/gpt-5.3-codex">GPT-5.3-Codex</option>
+                  <option value="google/gemini-3.6-flash" selected>Gemini 3.6 Flash</option>
+                  <option value="anthropic/claude-opus-5">Claude Opus 5</option>
+                  <option value="openai/gpt-5.6-sol">GPT-5.6 Sol</option>
+                  <option value="z-ai/glm-5.2">GLM 5.2</option>
+                  <option value="moonshotai/kimi-k3">Kimi K3</option>
                   <option value="openrouter/auto">OpenRouter: Auto Router</option>
                   <option value="openrouter/free">OpenRouter: Free Models</option>
                   <option value="openrouter/deepseek/deepseek-v4-pro">DeepSeek v4 Pro</option>
@@ -1879,7 +1872,7 @@
                   </svg>
                   <span class="workflow-label">Prompt Architect</span>
                 </div>
-                <span id="step1-model-label" class="text-sm text-gray-400" style="margin-left:22px;">Gemini 3.5 Flash</span>
+                <span id="step1-model-label" class="text-sm text-gray-400" style="margin-left:22px;">Gemini 3.6 Flash</span>
               </div>
               <div id="step1-status" class="status-icon">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1896,7 +1889,7 @@
                   </svg>
                   <span class="workflow-label">Code Generator</span>
                 </div>
-                <span id="step2-model-label" class="text-sm text-gray-400" style="margin-left:22px;">Gemini 3.5 Flash</span>
+                <span id="step2-model-label" class="text-sm text-gray-400" style="margin-left:22px;">Gemini 3.6 Flash</span>
               </div>
               <div id="step2-status" class="status-icon">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1913,7 +1906,7 @@
                   </svg>
                   <span class="workflow-label">Code Review</span>
                 </div>
-                <span id="step3-model-label" class="text-sm text-gray-400" style="margin-left:22px;">Gemini 3.5 Flash</span>
+                <span id="step3-model-label" class="text-sm text-gray-400" style="margin-left:22px;">Gemini 3.6 Flash</span>
               </div>
               <div id="step3-status" class="status-icon">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2131,10 +2124,6 @@
 
               <div class="results-footer">
                 <div class="results-footer-left">
-                  <button id="btn-deploy-results" class="btn-footer btn-deploy-footer" onclick="initiateCommitToFlutterFlow()">
-                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-                    Deploy to FlutterFlow
-                  </button>
                   <button id="btn-copy-results" class="btn-footer btn-copy-footer" onclick="copyResultsCode()">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
                     <span>Copy to Clipboard</span>
@@ -2245,31 +2234,19 @@
             </details>
           </div>
 
-          <div id="flutterflow-projects-container" class="hidden">
+          <div id="flutterflow-projects-container">
             <label class="block text-sm font-medium text-gray-600 mb-1.5">
               <span class="flex items-center gap-2">
                 <svg class="w-4 h-4 text-orange-500" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
-                Select Project
+                FlutterFlow Project
               </span>
             </label>
             <select id="flutterflow-projects-select" class="api-key-input w-full" style="font-family:'Delight',sans-serif; appearance:auto; background-image:none;">
-              <option value="">Loading projects...</option>
+              <option value="">Enter your API key to load projects</option>
             </select>
-            <p class="text-xs text-gray-400 mt-1">Select a project to auto-fill Project ID</p>
-            <div id="flutterflow-projects-error" class="text-xs text-red-500 mt-1 hidden">Failed to load projects.</div>
-          </div>
-
-          <div>
-            <label class="block text-sm font-medium text-gray-600 mb-1.5">
-              <span class="flex items-center gap-2">
-                <svg class="w-4 h-4 text-orange-500" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
-                FlutterFlow Project ID
-              </span>
-            </label>
-            <input type="text" id="flutterflow-project-id-input" class="api-key-input" placeholder="Enter your FlutterFlow Project ID"/>
-            <p class="text-xs text-gray-400 mt-1">Found in URL: flutterflow.io/project/<strong>[PROJECT-ID]</strong></p>
+            <p class="text-xs text-gray-400 mt-1">Projects are loaded with your FlutterFlow API key</p>
             <div id="flutterflow-project-status" class="key-status"><div class="key-status-dot missing"></div><span class="text-gray-400">Not configured</span></div>
-            <div id="flutterflow-project-id-error" class="text-xs text-red-500 mt-1 hidden">Project ID should be at least 5 characters with only letters, numbers, and dashes</div>
+            <div id="flutterflow-projects-error" class="text-xs text-red-500 mt-1 hidden">Failed to load projects.</div>
           </div>
 
 
@@ -2460,6 +2437,7 @@
               <div class="flex justify-between"><span class="text-gray-400">Type:</span><span class="font-medium text-gray-700" id="success-artifact-type"></span></div>
               <div class="flex justify-between"><span class="text-gray-400">Time:</span><span class="font-medium text-gray-700" id="success-time"></span></div>
               <div class="flex justify-between"><span class="text-gray-400">Size:</span><span class="font-medium text-gray-700" id="success-size"></span></div>
+              <div class="flex justify-between hidden" id="success-deps-row"><span class="text-gray-400">Packages added:</span><span class="font-medium text-gray-700" id="success-deps"></span></div>
             </div>
           </div>
           <div id="success-warnings-section" class="hidden bg-amber-50 border border-amber-100 rounded-lg p-3"><h3 class="font-medium text-amber-700 text-sm mb-1">Warnings</h3><ul id="success-warnings-list" class="text-xs text-amber-600 space-y-1"></ul></div>

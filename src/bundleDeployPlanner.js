@@ -2,6 +2,9 @@ const CODE_TYPE = {
   ACTION: "A",
   WIDGET: "W",
   FUNCTION: "F",
+  // Standalone custom code file, e.g. a plain Dart class. Synced through the
+  // same syncCustomCodeChanges call as actions and widgets.
+  CODE_FILE: "C",
   DEPENDENCIES: "D",
   OTHER: "O",
 };
@@ -10,11 +13,8 @@ const ARTIFACT_TYPE_TO_CODE_TYPE = {
   CustomAction: CODE_TYPE.ACTION,
   CustomWidget: CODE_TYPE.WIDGET,
   CustomFunction: CODE_TYPE.FUNCTION,
-  CodeFile: CODE_TYPE.OTHER,
-};
-
-const DSL_OPERATION = {
-  ADD_CUSTOM_CLASS: "addCustomClass",
+  CustomClass: CODE_TYPE.CODE_FILE,
+  CodeFile: CODE_TYPE.CODE_FILE,
 };
 
 export function getBundleFilePath(fileName, codeType) {
@@ -25,10 +25,14 @@ export function getBundleFilePath(fileName, codeType) {
       return `lib/custom_code/widgets/${fileName}`;
     case CODE_TYPE.FUNCTION:
       return "lib/flutter_flow/custom_functions.dart";
+    case CODE_TYPE.CODE_FILE:
+      // Standalone custom code files live flat under lib/custom_code/, never in
+      // a subfolder.
+      return `lib/custom_code/${fileName}`;
     case CODE_TYPE.DEPENDENCIES:
       return "pubspec.yaml";
     case CODE_TYPE.OTHER:
-      return `lib/custom_code/actions/${fileName}`;
+      return `lib/custom_code/${fileName}`;
     default:
       return fileName;
   }
@@ -38,12 +42,6 @@ function toFileName(artifact) {
   if (artifact.artifactType === "CustomFunction") return "custom_functions.dart";
   const source = artifact.fileName || artifact.artifactName || artifact.id || "generated_code";
   return source.endsWith(".dart") ? source : `${source}.dart`;
-}
-
-function toCustomClassName(artifact, fileName) {
-  return String(artifact.artifactName || fileName.replace(/\.dart$/, "") || artifact.id || "GeneratedClass")
-    .trim()
-    .replace(/\.dart$/, "");
 }
 
 function toDependencyMap(dependencies = []) {
@@ -85,29 +83,11 @@ export function buildBundleDeployPlan(bundle, options = {}) {
     .filter(Boolean);
 
   const warnings = [...(bundle?.warnings || [])];
-  const dslEntries = [];
   const fileEntries = [];
 
   selected.forEach((artifact) => {
     const fileName = toFileName(artifact);
     const content = artifact.code || "";
-    if (artifact.artifactType === "CustomClass") {
-      if (!content.trim()) {
-        warnings.push(`${artifact.artifactName || artifact.id} has no generated code.`);
-      }
-      dslEntries.push({
-        artifactId: artifact.id,
-        artifactName: artifact.artifactName,
-        artifactType: artifact.artifactType,
-        fileName,
-        className: toCustomClassName(artifact, fileName),
-        content,
-        deployMode: "dsl",
-        operation: DSL_OPERATION.ADD_CUSTOM_CLASS,
-      });
-      return;
-    }
-
     const codeType = artifact.codeType || ARTIFACT_TYPE_TO_CODE_TYPE[artifact.artifactType] || CODE_TYPE.OTHER;
     if (!content.trim()) {
       warnings.push(`${artifact.artifactName || artifact.id} has no generated code.`);
@@ -146,7 +126,6 @@ export function buildBundleDeployPlan(bundle, options = {}) {
     bundleId: bundle?.id || "bundle-current",
     title: bundle?.title || "Generated artifact bundle",
     fileEntries,
-    dslEntries,
     dependencies,
     relationships: bundle?.relationships || [],
     warnings,

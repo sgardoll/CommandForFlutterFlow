@@ -2,6 +2,14 @@
 
 RewriteEngine On
 
+<IfModule mod_headers.c>
+  <FilesMatch "^index\.html$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Pragma "no-cache"
+    Header set Expires "0"
+  </FilesMatch>
+</IfModule>
+
 # --- API proxies (must come before SPA fallback) ---
 RewriteRule ^api/gemini/(.*)$ api/gemini-proxy.php?path=$1 [QSA,L]
 RewriteRule ^api/anthropic/(.*)$ api/anthropic-proxy.php?path=$1 [QSA,L]

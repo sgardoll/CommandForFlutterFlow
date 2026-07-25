@@ -24,11 +24,10 @@ test("builds deploy entries in deploy order", () => {
     ],
   });
 
-  assert.deepEqual(plan.dslEntries.map((entry) => entry.artifactId), ["class-a"]);
-  assert.deepEqual(plan.fileEntries.map((entry) => entry.artifactId), ["widget-a"]);
-  assert.equal(plan.dslEntries[0].operation, "addCustomClass");
-  assert.equal(plan.dslEntries[0].className, "ModelA");
-  assert.equal(plan.fileEntries[0].path, "lib/custom_code/widgets/widget_a.dart");
+  assert.deepEqual(plan.fileEntries.map((entry) => entry.artifactId), ["class-a", "widget-a"]);
+  assert.equal(plan.fileEntries[0].type, "C");
+  assert.equal(plan.fileEntries[0].path, "lib/custom_code/model_a.dart");
+  assert.equal(plan.fileEntries[1].path, "lib/custom_code/widgets/widget_a.dart");
 });
 
 test("merges bundle and artifact dependencies with missing-version warnings", () => {

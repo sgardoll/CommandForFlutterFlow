@@ -40,6 +40,11 @@ test("mixed widget action function and class fixture preserves all artifact type
     "CustomFunction",
     "CustomWidget",
   ]);
+
+  // Every artifact type, custom classes included, goes out in one sync push.
+  const plan = buildBundleDeployPlan(bundle);
+  assert.equal(plan.fileEntries.length, 4);
+  assert.deepEqual(plan.fileEntries.map((entry) => entry.type), ["C", "A", "F", "W"]);
 });
 
 test("package-backed fixture treats agent_kit as dependency metadata", () => {
@@ -87,7 +92,7 @@ test("regeneration fixtures preserve selected artifact and full bundle output co
   assert.doesNotMatch(bundlePrompt, /full artifact-bundle\/v1 JSON bundle/);
 });
 
-test("deploy payload fixture separates custom-code files from custom-class DSL", () => {
+test("deploy payload fixture routes custom classes and widgets through one sync", () => {
   const bundle = normalizeArtifactBundle({
     deployOrder: ["class-a", "widget-a"],
     artifacts: [
@@ -97,16 +102,17 @@ test("deploy payload fixture separates custom-code files from custom-class DSL",
   });
   const plan = buildBundleDeployPlan(bundle);
 
-  assert.deepEqual(plan.dslEntries.map((entry) => entry.fileName), [
-    "agent_event.dart",
-  ]);
-  assert.deepEqual(plan.dslEntries.map((entry) => entry.operation), [
-    "addCustomClass",
-  ]);
   assert.deepEqual(plan.fileEntries.map((entry) => entry.fileName), [
+    "agent_event.dart",
     "agent_view.dart",
   ]);
+  assert.deepEqual(plan.fileEntries.map((entry) => entry.type), ["C", "W"]);
   assert.deepEqual(plan.fileEntries.map((entry) => entry.path), [
+    "lib/custom_code/agent_event.dart",
     "lib/custom_code/widgets/agent_view.dart",
+  ]);
+  assert.deepEqual(plan.fileEntries.map((entry) => entry.deployMode), [
+    "customCodeSync",
+    "customCodeSync",
   ]);
 });
