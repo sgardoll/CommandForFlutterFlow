@@ -8,6 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "node --test src/*.test.js",
+    "test:proxies": "php scripts/test-proxy-allowlist.php",
+    "test:key-storage": "npm run build && node scripts/test-key-storage.mjs",
     "verify:buildship-mcp": "node scripts/verify-buildship-mcp.mjs"
   },
   "devDependencies": {

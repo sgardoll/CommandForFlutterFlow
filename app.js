@@ -618,69 +618,154 @@ ${FF_TROUBLESHOOTING_CHECKLIST}`;
 // --- SECURE STORAGE (AES-256-GCM encryption) ---
 const STORAGE_KEY_PREFIX = "ccc_api_key_";
 const ENCRYPTION_KEY_NAME = "ccc_encryption_key";
+const KEY_DB_NAME = "ccc_keystore";
+const KEY_DB_STORE = "keys";
+/** @type {Promise<CryptoKey> | null} */
+let encryptionKeyPromise = null;
 
-// Generate or retrieve encryption key using Web Crypto API
-async function getEncryptionKey() {
-  const storedKey = sessionStorage.getItem(ENCRYPTION_KEY_NAME);
+// IndexedDB can persist a CryptoKey object without exposing its raw bytes.
+// This prevents an injected script from exporting the key for offline use.
+// It does not let browser storage survive arbitrary same-origin script: XSS
+// could still ask Web Crypto to decrypt while it is running.
+/** @returns {Promise<IDBDatabase>} */
+function openKeyDatabase() {
+  return /** @type {Promise<IDBDatabase>} */ (new Promise((resolve, reject) => {
+    const request = indexedDB.open(KEY_DB_NAME, 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(KEY_DB_STORE)) {
+        db.createObjectStore(KEY_DB_STORE);
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  }));
+}
 
-  if (storedKey) {
-    const keyData = JSON.parse(storedKey);
-    return await crypto.subtle.importKey(
+/**
+ * @template T
+ * @param {IDBTransactionMode} mode
+ * @param {(store: IDBObjectStore) => IDBRequest<T>} operation
+ * @returns {Promise<T>}
+ */
+async function runKeyDatabaseRequest(mode, operation) {
+  const db = /** @type {IDBDatabase} */ (await openKeyDatabase());
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(KEY_DB_STORE, mode);
+    const request = operation(transaction.objectStore(KEY_DB_STORE));
+    let result;
+
+    request.onsuccess = () => {
+      result = request.result;
+    };
+    request.onerror = () => reject(request.error);
+    transaction.oncomplete = () => {
+      db.close();
+      resolve(result);
+    };
+    transaction.onerror = () => {
+      db.close();
+      reject(transaction.error || new Error("Encryption key transaction failed."));
+    };
+    transaction.onabort = () => {
+      db.close();
+      reject(transaction.error || new Error("Encryption key transaction aborted."));
+    };
+  });
+}
+
+/** @param {unknown} key */
+function isUsableEncryptionKey(key) {
+  return key instanceof CryptoKey
+    && key.algorithm?.name === "AES-GCM"
+    && key.extractable === false
+    && key.usages.includes("encrypt")
+    && key.usages.includes("decrypt");
+}
+
+/** @returns {Promise<CryptoKey | null>} */
+async function loadStoredEncryptionKey() {
+  const key = await runKeyDatabaseRequest("readonly", (store) =>
+    store.get(ENCRYPTION_KEY_NAME),
+  );
+  return isUsableEncryptionKey(key) ? key : null;
+}
+
+/** @param {CryptoKey} key */
+async function persistEncryptionKey(key) {
+  await runKeyDatabaseRequest("readwrite", (store) =>
+    store.put(key, ENCRYPTION_KEY_NAME),
+  );
+}
+
+async function deleteStoredEncryptionKey() {
+  encryptionKeyPromise = null;
+  try {
+    await runKeyDatabaseRequest("readwrite", (store) =>
+      store.delete(ENCRYPTION_KEY_NAME),
+    );
+  } catch (error) {
+    console.warn("Could not delete the stored encryption key:", error);
+  }
+}
+
+// Re-import an earlier sessionStorage JWK as non-extractable before removing
+// the exportable copy. This keeps existing encrypted credentials readable.
+/** @returns {Promise<CryptoKey | null>} */
+async function migrateLegacySessionKey() {
+  const legacy = sessionStorage.getItem(ENCRYPTION_KEY_NAME);
+  if (!legacy) return null;
+
+  try {
+    const key = await crypto.subtle.importKey(
       "jwk",
-      keyData,
+      JSON.parse(legacy),
       { name: "AES-GCM", length: 256 },
-      true,
+      false,
       ["encrypt", "decrypt"],
     );
+    await persistEncryptionKey(key);
+    return key;
+  } finally {
+    sessionStorage.removeItem(ENCRYPTION_KEY_NAME);
+    localStorage.removeItem(STORAGE_KEY_PREFIX + "salt");
   }
+}
 
-  // Generate a new key derived from a device fingerprint + random salt
-  const fingerprint = await generateDeviceFingerprint();
-  const salt = crypto.getRandomValues(new Uint8Array(16));
+/** @returns {Promise<CryptoKey>} */
+async function resolveEncryptionKey() {
+  const stored = await loadStoredEncryptionKey();
+  if (stored) return stored;
 
-  // Use PBKDF2 to derive a key from the fingerprint
-  const encoder = new TextEncoder();
-  const keyMaterial = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(fingerprint),
-    "PBKDF2",
-    false,
-    ["deriveBits", "deriveKey"],
-  );
+  const migrated = await migrateLegacySessionKey();
+  if (migrated) return migrated;
 
-  const key = await crypto.subtle.deriveKey(
-    {
-      name: "PBKDF2",
-      salt: salt,
-      iterations: 100000,
-      hash: "SHA-256",
-    },
-    keyMaterial,
+  const key = await crypto.subtle.generateKey(
     { name: "AES-GCM", length: 256 },
-    true,
+    false,
     ["encrypt", "decrypt"],
   );
-
-  // Store the key in session storage (clears when browser closes)
-  const exportedKey = await crypto.subtle.exportKey("jwk", key);
-  sessionStorage.setItem(ENCRYPTION_KEY_NAME, JSON.stringify(exportedKey));
-
-  // Store salt in localStorage for key regeneration
-  localStorage.setItem(STORAGE_KEY_PREFIX + "salt", arrayBufferToBase64(salt));
-
+  await persistEncryptionKey(key);
   return key;
 }
 
-// Generate a secure random device identifier using Web Crypto API
-async function generateDeviceFingerprint() {
-  const randomData = crypto.getRandomValues(new Uint8Array(32));
-  const hashBuffer = await crypto.subtle.digest("SHA-256", randomData);
-  return arrayBufferToBase64(hashBuffer);
+/** @returns {Promise<CryptoKey>} */
+async function getEncryptionKey() {
+  const pending = /** @type {Promise<CryptoKey>} */ (
+    encryptionKeyPromise || resolveEncryptionKey()
+  );
+  encryptionKeyPromise = pending;
+  try {
+    return await pending;
+  } catch (error) {
+    encryptionKeyPromise = null;
+    throw error;
+  }
 }
 
 // Encrypt data using AES-256-GCM
 async function encryptData(plaintext) {
-  const key = await getEncryptionKey();
+  const key = /** @type {CryptoKey} */ (await getEncryptionKey());
   const encoder = new TextEncoder();
   const iv = crypto.getRandomValues(new Uint8Array(12));
 
@@ -701,7 +786,7 @@ async function encryptData(plaintext) {
 // Decrypt data using AES-256-GCM
 async function decryptData(encryptedBase64) {
   try {
-    const key = await getEncryptionKey();
+    const key = /** @type {CryptoKey} */ (await getEncryptionKey());
     const combined = base64ToArrayBuffer(encryptedBase64);
 
     const iv = combined.slice(0, 12);
@@ -792,6 +877,11 @@ let flutterflowApiKey = "";
 let flutterflowProjectId = "";
 
 async function initializeApiKeys() {
+  // Remove an exportable key left by an earlier version even if its encrypted
+  // credentials were already cleared.
+  if (sessionStorage.getItem(ENCRYPTION_KEY_NAME)) {
+    await getEncryptionKey();
+  }
   flutterflowApiKey = await getApiKey("flutterflow");
   flutterflowProjectId = await getApiKey("flutterflow_project_id");
   updateApiKeyStatusIndicators();
@@ -1069,6 +1159,9 @@ async function clearAllApiKeys() {
 
   localStorage.removeItem(STORAGE_KEY_PREFIX + "flutterflow");
   localStorage.removeItem(STORAGE_KEY_PREFIX + "flutterflow_project_id");
+  sessionStorage.removeItem(ENCRYPTION_KEY_NAME);
+  localStorage.removeItem(STORAGE_KEY_PREFIX + "salt");
+  await deleteStoredEncryptionKey();
 
   // Reinitialize keys
   await initializeApiKeys();

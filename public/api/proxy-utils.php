@@ -46,6 +46,72 @@ function ccc_build_query_string(array $params): string {
   return http_build_query($filtered);
 }
 
+function ccc_allowed_paths(string $provider): array {
+  $allowlists = [
+    'gemini' => [
+      '#^v1(?:beta)?/models$#',
+      '#^v1(?:beta)?/models/[A-Za-z0-9._-]+:(?:generateContent|streamGenerateContent|countTokens|embedContent)$#',
+    ],
+    'anthropic' => [
+      '#^v1/messages$#',
+      '#^v1/messages/count_tokens$#',
+      '#^v1/models$#',
+      '#^v1/models/[A-Za-z0-9._-]+$#',
+    ],
+    'openai' => [
+      '#^v1/chat/completions$#',
+      '#^v1/responses$#',
+      '#^v1/embeddings$#',
+      '#^v1/models$#',
+      '#^v1/models/[A-Za-z0-9._-]+$#',
+    ],
+  ];
+
+  return $allowlists[$provider] ?? [];
+}
+
+function ccc_path_is_structurally_safe(string $path): bool {
+  if ($path === '' || strlen($path) > 512) return false;
+
+  foreach ([$path, rawurldecode($path)] as $candidate) {
+    if (preg_match('#^[a-zA-Z][a-zA-Z0-9+.-]*:#', $candidate)) return false;
+    if (str_starts_with($candidate, '//') || str_starts_with($candidate, '\\')) return false;
+    if (str_contains($candidate, '@') || str_contains($candidate, '..')) return false;
+    if (preg_match('/[\x00-\x20\x7f]/', $candidate)) return false;
+  }
+
+  return true;
+}
+
+function ccc_is_allowed_path(string $path, array $allowedPatterns): bool {
+  if (!ccc_path_is_structurally_safe($path)) return false;
+
+  foreach ($allowedPatterns as $pattern) {
+    if (preg_match($pattern, $path) === 1) return true;
+  }
+
+  return false;
+}
+
+function ccc_require_allowed_path(mixed $value, array $allowedPatterns): string {
+  if (!is_string($value)) {
+    ccc_json_error(400, 'Invalid upstream path');
+  }
+
+  if (str_starts_with($value, '/') && !str_starts_with($value, '//')) {
+    $value = substr($value, 1);
+  }
+
+  if (!ccc_path_is_structurally_safe($value)) {
+    ccc_json_error(400, 'Invalid upstream path');
+  }
+  if (!ccc_is_allowed_path($value, $allowedPatterns)) {
+    ccc_json_error(403, 'Upstream path is not allowed');
+  }
+
+  return $value;
+}
+
 function ccc_forward_request(string $targetUrl, array $outgoingHeaders): void {
   $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
   $rawBody = file_get_contents('php://input');
