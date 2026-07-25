@@ -60,17 +60,42 @@ test("a successful commit proceeds and says so", () => {
   assert.match(result.message, /backup commit/);
 });
 
-test("a clean run that recorded nothing proceeds with an explanation", () => {
-  // Nothing uncommitted to capture means the latest existing commit already is
-  // the restore point — not an error, but not a new backup either.
+test("an unconfirmed commit blocks the deploy rather than assuming a clean project", () => {
+  // A clean exit with no commit recorded could mean the project had nothing to
+  // capture, or that the no-op run never commits and there is no restore point.
+  // The CLI output cannot tell them apart, so this must fail closed: guessing
+  // the benign reading would look identical to a failsafe that protects nothing
+  // on every deploy.
   const result = evaluateSnapshotOutcome({
     configured: true,
     ok: true,
     committed: false,
   });
-  assert.equal(result.proceed, true);
-  assert.equal(result.severity, "warning");
-  assert.match(result.message, /no uncommitted changes/);
+  assert.equal(result.proceed, false);
+  assert.equal(result.severity, "error");
+  assert.match(result.message, /version history/);
+});
+
+test("the only outcome that permits a push is a confirmed commit", () => {
+  // Enumerated so a future edit cannot quietly reintroduce a fail-open path.
+  const permitted = [
+    { configured: true, ok: true, committed: true },
+    // An unconfigured runner is opting out of backups entirely, not a failure.
+    { configured: false },
+  ];
+  const blocked = [
+    { configured: true, ok: true, committed: false },
+    { configured: true, ok: true, committed: undefined },
+    { configured: true, ok: false, error: "boom" },
+    { configured: true, ok: false },
+  ];
+
+  for (const outcome of permitted) {
+    assert.equal(evaluateSnapshotOutcome(outcome).proceed, true, JSON.stringify(outcome));
+  }
+  for (const outcome of blocked) {
+    assert.equal(evaluateSnapshotOutcome(outcome).proceed, false, JSON.stringify(outcome));
+  }
 });
 
 test("commit message identifies the deploy and fits the runner's limit", () => {
