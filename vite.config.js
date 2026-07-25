@@ -33,7 +33,6 @@ export default defineConfig(({ mode }) => {
     },
     define: {
       'import.meta.env.VITE_GEMINI_API_KEY': JSON.stringify(env.VITE_GEMINI_API_KEY || ''),
-      'import.meta.env.VITE_FLUTTERFLOW_DSL_DEPLOY_ENDPOINT': JSON.stringify(env.VITE_FLUTTERFLOW_DSL_DEPLOY_ENDPOINT || ''),
       'import.meta.env.VITE_PUBLIC_POSTHOG_KEY': JSON.stringify(env.VITE_PUBLIC_POSTHOG_KEY || ''),
       'import.meta.env.VITE_PUBLIC_POSTHOG_HOST': JSON.stringify(env.VITE_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com')
     }

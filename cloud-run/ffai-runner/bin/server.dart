@@ -25,19 +25,13 @@ Future<void> _handle(HttpRequest request) async {
       return;
     }
 
-    const deployPath = '/deployCustomClasses';
-    const snapshotPath = '/commitSnapshot';
-    final path = request.uri.path;
-
-    if (request.method != 'POST' || (path != deployPath && path != snapshotPath)) {
+    if (request.method != 'POST' || request.uri.path != '/deployCustomClasses') {
       await _json(request, HttpStatus.notFound, {
         'success': false,
         'error': 'Not found.',
       });
       return;
     }
-
-    final isSnapshot = path == snapshotPath;
 
     final payload = await _readJson(request);
     final apiKey = _stringField(payload, 'apiKey', maxLength: 10000);
@@ -50,9 +44,7 @@ Future<void> _handle(HttpRequest request) async {
       required: false,
     );
     final dryRun = payload['dryRun'] == true;
-    // A snapshot changes nothing; it exists only to make the CLI record a
-    // commit of the project's current state before we push over it.
-    final classes = isSnapshot ? const <CustomClassEntry>[] : _normalizeClasses(payload['customClasses']);
+    final classes = _normalizeClasses(payload['customClasses']);
 
     final workspace = Directory(
       Platform.environment['FFAI_WORKSPACE'] ?? '/workspace/custom_code_connect',
@@ -100,28 +92,9 @@ Future<void> _handle(HttpRequest request) async {
     if (result.exitCode != 0) {
       await _json(request, HttpStatus.badGateway, {
         'success': false,
-        'error': isSnapshot
-            ? 'FlutterFlow AI DSL snapshot commit failed.'
-            : 'FlutterFlow AI DSL deploy failed.',
+        'error': 'FlutterFlow AI DSL deploy failed.',
         'details': _trimOutput('${result.stderr}'.isNotEmpty ? result.stderr : result.stdout),
         'exitCode': result.exitCode,
-      });
-      return;
-    }
-
-    if (isSnapshot) {
-      // Whether the CLI records a commit for a run that changes nothing is not
-      // documented, so report what it actually did instead of assuming. The
-      // caller decides what to do when committed is false, and the raw output
-      // is returned so the answer is visible on the first real run.
-      final output = '${result.stdout}\n${result.stderr}';
-      await _json(request, HttpStatus.ok, {
-        'success': true,
-        'committed': _looksCommitted(output),
-        'message': 'FlutterFlow AI DSL snapshot run completed.',
-        'commitMessage': commitMessage,
-        'output': _trimOutput(output),
-        'dryRun': dryRun,
       });
       return;
     }
@@ -375,19 +348,6 @@ String _dartRawString(String value) {
     return "r'''\n$value\n'''";
   }
   return '"""${value.replaceAll(r'\', r'\\').replaceAll(r'$', r'\$').replaceAll('"""', r'\"\"\"')}"""';
-}
-
-// Best-effort read of whether the CLI actually recorded a commit. Deliberately
-// conservative: an unrecognised output shape reports false rather than claiming
-// a restore point exists that does not.
-bool _looksCommitted(String output) {
-  final lower = output.toLowerCase();
-  if (lower.contains('no changes') ||
-      lower.contains('nothing to commit') ||
-      lower.contains('up to date')) {
-    return false;
-  }
-  return lower.contains('commit');
 }
 
 String _trimOutput(Object value) {
