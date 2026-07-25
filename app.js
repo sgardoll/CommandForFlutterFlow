@@ -23,19 +23,9 @@ import {
   highlightCode,
   renderMarkdownAudit,
 } from "./src/auditRenderer.js";
-import {
-  buildSnapshotCommitMessage,
-  deriveSnapshotEndpoint,
-  evaluateSnapshotOutcome,
-} from "./src/preDeployBackup.js";
 
 // --- CONFIGURATION ---
 const IS_DEV = import.meta.env.DEV
-// FlutterFlow AI DSL runner. Used for the pre-deploy backup commit: the
-// custom-code sync API carries no commit message, so it leaves no restore
-// point, while the DSL CLI does.
-const FLUTTERFLOW_DSL_DEPLOY_ENDPOINT =
-  import.meta.env.VITE_FLUTTERFLOW_DSL_DEPLOY_ENDPOINT || "";
 
 // --- ANALYTICS ---
 const POSTHOG_KEY = import.meta.env.VITE_PUBLIC_POSTHOG_KEY;
@@ -2171,66 +2161,6 @@ function getFileNameFromPath(filePath) {
   return filePath.split("/").pop();
 }
 
-// --- PRE-DEPLOY BACKUP ---
-
-/**
- * Asks the DSL runner to record a commit of the project's current state, then
- * decides whether the deploy may continue.
- *
- * Called before every push. A push through syncCustomCodeChanges leaves no
- * restore point of its own, so this is the project's rollback path if a deploy
- * turns out badly.
- *
- * @param {Object} params
- * @param {string} params.apiKey - FlutterFlow API key
- * @param {string} params.projectId - Target project
- * @param {string} [params.label] - What is being deployed, for the message
- * @returns {Promise<{proceed: boolean, severity: string, message: string}>}
- */
-async function createPreDeployBackup({ apiKey, projectId, label }) {
-  const endpoint = deriveSnapshotEndpoint(FLUTTERFLOW_DSL_DEPLOY_ENDPOINT);
-  if (!endpoint) {
-    return evaluateSnapshotOutcome({ configured: false });
-  }
-
-  try {
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        apiKey,
-        projectId,
-        baseUrl: getFlutterFlowEndpoint(),
-        commitMessage: buildSnapshotCommitMessage(label),
-      }),
-    });
-    const data = await response.json().catch(() => ({}));
-
-    if (!response.ok || data.success === false) {
-      return evaluateSnapshotOutcome({
-        configured: true,
-        ok: false,
-        error: data.details || data.error || `HTTP ${response.status}`,
-      });
-    }
-
-    // The runner returns what the CLI actually did rather than assuming a
-    // commit was made; log it so the undocumented behaviour is observable.
-    console.log("Pre-deploy backup:", data.committed ? "commit recorded" : "no commit recorded", data.output || "");
-    return evaluateSnapshotOutcome({
-      configured: true,
-      ok: true,
-      committed: data.committed === true,
-    });
-  } catch (error) {
-    return evaluateSnapshotOutcome({
-      configured: true,
-      ok: false,
-      error: error.message,
-    });
-  }
-}
-
 // --- PUBSPEC.YAML UTILITIES ---
 
 // The project's own pubspec.yaml, cached per project for the session. Fetching
@@ -2962,16 +2892,6 @@ async function commitToFlutterFlow(dartCode, fileName, options = {}) {
     commitState.setState(CommitState.PUSHING);
     commitState.setProgress(1, fileMap.size);
 
-    // Failsafe: record a restore point before overwriting anything. A push
-    // through syncCustomCodeChanges leaves no commit of its own.
-    const backup = await createPreDeployBackup({
-      apiKey,
-      projectId,
-      label: fileName,
-    });
-    if (!backup.proceed) throw new Error(backup.message);
-    if (backup.severity !== "ok") console.warn(backup.message);
-
     // FlutterFlow may apply a push whose response we never successfully read, so
     // once a dependency-changing push is in flight the cached manifest can no
     // longer be trusted. Drop it now rather than on success: merging a later
@@ -3136,16 +3056,6 @@ async function executeCommit(code, options = {}) {
 
     commitState.setProgress(1, fileMap.size);
 
-    // Failsafe: record a restore point before overwriting anything. A push
-    // through syncCustomCodeChanges leaves no commit of its own.
-    const backup = await createPreDeployBackup({
-      apiKey,
-      projectId,
-      label: codeInfo.fileName,
-    });
-    if (!backup.proceed) throw new Error(backup.message);
-    if (backup.severity !== "ok") console.warn(backup.message);
-
     // FlutterFlow may apply a push whose response we never successfully read, so
     // once a dependency-changing push is in flight the cached manifest can no
     // longer be trusted. Drop it now rather than on success: merging a later
@@ -3284,16 +3194,6 @@ async function executeBundleCommit(bundlePlan, options = {}) {
     };
 
     commitState.setProgress(1, fileMap.size);
-    // Failsafe: record a restore point before overwriting anything. A push
-    // through syncCustomCodeChanges leaves no commit of its own.
-    const backup = await createPreDeployBackup({
-      apiKey,
-      projectId,
-      label: bundlePlan.title,
-    });
-    if (!backup.proceed) throw new Error(backup.message);
-    if (backup.severity !== "ok") console.warn(backup.message);
-
     // FlutterFlow may apply a push whose response we never successfully read, so
     // once a dependency-changing push is in flight the cached manifest can no
     // longer be trusted. Drop it now rather than on success: merging a later
