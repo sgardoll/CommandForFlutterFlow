@@ -15,7 +15,7 @@ import { createModelArmorError } from "./src/modelArmorResponse.js";
 import { validateBundleCompatibility } from "./src/flutterFlowArtifactValidation.js";
 import { buildBundleDeployPlan } from "./src/bundleDeployPlanner.js";
 import {
-  assertCodeFilesProvisioned,
+  excludeProvisionedCodeFiles,
   findMissingCodeFiles,
 } from "./src/flutterFlowCodeFileProvisioning.js";
 import { buildFlutterFlowSyncMetadata } from "./src/flutterFlowSyncMetadata.js";
@@ -2173,7 +2173,9 @@ async function provisionMissingCodeFiles(
   commitMessage,
 ) {
   const missingCodeFiles = findMissingCodeFiles(fileMap, remoteFiles);
-  if (missingCodeFiles.length === 0) return remoteFiles;
+  if (missingCodeFiles.length === 0) {
+    return { remoteFiles, syncFileMap: fileMap };
+  }
 
   console.log(
     `Provisioning ${missingCodeFiles.length} new FlutterFlow custom code file(s) before sync.`,
@@ -2205,9 +2207,10 @@ async function provisionMissingCodeFiles(
   }
 
   invalidateProjectSourceCache(apiClient);
-  const refreshedProject = await apiClient.fetchProjectSource();
-  assertCodeFilesProvisioned(missingCodeFiles, refreshedProject.files);
-  return refreshedProject.files;
+  return {
+    remoteFiles,
+    syncFileMap: excludeProvisionedCodeFiles(fileMap, missingCodeFiles),
+  };
 }
 
 /**
@@ -2909,7 +2912,7 @@ async function commitToFlutterFlow(dartCode, fileName, options = {}) {
     // the merged file back so existing packages are preserved.
     const pubspecMerge = await resolveProjectPubspec(apiClient, pubspecDeps);
     const serializedYaml = pubspecMerge.yaml;
-    const remoteFiles = await provisionMissingCodeFiles(
+    const provisioning = await provisionMissingCodeFiles(
       apiClient,
       fileMap,
       pubspecMerge.remoteFiles,
@@ -2917,11 +2920,11 @@ async function commitToFlutterFlow(dartCode, fileName, options = {}) {
     );
 
     const syncMetadata = await buildApiSyncMetadata(
-      fileMap,
-      remoteFiles,
+      provisioning.syncFileMap,
+      provisioning.remoteFiles,
     );
 
-    const fileMapWithPubspec = new Map(fileMap);
+    const fileMapWithPubspec = new Map(provisioning.syncFileMap);
     fileMapWithPubspec.set("pubspec.yaml", {
       content: serializedYaml,
       type: "D",
@@ -3085,7 +3088,7 @@ async function executeCommit(code, options = {}) {
     // Step 7: Merge the code's dependencies into the project's own pubspec.yaml
     const pubspecMerge = await resolveProjectPubspec(apiClient, deps);
     const serializedYaml = pubspecMerge.yaml;
-    const remoteFiles = await provisionMissingCodeFiles(
+    const provisioning = await provisionMissingCodeFiles(
       apiClient,
       fileMap,
       pubspecMerge.remoteFiles,
@@ -3093,11 +3096,11 @@ async function executeCommit(code, options = {}) {
     );
 
     const syncMetadata = await buildApiSyncMetadata(
-      fileMap,
-      remoteFiles,
+      provisioning.syncFileMap,
+      provisioning.remoteFiles,
     );
 
-    const fileMapWithPubspec = new Map(fileMap);
+    const fileMapWithPubspec = new Map(provisioning.syncFileMap);
     fileMapWithPubspec.set("pubspec.yaml", {
       content: serializedYaml,
       type: CodeType.DEPENDENCIES,
@@ -3239,18 +3242,18 @@ async function executeBundleCommit(bundlePlan, options = {}) {
       bundlePlan.dependencies,
     );
     const serializedYaml = pubspecMerge.yaml;
-    const remoteFiles = await provisionMissingCodeFiles(
+    const provisioning = await provisionMissingCodeFiles(
       apiClient,
       fileMap,
       pubspecMerge.remoteFiles,
       `Provision ${bundlePlan.title} custom classes`,
     );
     const syncMetadata = await buildApiSyncMetadata(
-      fileMap,
-      remoteFiles,
+      provisioning.syncFileMap,
+      provisioning.remoteFiles,
     );
 
-    const fileMapWithPubspec = new Map(fileMap);
+    const fileMapWithPubspec = new Map(provisioning.syncFileMap);
     fileMapWithPubspec.set("pubspec.yaml", {
       content: serializedYaml,
       type: CodeType.DEPENDENCIES,

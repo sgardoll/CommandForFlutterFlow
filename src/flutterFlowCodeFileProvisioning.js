@@ -47,13 +47,11 @@ export function findMissingCodeFiles(fileMap, remoteFiles = new Map()) {
   return missing;
 }
 
-export function assertCodeFilesProvisioned(entries, remoteFiles) {
-  const unresolved = entries.filter((entry) => !remoteFiles.has(entry.path));
-  if (unresolved.length === 0) return;
-
-  throw new Error(
-    `FlutterFlow created the custom class but did not export the expected code file: ${unresolved
-      .map((entry) => entry.fileName)
-      .join(", ")}.`,
+export function excludeProvisionedCodeFiles(fileMap, entries) {
+  const provisionedPaths = new Set(entries.map((entry) => entry.path));
+  return new Map(
+    Array.from(fileMap.entries()).filter(
+      ([, info]) => !provisionedPaths.has(info.path),
+    ),
   );
 }
