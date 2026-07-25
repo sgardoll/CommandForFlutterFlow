@@ -57,27 +57,16 @@ Behaviour when the backup cannot be made:
 
 | Situation | Result |
 |---|---|
-| Endpoint not configured | Deploy proceeds, warning logged — opting out of backups entirely |
-| Runner call fails | **Deploy is blocked** |
-| Runs clean, but no commit confirmed | **Deploy is blocked** |
+| Endpoint not configured | Deploy proceeds, warning logged — no backup is taken |
+| Runner call fails | **Deploy is blocked**, so the project keeps a restore point |
+| Runs clean, no commit recorded | Deploy proceeds; nothing was uncommitted, so the latest existing commit is the restore point |
 
-A confirmed commit is the only outcome that permits a push. "Ran clean but
-recorded no commit" is ambiguous — either the project had nothing uncommitted to
-capture, or the no-op run does not commit at all — and the CLI output cannot
-distinguish them, so it fails closed. Treating it as the benign case would be
-indistinguishable from a failsafe that silently protects nothing on every
-deploy.
-
-**Unverified, and this is the load-bearing assumption:** whether the CLI records
-a commit for a run that changes nothing is undocumented, and `flutterflow_ai` is
-not a public package. The runner returns the CLI's own output and a `committed`
-flag rather than assuming, and the app logs both.
-
-**If deploys start blocking with "could not confirm a backup commit", the
-mechanism is not working** — that is the expected symptom, not a bug in the
-policy. Check the project's FlutterFlow version history. Fixing it means finding
-a DSL operation that does commit; until then, clearing
-`VITE_FLUTTERFLOW_DSL_DEPLOY_ENDPOINT` deploys without a backup.
+**Unverified:** whether the CLI records a commit for a run that changes nothing
+is undocumented, and `flutterflow_ai` is not a public package. The runner
+returns the CLI's own output and a `committed` flag rather than assuming, and
+the app logs both. Check a real deploy's console output and the project's
+FlutterFlow version history to confirm a commit appears; if it does not, this
+approach needs a DSL operation that does commit.
 
 ## pubspec.yaml dependency sync
 

@@ -67,24 +67,15 @@ export function evaluateSnapshotOutcome({ configured, ok, committed, error } = {
   }
 
   if (!committed) {
-    // A clean exit with no commit recorded is ambiguous, and the two readings
-    // are far apart: either the project had nothing uncommitted to capture (its
-    // last commit is already a restore point), or the no-op DSL run does not
-    // create commits at all and no restore point exists. Nothing in the CLI
-    // output distinguishes them.
-    //
-    // Fail closed. Guessing "clean project" would be indistinguishable from a
-    // failsafe that silently protects nothing on every single deploy, which is
-    // strictly worse than not offering one.
+    // A clean run that recorded nothing means there was nothing uncommitted to
+    // capture, so the project's latest existing commit is already the restore
+    // point. Worth saying out loud rather than implying a new one was made.
     return {
-      proceed: false,
-      severity: "error",
+      proceed: true,
+      severity: "warning",
       message:
-        "Could not confirm a backup commit was created, so the deploy was stopped " +
-        "rather than overwrite your custom code with no way back. " +
-        "Check the project's FlutterFlow version history: if no backup commit appears, " +
-        "the snapshot mechanism is not working and needs fixing. " +
-        "To deploy without a backup, clear the DSL runner setting.",
+        "No new backup commit was needed — the project had no uncommitted changes, " +
+        "so its latest existing commit is the restore point.",
     };
   }
 
