@@ -4,12 +4,10 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/proxy-utils.php';
 
-$path = $_GET['path'] ?? '';
-$path = ltrim($path, '/');
-
-if ($path === '') {
-  ccc_json_error(400, 'Missing Anthropic path');
-}
+$path = ccc_require_allowed_path(
+  $_GET['path'] ?? '',
+  ccc_allowed_paths('anthropic'),
+);
 
 $incomingHeaders = ccc_get_request_headers();
 
