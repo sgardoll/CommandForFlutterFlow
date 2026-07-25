@@ -2,8 +2,8 @@ const CODE_TYPE = {
   ACTION: "A",
   WIDGET: "W",
   FUNCTION: "F",
-  // Standalone custom code file, e.g. a plain Dart class. Synced through the
-  // same syncCustomCodeChanges call as actions and widgets.
+  // Standalone custom code file, e.g. a plain Dart class. Missing files are
+  // provisioned first, then synced with actions and widgets.
   CODE_FILE: "C",
   DEPENDENCIES: "D",
   OTHER: "O",
