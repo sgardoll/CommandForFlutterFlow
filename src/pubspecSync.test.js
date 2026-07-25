@@ -113,6 +113,57 @@ dependencies:
   assert.match(result.yaml, /^ {4}http: \^1\.2\.0$/m);
 });
 
+test("accepts a dependencies header carrying a trailing comment", () => {
+  const commented = `name: app
+dependencies: # Project packages
+  flutter:
+    sdk: flutter
+  intl: 0.19.0
+`;
+  assert.equal(validateProjectPubspec(commented).valid, true);
+  assert.deepEqual(parseExistingDependencyNames(commented), ["flutter", "intl"]);
+
+  const result = mergeDependenciesIntoYaml(commented, { http: "^1.2.0" });
+  assert.deepEqual(result.added, ["http"]);
+  assert.match(result.yaml, /^dependencies: # Project packages$/m);
+  assert.match(result.yaml, /^ {2}http: \^1\.2\.0$/m);
+});
+
+test("treats a quoted dependency key as already declared", () => {
+  const quoted = `name: app
+dependencies:
+  flutter:
+    sdk: flutter
+  "http": ^1.2.0
+  'intl': 0.19.0
+`;
+  assert.deepEqual(parseExistingDependencyNames(quoted), ["flutter", "http", "intl"]);
+
+  // Re-requesting them must not append a second, conflicting declaration.
+  const result = mergeDependenciesIntoYaml(quoted, { http: "^1.3.0", intl: "^0.20.0" });
+  assert.deepEqual(result.added, []);
+  assert.equal(result.yaml, quoted);
+});
+
+test("quotes constraints that YAML would otherwise misparse", () => {
+  const base = `name: app
+dependencies:
+  flutter:
+    sdk: flutter
+`;
+  // `>` opens a folded block scalar, so a bare range constraint is a parse error.
+  assert.match(
+    mergeDependenciesIntoYaml(base, { foo: ">=1.0.0 <2.0.0" }).yaml,
+    /^ {2}foo: '>=1\.0\.0 <2\.0\.0'$/m,
+  );
+  assert.match(mergeDependenciesIntoYaml(base, { foo: "*" }).yaml, /^ {2}foo: '\*'$/m);
+
+  // Ordinary caret and exact constraints stay idiomatic and unquoted.
+  assert.match(mergeDependenciesIntoYaml(base, { foo: "^1.2.0" }).yaml, /^ {2}foo: \^1\.2\.0$/m);
+  assert.match(mergeDependenciesIntoYaml(base, { foo: "1.2.0+1" }).yaml, /^ {2}foo: 1\.2\.0\+1$/m);
+  assert.match(mergeDependenciesIntoYaml(base, { foo: "" }).yaml, /^ {2}foo: any$/m);
+});
+
 test("accepts a real project pubspec and rejects a synthesized stub", () => {
   assert.equal(validateProjectPubspec(PROJECT_PUBSPEC).valid, true);
 

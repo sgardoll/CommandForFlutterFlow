@@ -10,7 +10,20 @@
 // hosted/git/path dependency forms, and every other section byte-for-byte
 // intact, which a parse-and-reserialize round trip would not.
 
-const DEPENDENCY_NAME_PATTERN = /^([A-Za-z_][A-Za-z0-9_-]*):/;
+// A top-level `dependencies:` key. YAML allows space before the colon and a
+// trailing comment after it, both of which appear in hand-edited pubspecs.
+const DEPENDENCIES_HEADER_PATTERN = /^dependencies\s*:\s*(?:#.*)?$/;
+
+// A dependency name as it appears at the start of a block entry. Package names
+// are plain identifiers, but YAML permits the key to be quoted.
+const DEPENDENCY_NAME_PATTERN =
+  /^(?:"([^"]+)"|'([^']+)'|([A-Za-z_][A-Za-z0-9_-]*))\s*:/;
+
+function parseDependencyName(trimmedLine) {
+  const match = trimmedLine.match(DEPENDENCY_NAME_PATTERN);
+  if (!match) return null;
+  return match[1] ?? match[2] ?? match[3];
+}
 
 function isBlankOrComment(line) {
   const trimmed = line.trim();
@@ -29,7 +42,9 @@ function indentOf(line) {
  *   endIndex is exclusive and excludes trailing blank/comment lines.
  */
 function findDependenciesBlock(lines) {
-  const headerIndex = lines.findIndex((line) => /^dependencies:\s*$/.test(line));
+  const headerIndex = lines.findIndex((line) =>
+    DEPENDENCIES_HEADER_PATTERN.test(line),
+  );
   if (headerIndex === -1) return null;
 
   let endIndex = headerIndex + 1;
@@ -73,17 +88,25 @@ export function parseExistingDependencyNames(yamlContent) {
     // Only direct children are dependency names; deeper lines describe a
     // dependency's own keys (sdk:, git:, version:, ...).
     if (indentOf(line) !== block.childIndent.length) continue;
-    const match = line.trim().match(DEPENDENCY_NAME_PATTERN);
-    if (match) names.push(match[1]);
+    const name = parseDependencyName(line.trim());
+    if (name) names.push(name);
   }
   return names;
+}
+
+// YAML would misread a plain scalar that opens with an indicator character, and
+// `>=1.0.0 <2.0.0` — an ordinary pub range constraint — is a parse error rather
+// than a string. Quote anything that isn't unambiguously plain.
+function formatConstraint(constraint) {
+  if (/^[A-Za-z0-9^~][A-Za-z0-9^~+._-]*$/.test(constraint)) return constraint;
+  return `'${constraint.replace(/'/g, "''")}'`;
 }
 
 function formatDependencyLine(indent, name, version) {
   const constraint = String(version || "").trim();
   // A bare `name:` parses as null, which pub reads as "any". Say it explicitly
   // so the pushed file is unambiguous to FlutterFlow's yaml validation.
-  return `${indent}${name}: ${constraint || "any"}`;
+  return `${indent}${name}: ${constraint ? formatConstraint(constraint) : "any"}`;
 }
 
 /**
@@ -167,7 +190,7 @@ export function validateProjectPubspec(yamlContent) {
   if (!/^name:\s*\S+/m.test(content)) {
     errors.push("pubspec.yaml missing name field");
   }
-  if (!/^dependencies:\s*$/m.test(content)) {
+  if (!findDependenciesBlock(content.split("\n"))) {
     errors.push("pubspec.yaml missing dependencies section");
   }
   if (!parseExistingDependencyNames(content).includes("flutter")) {

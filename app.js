@@ -2608,12 +2608,16 @@ async function commitToFlutterFlow(dartCode, fileName, options = {}) {
     commitState.setState(CommitState.PUSHING);
     commitState.setProgress(1, fileMap.size);
 
+    // FlutterFlow may apply a push whose response we never successfully read, so
+    // once a dependency-changing push is in flight the cached manifest can no
+    // longer be trusted. Drop it now rather than on success: merging a later
+    // deploy into a stale copy would drop the packages this push added.
+    if (pubspecMerge.added.length > 0) invalidateProjectPubspecCache(apiClient);
+
     const response = await apiClient.pushCode(pushRequest);
     const result = await parsePushCodeResponse(response);
 
     if (result.success) {
-      // The project's dependencies just changed, so the cached copy is stale.
-      if (pubspecMerge.added.length > 0) invalidateProjectPubspecCache(apiClient);
       commitState.setSuccess({
         fileCount: fileMap.size,
         projectId,
@@ -2768,12 +2772,17 @@ async function executeCommit(code, options = {}) {
 
     commitState.setProgress(1, fileMap.size);
 
+    // FlutterFlow may apply a push whose response we never successfully read, so
+    // once a dependency-changing push is in flight the cached manifest can no
+    // longer be trusted. Drop it now rather than on success: merging a later
+    // deploy into a stale copy would drop the packages this push added.
+    if (pubspecMerge.added.length > 0) invalidateProjectPubspecCache(apiClient);
+
     const response = await apiClient.pushCode(pushRequest);
     const result = await parsePushCodeResponse(response);
 
     // Step 10: Handle result
     if (result.success) {
-      if (pubspecMerge.added.length > 0) invalidateProjectPubspecCache(apiClient);
       const metadata = { ...buildCommitMetadata(codeInfo, pipelineResult), projectId };
 
       commitState.setSuccess({
@@ -2901,11 +2910,16 @@ async function executeBundleCommit(bundlePlan, options = {}) {
     };
 
     commitState.setProgress(1, fileMap.size);
+    // FlutterFlow may apply a push whose response we never successfully read, so
+    // once a dependency-changing push is in flight the cached manifest can no
+    // longer be trusted. Drop it now rather than on success: merging a later
+    // deploy into a stale copy would drop the packages this push added.
+    if (pubspecMerge.added.length > 0) invalidateProjectPubspecCache(apiClient);
+
     const response = await apiClient.pushCode(pushRequest);
     const result = await parsePushCodeResponse(response);
 
     if (result.success) {
-      if (pubspecMerge.added.length > 0) invalidateProjectPubspecCache(apiClient);
       const metadata = {
         ...pipelineResult,
         artifactType: "Bundle",
