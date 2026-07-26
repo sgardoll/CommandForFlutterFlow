@@ -20,6 +20,13 @@ const TYPE_FILE_HINTS = {
 // Importing a package class does not make it selectable, so anything else -
 // an imported package class, a Code File class, a CustomEnum - is rejected by
 // FlutterFlow at push time and must be caught before deploy.
+//
+// Map is deliberately NOT included: FlutterFlow documents "JSON" as a
+// supported return category, but its push-time parser rejects the literal
+// annotation `Future<Map<String, dynamic>>` with "Unable to process return
+// parameter" (confirmed by multiple FlutterFlow community reports). The
+// working form for a JSON/freeform return is `Future<dynamic>`, which is
+// already in this list.
 const SUPPORTED_RETURN_TYPES = new Set([
   "void",
   "dynamic",
@@ -35,7 +42,6 @@ const SUPPORTED_RETURN_TYPES = new Set([
   "FFPlace",
   "FFUploadedFile",
   "DocumentReference",
-  "Map",
   "List",
 ]);
 
@@ -238,7 +244,7 @@ export function getCustomActionReturnTypeError(
     detail = `uses type "${offending}", which is not a FlutterFlow Action Return Value`;
   }
 
-  return `CustomAction return type "${returnType}" ${detail}. Return JSON (Future<dynamic> or Future<Map<String, dynamic>>) or an existing FlutterFlow Data Type (*Struct) instead.`;
+  return `CustomAction return type "${returnType}" ${detail}. Return JSON (Future<dynamic>) or an existing FlutterFlow Data Type (*Struct) instead.`;
 }
 
 export function validateArtifactCompatibility(artifact, options = {}) {

@@ -96,13 +96,28 @@ test("allows a CustomAction to return JSON instead of a generated class", () => 
         artifactName: "executeNfcRoutine",
         artifactType: "CustomAction",
         fileName: "execute_nfc_routine.dart",
-        code: "Future<Map<String, dynamic>> executeNfcRoutine() async => RoutineExecutionResult().toJson();",
+        code: "Future<dynamic> executeNfcRoutine() async => RoutineExecutionResult().toJson();",
       },
     ],
   });
 
   assert.equal(result.valid, true);
   assert.deepEqual(result.findings, []);
+});
+
+test("rejects Future<Map<String, dynamic>> - FlutterFlow's push-time parser cannot process it despite JSON being a documented return category", () => {
+  const findings = validateArtifactCompatibility({
+    id: "execute-pipedream-action",
+    artifactName: "executePipedreamAction",
+    artifactType: "CustomAction",
+    fileName: "execute_pipedream_action.dart",
+    code: "Future<Map<String, dynamic>> executePipedreamAction(String apiKey) async => {'success': true};",
+  });
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].severity, "error");
+  assert.match(findings[0].message, /Map<String, dynamic>/);
+  assert.match(findings[0].message, /Future<dynamic>/);
 });
 
 test("rejects a CustomAction that returns an imported package type", () => {
@@ -163,7 +178,7 @@ test("ignores a private helper when the artifact name does not match", () => {
     fileName: "write_nfc_tag.dart",
     code: [
       "Future<NfcTag> _readTag() async => throw UnimplementedError();",
-      "Future<Map<String, dynamic>> writeNfcTag() async => {};",
+      "Future<dynamic> writeNfcTag() async => {};",
     ].join("\n"),
   });
 
@@ -175,7 +190,7 @@ test("allows FlutterFlow Data Type structs and supported primitives", () => {
     "Future<ProductStruct> loadProduct() async => ProductStruct();",
     "Future<List<ProductStruct>> loadProducts() async => [];",
     "Future<String> loadName() async => '';",
-    "Future<Map<String, dynamic>> loadJson() async => {};",
+    "Future<dynamic> loadJson() async => {};",
     "Future<FFUploadedFile> loadFile() async => throw UnimplementedError();",
     "Future<UsersRecord> loadUser() async => throw UnimplementedError();",
     "Future<List<UsersRecord>> loadUsers() async => [];",
@@ -249,7 +264,7 @@ test("ignores type names that only appear in comments or strings", () => {
     code: [
       "/// Mirrors class RoutineResult in the backend.",
       "// returns class LegacyPayload data as JSON",
-      "Future<Map<String, dynamic>> loadJson() async => {'kind': 'class Fake'};",
+      "Future<dynamic> loadJson() async => {'kind': 'class Fake'};",
     ].join("\n"),
   });
 
