@@ -14,6 +14,27 @@ const TYPE_FILE_HINTS = {
   CodeFile: "custom_code/",
 };
 
+// Types FlutterFlow exposes in the Custom Action "Return Value" selector.
+// Anything else - an imported package class, a Code File class, a CustomEnum -
+// is rejected by FlutterFlow at push time, so it must be caught before deploy.
+const SUPPORTED_RETURN_TYPES = new Set([
+  "void",
+  "dynamic",
+  "String",
+  "int",
+  "double",
+  "num",
+  "bool",
+  "Color",
+  "DateTime",
+  "LatLng",
+  "FFPlace",
+  "FFUploadedFile",
+  "DocumentReference",
+  "Map",
+  "List",
+]);
+
 function createFinding(artifact, severity, message) {
   return {
     artifactId: artifact.id,
@@ -24,35 +45,158 @@ function createFinding(artifact, severity, message) {
   };
 }
 
+/**
+ * Removes comments and string literals so type detection never matches a name
+ * that only appears in prose or in a quoted string.
+ * @param {string} code - Dart source
+ * @returns {string} Source with comments and string bodies blanked out
+ */
+function stripCommentsAndStrings(code) {
+  let out = "";
+  let i = 0;
+
+  while (i < code.length) {
+    const pair = code.slice(i, i + 2);
+
+    if (pair === "//") {
+      while (i < code.length && code[i] !== "\n") i++;
+      out += " ";
+    } else if (pair === "/*") {
+      i += 2;
+      while (i < code.length && code.slice(i, i + 2) !== "*/") i++;
+      i += 2;
+      out += " ";
+    } else if (code[i] === "'" || code[i] === '"') {
+      const quote = code[i];
+      i++;
+      while (i < code.length && code[i] !== quote) {
+        if (code[i] === "\\") i++;
+        i++;
+      }
+      i++;
+      out += '""';
+    } else {
+      out += code[i];
+      i++;
+    }
+  }
+
+  return out;
+}
+
+/**
+ * Reads a balanced generic argument list starting at an opening angle bracket.
+ * Handles arbitrary nesting, which a regex cannot.
+ * @param {string} code - Source to scan
+ * @param {number} start - Index of the opening "<"
+ * @returns {{inner: string, end: number}|null} Inner text and index past the ">"
+ */
+function readBalancedGeneric(code, start) {
+  let depth = 0;
+
+  for (let i = start; i < code.length; i++) {
+    if (code[i] === "<") depth++;
+    else if (code[i] === ">") {
+      depth--;
+      if (depth === 0) return { inner: code.slice(start + 1, i), end: i + 1 };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Finds every `Future<...> name(` signature in already-stripped Dart source.
+ * @param {string} code - Source with comments and strings removed
+ * @returns {Array<{functionName: string, returnType: string|null}>}
+ */
+function findFutureSignatures(code) {
+  const signatures = [];
+  const futureMatches = code.matchAll(/\bFuture\b/g);
+
+  for (const match of futureMatches) {
+    let i = match.index + "Future".length;
+    let returnType = null;
+
+    const beforeSpace = i;
+    while (i < code.length && /\s/.test(code[i])) i++;
+    const hadSpaceAfterFuture = i > beforeSpace;
+
+    if (code[i] === "<") {
+      const generic = readBalancedGeneric(code, i);
+      if (!generic) continue;
+      returnType = generic.inner.replace(/\s+/g, " ").trim();
+      i = generic.end;
+
+      // A generic return type must still be separated from the name.
+      if (!/\s/.test(code[i] || "")) continue;
+      while (i < code.length && /\s/.test(code[i])) i++;
+    } else if (!hadSpaceAfterFuture) {
+      continue;
+    }
+
+    const nameMatch = /^([A-Za-z_]\w*)\s*\(/.exec(code.slice(i));
+    if (!nameMatch) continue;
+
+    signatures.push({ functionName: nameMatch[1], returnType });
+  }
+
+  return signatures;
+}
+
+// Artifact names reach us as display names ("Write NFC Tag") as often as Dart
+// identifiers ("writeNfcTag"), so names are compared loosely.
+function normalizeFunctionName(name = "") {
+  return name.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+/**
+ * Picks the signature FlutterFlow will treat as the action entry point.
+ * Prefers the function matching the artifact name, else the first Future found.
+ * @param {string} code - Dart source
+ * @param {string} functionName - Artifact name (display name or identifier)
+ * @returns {{functionName: string, returnType: string|null}|null}
+ */
+export function getCustomActionSignature(code = "", functionName = "") {
+  const signatures = findFutureSignatures(stripCommentsAndStrings(code));
+  if (signatures.length === 0) return null;
+
+  const wanted = normalizeFunctionName(functionName);
+  const named = signatures.find(
+    (signature) => normalizeFunctionName(signature.functionName) === wanted,
+  );
+
+  return named || signatures[0];
+}
+
 export function getDeclaredDartTypes(code = "") {
   return Array.from(
-    code.matchAll(/\b(?:class|enum)\s+([A-Za-z_]\w*)/g),
+    stripCommentsAndStrings(code).matchAll(/\b(?:class|enum)\s+([A-Za-z_]\w*)/g),
     (match) => match[1],
   );
 }
 
 export function getCustomActionReturnType(code = "", functionName = "") {
-  const returnType = String.raw`((?:[^<>]|<[^<>]*>)+)`;
-  const escapedName = functionName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const functionPattern = escapedName || String.raw`[A-Za-z_]\w*`;
-  const match = code.match(
-    new RegExp(String.raw`\bFuture\s*(?:<\s*${returnType}\s*>)?\s+${functionPattern}\s*\(`),
-  );
-
-  return match?.[1]?.replace(/\s+/g, " ").trim() || null;
+  return getCustomActionSignature(code, functionName)?.returnType || null;
 }
 
 function hasCustomActionFutureFunction(code = "", functionName = "") {
-  const escapedName = functionName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const functionPattern = escapedName || String.raw`[A-Za-z_]\w*`;
-  return new RegExp(
-    String.raw`\bFuture\s*(?:<(?:[^<>]|<[^<>]*>)+>)?\s+${functionPattern}\s*\(`,
-  ).test(code);
+  return getCustomActionSignature(code, functionName) !== null;
 }
 
-function referencesDeclaredType(returnType, declaredTypes) {
+/**
+ * Returns the identifiers in a return type FlutterFlow cannot accept.
+ * FlutterFlow Data Types (*Struct) are accepted when they exist in the project.
+ * @param {string|null} returnType - Return type text, e.g. "List<NfcTag>"
+ * @returns {string[]} Unsupported type identifiers
+ */
+export function getUnsupportedReturnTypeIdentifiers(returnType) {
   const identifiers = returnType?.match(/[A-Za-z_]\w*/g) || [];
-  return identifiers.find((identifier) => declaredTypes.has(identifier)) || null;
+
+  return identifiers.filter(
+    (identifier) =>
+      !SUPPORTED_RETURN_TYPES.has(identifier) && !identifier.endsWith("Struct"),
+  );
 }
 
 export function getCustomActionReturnTypeError(
@@ -60,10 +204,20 @@ export function getCustomActionReturnTypeError(
   { functionName = "", declaredTypes = new Set() } = {},
 ) {
   const returnType = getCustomActionReturnType(code, functionName);
-  const unsupportedType = referencesDeclaredType(returnType, declaredTypes);
-  if (!unsupportedType) return null;
+  const unsupported = getUnsupportedReturnTypeIdentifiers(returnType);
+  if (unsupported.length === 0) return null;
 
-  return `CustomAction return type "${returnType}" uses Code File type "${unsupportedType}", which FlutterFlow cannot process as an Action Return Value. Return JSON (Future<dynamic> or Future<Map<String, dynamic>>) or an existing FlutterFlow Data Type (*Struct) instead.`;
+  const [offending] = unsupported;
+  let detail;
+  if (declaredTypes.has(offending)) {
+    detail = `uses Code File type "${offending}", which FlutterFlow cannot process as an Action Return Value`;
+  } else if (returnType === offending) {
+    detail = "is not a FlutterFlow Action Return Value";
+  } else {
+    detail = `uses type "${offending}", which is not a FlutterFlow Action Return Value`;
+  }
+
+  return `CustomAction return type "${returnType}" ${detail}. Return JSON (Future<dynamic> or Future<Map<String, dynamic>>) or an existing FlutterFlow Data Type (*Struct) instead.`;
 }
 
 export function validateArtifactCompatibility(artifact, options = {}) {

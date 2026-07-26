@@ -105,6 +105,120 @@ test("allows a CustomAction to return JSON instead of a generated class", () => 
   assert.deepEqual(result.findings, []);
 });
 
+test("rejects a CustomAction that returns an imported package type", () => {
+  const result = validateBundleCompatibility({
+    artifacts: [
+      {
+        id: "write-nfc-tag",
+        artifactName: "writeNfcTag",
+        artifactType: "CustomAction",
+        fileName: "write_nfc_tag.dart",
+        code: [
+          "import 'package:nfc_manager/nfc_manager.dart';",
+          "Future<NfcTag> writeNfcTag(String payload) async => throw UnimplementedError();",
+        ].join("\n"),
+      },
+    ],
+  });
+
+  assert.equal(result.valid, false);
+  assert.equal(result.findings.length, 1);
+  assert.equal(result.findings[0].severity, "error");
+  assert.match(result.findings[0].message, /NfcTag/);
+});
+
+test("rejects a forbidden type nested two generics deep", () => {
+  const findings = validateArtifactCompatibility({
+    id: "scan-tags",
+    artifactName: "scanTags",
+    artifactType: "CustomAction",
+    fileName: "scan_tags.dart",
+    code: "Future<List<NdefMessage>> scanTags() async => [];",
+  });
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].severity, "error");
+  assert.match(findings[0].message, /NdefMessage/);
+});
+
+test("matches the action function when the artifact name is a display name", () => {
+  const findings = validateArtifactCompatibility({
+    id: "write-nfc-tag",
+    artifactName: "Write NFC Tag",
+    artifactType: "CustomAction",
+    fileName: "write_nfc_tag.dart",
+    code: "Future<NfcTag> writeNfcTag(String payload) async => throw UnimplementedError();",
+  });
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].severity, "error");
+  assert.match(findings[0].message, /NfcTag/);
+});
+
+test("allows FlutterFlow Data Type structs and supported primitives", () => {
+  const supported = [
+    "Future<ProductStruct> loadProduct() async => ProductStruct();",
+    "Future<List<ProductStruct>> loadProducts() async => [];",
+    "Future<String> loadName() async => '';",
+    "Future<Map<String, dynamic>> loadJson() async => {};",
+    "Future<FFUploadedFile> loadFile() async => throw UnimplementedError();",
+    "Future<void> doThing() async {}",
+    "Future doBareThing() async {}",
+  ];
+
+  for (const code of supported) {
+    const findings = validateArtifactCompatibility({
+      id: "supported",
+      artifactName: "supported",
+      artifactType: "CustomAction",
+      fileName: "supported.dart",
+      code,
+    });
+
+    assert.deepEqual(findings, [], `expected no findings for: ${code}`);
+  }
+});
+
+test("allows a struct bundled alongside the action that returns it", () => {
+  const result = validateBundleCompatibility({
+    artifacts: [
+      {
+        id: "product-struct",
+        artifactName: "ProductStruct",
+        artifactType: "CodeFile",
+        fileName: "product_struct.dart",
+        code: "class ProductStruct { const ProductStruct(); }",
+      },
+      {
+        id: "load-product",
+        artifactName: "loadProduct",
+        artifactType: "CustomAction",
+        fileName: "load_product.dart",
+        code: "Future<ProductStruct> loadProduct() async => const ProductStruct();",
+      },
+    ],
+  });
+
+  assert.equal(result.valid, true);
+  assert.deepEqual(result.findings, []);
+});
+
+test("ignores type names that only appear in comments or strings", () => {
+  const findings = validateArtifactCompatibility({
+    id: "load-json",
+    artifactName: "loadJson",
+    artifactType: "CustomAction",
+    fileName: "load_json.dart",
+    code: [
+      "/// Mirrors class RoutineResult in the backend.",
+      "// returns class LegacyPayload data as JSON",
+      "Future<Map<String, dynamic>> loadJson() async => {'kind': 'class Fake'};",
+    ].join("\n"),
+  });
+
+  assert.deepEqual(findings, []);
+});
+
 test("validates a bundle and emits deploy path hints", () => {
   const result = validateBundleCompatibility({
     artifacts: [
