@@ -23,6 +23,7 @@ import {
   findMissingCodeFiles,
 } from "./src/flutterFlowCodeFileProvisioning.js";
 import { buildReviewPresentation } from "./src/reviewPresentation.js";
+import { formatFlutterFlowFileError } from "./src/flutterFlowFileErrors.js";
 import { buildFlutterFlowSyncMetadata } from "./src/flutterFlowSyncMetadata.js";
 import {
   mergeDependenciesIntoYaml,
@@ -125,7 +126,7 @@ const PRO_MODELS = [
   'openai/gpt-5.6-sol',
   'z-ai/glm-5.2',
   'moonshotai/kimi-k3',
-  'openrouter/auto-beta-beta',
+  'openrouter/auto-beta-beta-beta-beta',
   'openrouter/free',
   'openrouter/deepseek/deepseek-v4-pro',
 ]
@@ -138,7 +139,7 @@ const MODEL_LABELS = {
   'openai/gpt-5.6-sol': 'GPT-5.6 Sol',
   'z-ai/glm-5.2': 'GLM 5.2',
   'moonshotai/kimi-k3': 'Kimi K3',
-  'openrouter/auto-beta-beta': 'OpenRouter: Auto Router',
+  'openrouter/auto-beta-beta-beta-beta': 'OpenRouter: Auto Router',
   'openrouter/free': 'OpenRouter: Free Models',
   'openrouter/deepseek/deepseek-v4-pro': 'DeepSeek v4 Pro',
 }
@@ -4152,7 +4153,7 @@ function showCommitError(result) {
       <ul class="text-sm text-red-700 space-y-2">`;
 
     for (const [fileName, errorInfo] of errorMap.entries()) {
-      const message = errorInfo.errorMessage || errorInfo;
+      const message = formatFlutterFlowFileError(errorInfo);
       errorHtml += `<li class="bg-white p-2 rounded border border-red-100">
         <strong class="text-red-800">${escapeHtml(fileName)}:</strong> ${escapeHtml(message)}
       </li>`;
@@ -4212,7 +4213,7 @@ async function regenerateWithErrors(originalError, errorMap) {
 
     if (errorMap && errorMap.size > 0) {
       for (const [fileName, errorInfo] of errorMap.entries()) {
-        const message = errorInfo.errorMessage || errorInfo;
+        const message = formatFlutterFlowFileError(errorInfo);
         errorContext += `File: ${fileName}\nError: ${message}\n\n`;
       }
     } else {
