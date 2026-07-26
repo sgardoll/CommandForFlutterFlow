@@ -4665,7 +4665,7 @@ function showPaywallExhausted(count, limit, options = {}) {
 
   const resultsView = document.getElementById('results-view')
   if (resultsView) resultsView.classList.remove('visible')
-  document.body.classList.remove("results-fullscreen")
+  document.body.classList.remove("results-fullscreen", "results-with-sidebar")
 
   const pipelineProgress = document.getElementById('pipeline-progress')
   if (pipelineProgress) pipelineProgress.classList.remove('visible')
@@ -5601,7 +5601,7 @@ function showPipelineProgress() {
 
   if (readyState) readyState.classList.add("hidden");
   if (resultsView) resultsView.classList.remove("visible");
-  document.body.classList.remove("results-fullscreen");
+  document.body.classList.remove("results-fullscreen", "results-with-sidebar");
   if (progress) progress.classList.add("visible");
 
   pipelineStartTime = Date.now();
@@ -5746,10 +5746,10 @@ function renderSummaryDetail(presentation) {
 
   const score = presentation.score;
   const scoreTone = score == null
-    ? presentation.status
+    ? "neutral"
     : score >= 80 ? "pass" : score >= 60 ? "warning" : "fail";
   const scoreLabel = score == null
-    ? "Not scored"
+    ? ""
     : score >= 80 ? "Strong" : score >= 60 ? "Needs work" : "High risk";
   const findings = presentation.findings.length
     ? `
@@ -5757,7 +5757,10 @@ function renderSummaryDetail(presentation) {
         ${presentation.findings.map((finding) => `
           <li class="summary-finding-${escapeAttr(finding.severity)}">
             ${reviewStatusIcon(finding.severity)}
-            <span>${escapeHtml(finding.message)}</span>
+            <span>
+              <strong>${escapeHtml(finding.message)}</strong>
+              ${finding.suggestion ? `<small>${escapeHtml(finding.suggestion)}</small>` : ""}
+            </span>
           </li>
         `).join("")}
       </ul>
@@ -5791,7 +5794,7 @@ function renderSummaryDetail(presentation) {
           <span class="review-score-label">Score</span>
           <strong>${score == null ? "—" : escapeHtml(score)}</strong>
           <span class="review-score-total">${score == null ? "Not scored" : "out of 100"}</span>
-          <span class="review-score-status">${escapeHtml(scoreLabel)}</span>
+          ${scoreLabel ? `<span class="review-score-status">${escapeHtml(scoreLabel)}</span>` : ""}
         </aside>
         <div class="review-score-feedback">
           <span>Is the generated code correct?</span>
@@ -5815,9 +5818,23 @@ function renderSelectedArtifactReview(presentation) {
   ) || presentation.artifacts[0];
   if (!selectedArtifact) return "";
 
+  const emptyFindingState = {
+    pass: {
+      icon: "pass",
+      message: "No file-specific issues were found.",
+    },
+    warning: {
+      icon: "warning",
+      message: "This file needs attention, but Code Review did not return a specific finding.",
+    },
+    fail: {
+      icon: "fail",
+      message: "This file is blocked, but Code Review did not return a specific finding.",
+    },
+  }[selectedArtifact.status];
   const findings = selectedArtifact.findings.length
     ? selectedArtifact.findings.map(renderFinding).join("")
-    : `<div class="review-empty-state">${reviewStatusIcon("pass")} No file-specific findings were returned.</div>`;
+    : `<div class="review-empty-state review-empty-${escapeAttr(selectedArtifact.status)}">${reviewStatusIcon(emptyFindingState.icon)} ${escapeHtml(emptyFindingState.message)}</div>`;
   const dependencies = selectedArtifact.dependencies?.length
     ? selectedArtifact.dependencies.map((dependency) => `
       <li><code>${escapeHtml(dependency.name)}${dependency.version ? ` ${escapeHtml(dependency.version)}` : ""}</code>${dependency.reason ? `<p>${escapeHtml(dependency.reason)}</p>` : ""}</li>
@@ -5936,10 +5953,7 @@ function renderBundleControls(presentation) {
 
 function updateSelectedArtifactPanels() {
   document.body.classList.add("results-fullscreen");
-  document.body.classList.toggle(
-    "results-with-sidebar",
-    IS_DEV && new URLSearchParams(window.location.search).get("debugSidebar") === "1",
-  );
+  document.body.classList.add("results-with-sidebar");
   const resultsView = document.getElementById("results-view");
   const codeOutput = document.getElementById("results-code-output");
   const auditOutput = document.getElementById("results-audit-output");
@@ -5974,6 +5988,8 @@ function showResultsView(codeContent, auditContent) {
   }
   pipelineState.resultsViewMode = "summary";
   document.body.classList.add("results-fullscreen");
+  const legacyReviewOutput = document.getElementById("step3-output");
+  if (legacyReviewOutput) legacyReviewOutput.textContent = "";
   updateSelectedArtifactPanels();
   updateDeployButtonVisibility();
 

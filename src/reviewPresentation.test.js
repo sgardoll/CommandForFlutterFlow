@@ -155,3 +155,59 @@ test("leaves structured reviews without score fields unscored", () => {
 
   assert.equal(presentation.score, null);
 });
+
+test("preserves top-level artifact reviews alongside bundleReview", () => {
+  const presentation = buildReviewPresentation({
+    bundle,
+    reviewResult: {
+      artifacts: [
+        {
+          id: "format-payload",
+          review: {
+            status: "pass",
+            findings: [
+              {
+                severity: "info",
+                message: "Formatting logic is valid.",
+                suggestion: "No changes required.",
+              },
+            ],
+          },
+        },
+        {
+          id: "execute-webhook",
+          review: {
+            status: "pass",
+            findings: [
+              {
+                severity: "info",
+                message: "Webhook execution is valid.",
+                suggestion: "No changes required.",
+              },
+            ],
+          },
+        },
+      ],
+      bundleReview: {
+        status: "pass",
+        summary: "The complete bundle is ready to deploy.",
+        score: 96,
+        findings: [
+          {
+            severity: "info",
+            message: "The deploy order is correct.",
+            suggestion: "Deploy the files in the supplied order.",
+          },
+        ],
+      },
+    },
+  });
+
+  assert.equal(presentation.status, "pass");
+  assert.equal(presentation.score, 96);
+  assert.equal(presentation.summary, "The complete bundle is ready to deploy.");
+  assert.equal(presentation.findings[0].message, "The deploy order is correct.");
+  assert.deepEqual(presentation.counts, { pass: 2, warning: 0, fail: 0 });
+  assert.equal(presentation.reviewCoverage.reviewed, 2);
+  assert.equal(presentation.artifacts[0].findings[0].severity, "pass");
+});
