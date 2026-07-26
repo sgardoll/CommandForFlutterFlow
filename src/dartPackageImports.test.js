@@ -51,3 +51,30 @@ test("ignores Flutter SDK packages that need no pubspec entry", () => {
 test("returns an empty list for code with no package imports", () => {
   assert.deepEqual(extractPackageImports("Future<void> doThing() async {}"), []);
 });
+
+test("ignores an import mentioned only in a line comment", () => {
+  const code = [
+    "// import 'package:torch_light/torch_light.dart';",
+    "Future<void> doThing() async {}",
+  ].join("\n");
+
+  assert.deepEqual(extractPackageImports(code), []);
+});
+
+test("ignores an import mentioned only in a block comment", () => {
+  const code = [
+    "/* import 'package:torch_light/torch_light.dart'; */",
+    "Future<void> doThing() async {}",
+  ].join("\n");
+
+  assert.deepEqual(extractPackageImports(code), []);
+});
+
+test("still detects a real import on the line after a comment mentioning a different package", () => {
+  const code = [
+    "// consider package:geocoding/geocoding.dart later",
+    "import 'package:geolocator/geolocator.dart';",
+  ].join("\n");
+
+  assert.deepEqual(extractPackageImports(code), ["geolocator"]);
+});
