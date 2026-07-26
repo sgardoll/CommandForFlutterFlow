@@ -5,7 +5,8 @@ PROJECT_ID="${PROJECT_ID:-${1:-}}"
 REGION="${REGION:-australia-southeast1}"
 SERVICE="${SERVICE:-ccc-ffai-runner}"
 ALLOWED_ORIGIN="${ALLOWED_ORIGIN:-https://customcode.connectio.com.au}"
-MEMORY="${MEMORY:-2Gi}"
+MEMORY="${MEMORY:-4Gi}"
+CONCURRENCY="${CONCURRENCY:-1}"
 
 if [[ -z "$PROJECT_ID" ]]; then
   PROJECT_ID="$(gcloud config get-value project 2>/dev/null || true)"
@@ -22,6 +23,7 @@ gcloud run deploy "$SERVICE" \
   --source cloud-run/ffai-runner \
   --allow-unauthenticated \
   --memory "$MEMORY" \
+  --concurrency "$CONCURRENCY" \
   --set-env-vars "ALLOWED_ORIGIN=$ALLOWED_ORIGIN"
 
 echo

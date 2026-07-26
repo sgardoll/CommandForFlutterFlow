@@ -12,7 +12,11 @@ import {
   createBuildShipContext,
 } from "./src/pipelineContracts.js";
 import { createModelArmorError } from "./src/modelArmorResponse.js";
-import { validateBundleCompatibility } from "./src/flutterFlowArtifactValidation.js";
+import {
+  getCustomActionReturnTypeError,
+  getDeclaredDartTypes,
+  validateBundleCompatibility,
+} from "./src/flutterFlowArtifactValidation.js";
 import { buildBundleDeployPlan } from "./src/bundleDeployPlanner.js";
 import {
   excludeProvisionedCodeFiles,
@@ -308,6 +312,11 @@ const FF_ARTIFACT_TYPES = `## THE FOUR ARTIFACT SURFACES
 ### B) Custom Actions (Async/Side Effects Silo)
 - **Purpose:** API calls, complex logic, third-party libraries
 - **Return type:** ALWAYS Future<T>
+- **Supported Return Values:** Use only types exposed by FlutterFlow's Custom Action Return Value selector.
+- **Structured results:** Default to JSON with \`Future<dynamic>\` or \`Future<Map<String, dynamic>>\`, and return a JSON-compatible Map/List (for example, \`result.toJson()\`).
+- **FlutterFlow Data Types:** \`Future<SomeNameStruct>\` is allowed only when that Data Type already exists in the project.
+- **Forbidden:** Never return an arbitrary CustomClass, Code File class, or CustomEnum from a Custom Action. FlutterFlow supports those in state/parameters, but not as Custom Action return values.
+- **State workaround:** Write to App/Page State and return \`bool\` only when the user explicitly requests it and the required state variable is documented. Never assume state exists.
 - **Imports:** 
   - External packages: include (e.g., \`import 'package:flutter_tts/flutter_tts.dart';\`)
   - FlutterFlow imports: DO NOT include - added at commit
@@ -382,7 +391,7 @@ Page State variables (local to a single page) support everything App State does,
 - When the user needs to store byte data: use a callback to pass bytes back to FlutterFlow (user can store in Page State), or convert to base64 String for App State storage, or upload to storage and store the resulting URL as ImagePath.
 - NEVER generate code that writes FFUploadedFile or Uint8List to FFAppState — it will not compile.
 
-**IMPORTANT:** Custom Dart classes for data exchange are now allowed via "Code Files", but Structs are still preferred for parameters visible in the UI builder.`;
+**IMPORTANT:** Custom Dart classes are allowed through Code Files for state and supported parameters. They are NOT valid Custom Action return values; use JSON or an existing FlutterFlow Struct instead.`;
 
 const FF_STATE_PATTERNS = `## STATE & DATA: FFAppState Patterns
 
@@ -444,6 +453,7 @@ const FF_FORBIDDEN_PATTERNS = `## FORBIDDEN PATTERNS (Will cause build failures)
 - Adding custom imports to Custom Functions (strictly forbidden).
 - Using complex parameter types (EdgeInsets, Duration, TextStyle) in Widgets/Actions.
 - Using generics or function-typed fields in Code Files.
+- Returning a CustomClass, Code File class, or CustomEnum from a Custom Action. Use JSON or an existing FlutterFlow Data Type (\`*Struct\`).
 
 ### ⛔ CRITICAL: RESERVED PARAMETER NAMES (INSTANT COMPILATION FAILURE)
 
@@ -1821,7 +1831,15 @@ class FlutterFlowApiClient {
           console.log(
             `Push attempt ${attempt + 1} to ${baseUrl}syncCustomCodeChanges`,
           );
-          console.log("Request:", JSON.stringify(pushCodeRequest, null, 2));
+          console.log("Request metadata:", {
+            project_id: pushCodeRequest.project_id,
+            branch_name: pushCodeRequest.branch_name,
+            uid: pushCodeRequest.uid,
+            zipped_custom_code_length:
+              pushCodeRequest.zipped_custom_code?.length || 0,
+            file_map_length: pushCodeRequest.file_map?.length || 0,
+            functions_map_length: pushCodeRequest.functions_map?.length || 0,
+          });
           const response = await fetch(`${baseUrl}syncCustomCodeChanges`, {
             method: "POST",
             headers: {
@@ -2588,7 +2606,13 @@ function buildCommitMetadata(codeInfo, pipelineResult = {}) {
  * @param {string} content - File content
  * @returns {Object} Validation result { valid: boolean, errors: string[] }
  */
-function validateDartFile(fileName, content, codeType) {
+function validateDartFile(
+  fileName,
+  content,
+  codeType,
+  declaredTypes = new Set(),
+  artifactName = "",
+) {
   const errors = [];
   const hasWidgetClass = WIDGET_CLASS_REGEX.test(content);
   const hasStateClass = STATE_CLASS_REGEX.test(content);
@@ -2660,6 +2684,14 @@ function validateDartFile(fileName, content, codeType) {
     );
   }
 
+  if (codeType === CodeType.ACTION) {
+    const returnTypeError = getCustomActionReturnTypeError(content, {
+      functionName: artifactName,
+      declaredTypes,
+    });
+    if (returnTypeError) errors.push(returnTypeError);
+  }
+
   return {
     valid: errors.length === 0,
     errors,
@@ -2680,6 +2712,12 @@ function validateFileMap(fileMap) {
     return { valid: false, errors, warnings };
   }
 
+  const declaredTypes = new Set(
+    Array.from(fileMap.values()).flatMap((fileInfo) =>
+      getDeclaredDartTypes(fileInfo.content || "")
+    ),
+  );
+
   for (const [path, fileInfo] of fileMap.entries()) {
     // Check for empty files
     if (!fileInfo.content || fileInfo.content.trim().length === 0) {
@@ -2693,7 +2731,13 @@ function validateFileMap(fileMap) {
 
     // Validate Dart files
     if (path.endsWith(".dart")) {
-      const result = validateDartFile(path, fileInfo.content, fileInfo.type);
+      const result = validateDartFile(
+        path,
+        fileInfo.content,
+        fileInfo.type,
+        declaredTypes,
+        fileInfo.artifactName,
+      );
       if (!result.valid) {
         errors.push(...result.errors.map((e) => `${path}: ${e}`));
       }

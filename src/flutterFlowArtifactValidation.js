@@ -24,7 +24,49 @@ function createFinding(artifact, severity, message) {
   };
 }
 
-export function validateArtifactCompatibility(artifact) {
+export function getDeclaredDartTypes(code = "") {
+  return Array.from(
+    code.matchAll(/\b(?:class|enum)\s+([A-Za-z_]\w*)/g),
+    (match) => match[1],
+  );
+}
+
+export function getCustomActionReturnType(code = "", functionName = "") {
+  const returnType = String.raw`((?:[^<>]|<[^<>]*>)+)`;
+  const escapedName = functionName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const functionPattern = escapedName || String.raw`[A-Za-z_]\w*`;
+  const match = code.match(
+    new RegExp(String.raw`\bFuture\s*(?:<\s*${returnType}\s*>)?\s+${functionPattern}\s*\(`),
+  );
+
+  return match?.[1]?.replace(/\s+/g, " ").trim() || null;
+}
+
+function hasCustomActionFutureFunction(code = "", functionName = "") {
+  const escapedName = functionName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const functionPattern = escapedName || String.raw`[A-Za-z_]\w*`;
+  return new RegExp(
+    String.raw`\bFuture\s*(?:<(?:[^<>]|<[^<>]*>)+>)?\s+${functionPattern}\s*\(`,
+  ).test(code);
+}
+
+function referencesDeclaredType(returnType, declaredTypes) {
+  const identifiers = returnType?.match(/[A-Za-z_]\w*/g) || [];
+  return identifiers.find((identifier) => declaredTypes.has(identifier)) || null;
+}
+
+export function getCustomActionReturnTypeError(
+  code,
+  { functionName = "", declaredTypes = new Set() } = {},
+) {
+  const returnType = getCustomActionReturnType(code, functionName);
+  const unsupportedType = referencesDeclaredType(returnType, declaredTypes);
+  if (!unsupportedType) return null;
+
+  return `CustomAction return type "${returnType}" uses Code File type "${unsupportedType}", which FlutterFlow cannot process as an Action Return Value. Return JSON (Future<dynamic> or Future<Map<String, dynamic>>) or an existing FlutterFlow Data Type (*Struct) instead.`;
+}
+
+export function validateArtifactCompatibility(artifact, options = {}) {
   const findings = [];
   const fileName = artifact.fileName || "";
   const code = artifact.code || "";
@@ -54,12 +96,26 @@ export function validateArtifactCompatibility(artifact) {
     ));
   }
 
-  if (artifact.artifactType === "CustomAction" && !/Future(?:<[^>]+>)?\s+\w+\s*\(|Future\s+\w+\s*\(/.test(code)) {
+  if (
+    artifact.artifactType === "CustomAction"
+    && !hasCustomActionFutureFunction(code, artifact.artifactName)
+  ) {
     findings.push(createFinding(
       artifact,
       "warning",
       "CustomAction code should expose an async Future function callable from FlutterFlow.",
     ));
+  }
+
+  if (artifact.artifactType === "CustomAction") {
+    const declaredTypes = options.declaredTypes || new Set(getDeclaredDartTypes(code));
+    const returnTypeError = getCustomActionReturnTypeError(code, {
+      functionName: artifact.artifactName,
+      declaredTypes,
+    });
+    if (returnTypeError) {
+      findings.push(createFinding(artifact, "error", returnTypeError));
+    }
   }
 
   if (artifact.artifactType === "CustomFunction" && /class\s+\w+\s+extends\s+(StatelessWidget|StatefulWidget)/.test(code)) {
@@ -75,7 +131,13 @@ export function validateArtifactCompatibility(artifact) {
 
 export function validateBundleCompatibility(bundle) {
   const artifacts = Array.isArray(bundle?.artifacts) ? bundle.artifacts : [];
-  const findings = artifacts.flatMap(validateArtifactCompatibility);
+  const declaredTypes = new Set(
+    artifacts.flatMap((artifact) => getDeclaredDartTypes(artifact.code || "")),
+  );
+  const findings = artifacts.flatMap((artifact) => validateArtifactCompatibility(
+    artifact,
+    { declaredTypes },
+  ));
   const deployHints = artifacts.map((artifact) => ({
     artifactId: artifact.id,
     fileName: artifact.fileName,
