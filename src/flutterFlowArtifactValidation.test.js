@@ -177,6 +177,10 @@ test("allows FlutterFlow Data Type structs and supported primitives", () => {
     "Future<String> loadName() async => '';",
     "Future<Map<String, dynamic>> loadJson() async => {};",
     "Future<FFUploadedFile> loadFile() async => throw UnimplementedError();",
+    "Future<UsersRecord> loadUser() async => throw UnimplementedError();",
+    "Future<List<UsersRecord>> loadUsers() async => [];",
+    "Future<DateTimeRange> loadRange() async => throw UnimplementedError();",
+    "Future<DocumentReference> loadRef() async => throw UnimplementedError();",
     "Future<void> doThing() async {}",
     "Future doBareThing() async {}",
   ];

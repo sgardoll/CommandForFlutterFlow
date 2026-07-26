@@ -14,19 +14,23 @@ const TYPE_FILE_HINTS = {
   CodeFile: "custom_code/",
 };
 
-// Types FlutterFlow exposes in the Custom Action "Return Value" selector.
-// Anything else - an imported package class, a Code File class, a CustomEnum -
-// is rejected by FlutterFlow at push time, so it must be caught before deploy.
+// Types FlutterFlow exposes in the Custom Action "Return Value" selector
+// (Integer, Double, Boolean, String, Image/Video/Audio Path, Color, Document,
+// Document Reference, JSON, DateTime, TimestampRange, plus the List option).
+// Importing a package class does not make it selectable, so anything else -
+// an imported package class, a Code File class, a CustomEnum - is rejected by
+// FlutterFlow at push time and must be caught before deploy.
 const SUPPORTED_RETURN_TYPES = new Set([
   "void",
   "dynamic",
-  "String",
+  "String", // also Image Path, Video Path, Audio Path
   "int",
   "double",
   "num",
   "bool",
   "Color",
   "DateTime",
+  "DateTimeRange", // TimestampRange
   "LatLng",
   "FFPlace",
   "FFUploadedFile",
@@ -34,6 +38,10 @@ const SUPPORTED_RETURN_TYPES = new Set([
   "Map",
   "List",
 ]);
+
+// Data Types generate as "<Name>Struct" and Firestore Documents as
+// "<Collection>Record", so both suffixes are selectable return values.
+const SUPPORTED_RETURN_TYPE_SUFFIXES = ["Struct", "Record"];
 
 function createFinding(artifact, severity, message) {
   return {
@@ -190,7 +198,8 @@ function hasCustomActionFutureFunction(code = "", functionName = "") {
 
 /**
  * Returns the identifiers in a return type FlutterFlow cannot accept.
- * FlutterFlow Data Types (*Struct) are accepted when they exist in the project.
+ * Data Types (*Struct) and Documents (*Record) are accepted when they exist in
+ * the project.
  * @param {string|null} returnType - Return type text, e.g. "List<NfcTag>"
  * @returns {string[]} Unsupported type identifiers
  */
@@ -199,7 +208,10 @@ export function getUnsupportedReturnTypeIdentifiers(returnType) {
 
   return identifiers.filter(
     (identifier) =>
-      !SUPPORTED_RETURN_TYPES.has(identifier) && !identifier.endsWith("Struct"),
+      !SUPPORTED_RETURN_TYPES.has(identifier)
+      && !SUPPORTED_RETURN_TYPE_SUFFIXES.some((suffix) =>
+        identifier.endsWith(suffix),
+      ),
   );
 }
 
