@@ -125,7 +125,7 @@ const PRO_MODELS = [
   'openai/gpt-5.6-sol',
   'z-ai/glm-5.2',
   'moonshotai/kimi-k3',
-  'openrouter/auto',
+  'openrouter/auto-beta-beta',
   'openrouter/free',
   'openrouter/deepseek/deepseek-v4-pro',
 ]
@@ -138,7 +138,7 @@ const MODEL_LABELS = {
   'openai/gpt-5.6-sol': 'GPT-5.6 Sol',
   'z-ai/glm-5.2': 'GLM 5.2',
   'moonshotai/kimi-k3': 'Kimi K3',
-  'openrouter/auto': 'OpenRouter: Auto Router',
+  'openrouter/auto-beta-beta': 'OpenRouter: Auto Router',
   'openrouter/free': 'OpenRouter: Free Models',
   'openrouter/deepseek/deepseek-v4-pro': 'DeepSeek v4 Pro',
 }
