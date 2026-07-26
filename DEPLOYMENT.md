@@ -20,7 +20,14 @@ npm run build
 python3 scripts/deploy_ftp.py
 ```
 
-If no deploy script exists, upload every file under `dist/` to the FTP account root, preserving subdirectories.
+`scripts/deploy_ftp.py` mirrors `dist/` onto the FTP account root: it uploads
+every local file, then prunes any remote file that no longer exists locally,
+scoped to the directories `dist/` itself manages (the root, `api/`,
+`assets/`). This exists because Vite content-hashes built assets
+(`index-<hash>.js`), so a stale bundle from the previous build would otherwise
+sit on the server forever. It never lists or deletes a remote directory that
+has no local counterpart. Use `--dry-run` to preview without changing the
+server.
 
 ## FlutterFlow custom-class deploys
 

@@ -10,6 +10,10 @@ const runnerSource = readFileSync(
   new URL("../cloud-run/ffai-runner/bin/server.dart", import.meta.url),
   "utf8",
 );
+const deployScript = readFileSync(
+  new URL("../scripts/deploy_cloud_run_ffai.sh", import.meta.url),
+  "utf8",
+);
 
 function versionParts(version) {
   return version.split(".").map(Number);
@@ -48,4 +52,11 @@ test("Cloud Run upserts custom classes in one authoritative write", () => {
     runnerSource,
     /if \(findCustomClass\(project, name: \$name\) == null\)[\s\S]*addCustomClass\([\s\S]*else \{[\s\S]*updateCustomClass\(/,
   );
+});
+
+test("Cloud Run deployment reserves enough memory and serializes provisioning", () => {
+  assert.match(deployScript, /MEMORY="\$\{MEMORY:-4Gi\}"/);
+  assert.match(deployScript, /CONCURRENCY="\$\{CONCURRENCY:-1\}"/);
+  assert.match(deployScript, /--memory "\$MEMORY"/);
+  assert.match(deployScript, /--concurrency "\$CONCURRENCY"/);
 });
