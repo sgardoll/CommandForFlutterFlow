@@ -1429,6 +1429,12 @@
         body.results-fullscreen .results-header-left h2 { font-size: 22px; }
         body.results-fullscreen .results-action-bar { grid-template-columns: 1fr; }
       }
+      @media (max-width: 768px) {
+        body.results-fullscreen .sidebar,
+        body.results-fullscreen.results-with-sidebar .sidebar {
+          display: none;
+        }
+      }
       @media (prefers-reduced-motion: reduce) {
         .results-view *,
         .results-view *::before,
