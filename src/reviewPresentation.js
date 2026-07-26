@@ -35,7 +35,15 @@ function asArray(value) {
 }
 
 function parseScore(value) {
-  const direct = Number(toObject(value).value ?? value);
+  const scoreValue = toObject(value).value ?? value;
+  if (
+    scoreValue == null
+    || (typeof scoreValue === "string" && scoreValue.trim() === "")
+  ) {
+    return null;
+  }
+
+  const direct = Number(scoreValue);
   if (Number.isFinite(direct)) return direct;
   const match = String(value || "").match(/\bscore\b[^\d]{0,12}(\d{1,3})(?:\s*\/\s*100)?/i);
   return match ? Number(match[1]) : null;
