@@ -198,6 +198,47 @@ export function getCustomActionReturnType(code = "", functionName = "") {
   return getCustomActionSignature(code, functionName)?.returnType || null;
 }
 
+/**
+ * Converts a PascalCase (or camelCase) identifier to snake_case - the form
+ * FlutterFlow expects a Custom Class file to be named after its declared
+ * class.
+ * @param {string} name - PascalCase or camelCase identifier
+ * @returns {string} snake_case form
+ */
+function pascalCaseToSnakeCase(name) {
+  return String(name || "")
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1_$2")
+    .toLowerCase();
+}
+
+/**
+ * Checks that a CustomClass/CodeFile's file name is the exact snake_case
+ * conversion of a class or enum it declares. FlutterFlow derives the file's
+ * identity from this relationship, not the other way around - an extra,
+ * missing, or different word in the file name is a mismatch even though the
+ * file compiles and runs fine as plain Dart.
+ * @param {string} fileName - Bare name or full path, e.g.
+ *   "pipedream_integration_model.dart" or "lib/custom_code/pipedream_integration_model.dart"
+ * @param {string} code - Dart source
+ * @returns {string|null} Error message, or null if a declared type matches
+ */
+export function getCustomClassFileNameError(fileName, code) {
+  const declaredTypes = getDeclaredDartTypes(code);
+  if (declaredTypes.length === 0) return null;
+
+  const baseName = String(fileName || "").split("/").pop();
+  const actualStem = baseName.replace(/\.dart$/, "");
+  const matchesSomeDeclaredType = declaredTypes.some(
+    (name) => pascalCaseToSnakeCase(name) === actualStem,
+  );
+  if (matchesSomeDeclaredType) return null;
+
+  const [primary] = declaredTypes;
+  const expectedFileName = `${pascalCaseToSnakeCase(primary)}.dart`;
+  return `File name "${fileName}" does not match declared class "${primary}". FlutterFlow expects the file to be named "${expectedFileName}" - rename the file (or the class) so they agree exactly.`;
+}
+
 function hasCustomActionFutureFunction(code = "", functionName = "") {
   return getCustomActionSignature(code, functionName) !== null;
 }
@@ -305,6 +346,13 @@ export function validateArtifactCompatibility(artifact, options = {}) {
       "warning",
       "CustomFunction should be a callable function, not a widget class.",
     ));
+  }
+
+  if (artifact.artifactType === "CustomClass" || artifact.artifactType === "CodeFile") {
+    const fileNameError = getCustomClassFileNameError(fileName, code);
+    if (fileNameError) {
+      findings.push(createFinding(artifact, "error", fileNameError));
+    }
   }
 
   return findings;

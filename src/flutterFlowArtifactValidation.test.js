@@ -271,6 +271,46 @@ test("ignores type names that only appear in comments or strings", () => {
   assert.deepEqual(findings, []);
 });
 
+test("rejects a CustomClass file name with a word not in the declared class", () => {
+  const findings = validateArtifactCompatibility({
+    id: "pipedream-integration",
+    artifactName: "PipedreamIntegration",
+    artifactType: "CustomClass",
+    fileName: "pipedream_integration_model.dart",
+    code: "class PipedreamIntegration { const PipedreamIntegration(); }",
+  });
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].severity, "error");
+  assert.match(findings[0].message, /pipedream_integration_model\.dart/);
+  assert.match(findings[0].message, /PipedreamIntegration/);
+  assert.match(findings[0].message, /pipedream_integration\.dart/);
+});
+
+test("allows a CustomClass file name that is the exact snake_case of its class", () => {
+  const findings = validateArtifactCompatibility({
+    id: "pipedream-integration",
+    artifactName: "PipedreamIntegration",
+    artifactType: "CustomClass",
+    fileName: "pipedream_integration.dart",
+    code: "class PipedreamIntegration { const PipedreamIntegration(); }",
+  });
+
+  assert.deepEqual(findings, []);
+});
+
+test("allows a CodeFile name matching any declared type, not just the first", () => {
+  const findings = validateArtifactCompatibility({
+    id: "user-profile",
+    artifactName: "UserProfile",
+    artifactType: "CodeFile",
+    fileName: "user_profile.dart",
+    code: "enum ProfileStatus { active, inactive }\nclass UserProfile { const UserProfile(); }",
+  });
+
+  assert.deepEqual(findings, []);
+});
+
 test("validates a bundle and emits deploy path hints", () => {
   const result = validateBundleCompatibility({
     artifacts: [

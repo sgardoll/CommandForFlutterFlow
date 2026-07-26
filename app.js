@@ -14,6 +14,7 @@ import {
 import { createModelArmorError } from "./src/modelArmorResponse.js";
 import {
   getCustomActionReturnTypeError,
+  getCustomClassFileNameError,
   getDeclaredDartTypes,
   validateBundleCompatibility,
 } from "./src/flutterFlowArtifactValidation.js";
@@ -2284,6 +2285,11 @@ function validateDartFile(
       declaredTypes,
     });
     if (returnTypeError) errors.push(returnTypeError);
+  }
+
+  if (codeType === CodeType.CODE_FILE) {
+    const fileNameError = getCustomClassFileNameError(fileName, content);
+    if (fileNameError) errors.push(fileNameError);
   }
 
   return {
