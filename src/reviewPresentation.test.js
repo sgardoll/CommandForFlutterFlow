@@ -142,3 +142,16 @@ test("extracts a prominent score from legacy markdown reviews", () => {
 
   assert.equal(presentation.score, 74);
 });
+
+test("leaves structured reviews without score fields unscored", () => {
+  const presentation = buildReviewPresentation({
+    bundle,
+    reviewResult: {
+      status: "warning",
+      summary: "Review completed without a numeric score.",
+      artifacts: [],
+    },
+  });
+
+  assert.equal(presentation.score, null);
+});
