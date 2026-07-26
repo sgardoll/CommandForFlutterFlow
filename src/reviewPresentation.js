@@ -262,14 +262,16 @@ export function buildReviewPresentation({ bundle, reviewResult }) {
   const safeBundle = toObject(bundle);
   const artifacts = asArray(safeBundle.artifacts);
   const { root, rawText } = unwrapReviewPayload(reviewResult);
-  const overallReview = toObject(
-    root.bundleReview
-      || root.overallReview
-      || root.overall
-      || root.bundleSummary
-      || root.summaryReview
-      || root.review,
-  );
+  const overallReview = [
+    root.bundleReview,
+    root.overallReview,
+    root.overall,
+    root.bundleSummary,
+    root.summaryReview,
+    root.review,
+  ]
+    .map(toObject)
+    .find((candidate) => Object.keys(candidate).length) || {};
   const reviewArtifacts = asArray(root.artifacts || root.files || root.reviews);
   const artifactPresentations = artifacts.map((artifact, index) => (
     buildArtifactPresentation(safeBundle, reviewArtifacts, artifact, index)

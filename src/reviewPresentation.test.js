@@ -211,3 +211,30 @@ test("preserves top-level artifact reviews alongside bundleReview", () => {
   assert.equal(presentation.reviewCoverage.reviewed, 2);
   assert.equal(presentation.artifacts[0].findings[0].severity, "pass");
 });
+
+test("falls back from malformed bundleReview to a valid overallReview", () => {
+  for (const bundleReview of [{}, "not a review object"]) {
+    const presentation = buildReviewPresentation({
+      bundle,
+      reviewResult: {
+        bundleReview,
+        overallReview: {
+          status: "pass",
+          score: 94,
+          summary: "The valid overall review was preserved.",
+          findings: [
+            {
+              severity: "info",
+              message: "The bundle structure is valid.",
+            },
+          ],
+        },
+        artifacts: [],
+      },
+    });
+
+    assert.equal(presentation.score, 94);
+    assert.equal(presentation.summary, "The valid overall review was preserved.");
+    assert.equal(presentation.findings[0].message, "The bundle structure is valid.");
+  }
+});
