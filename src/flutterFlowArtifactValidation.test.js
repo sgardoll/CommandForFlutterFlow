@@ -155,6 +155,21 @@ test("matches the action function when the artifact name is a display name", () 
   assert.match(findings[0].message, /NfcTag/);
 });
 
+test("ignores a private helper when the artifact name does not match", () => {
+  const findings = validateArtifactCompatibility({
+    id: "write-nfc-tag",
+    artifactName: "GeneratedCode",
+    artifactType: "CustomAction",
+    fileName: "write_nfc_tag.dart",
+    code: [
+      "Future<NfcTag> _readTag() async => throw UnimplementedError();",
+      "Future<Map<String, dynamic>> writeNfcTag() async => {};",
+    ].join("\n"),
+  });
+
+  assert.deepEqual(findings, []);
+});
+
 test("allows FlutterFlow Data Type structs and supported primitives", () => {
   const supported = [
     "Future<ProductStruct> loadProduct() async => ProductStruct();",

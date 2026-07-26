@@ -165,8 +165,12 @@ export function getCustomActionSignature(code = "", functionName = "") {
   const named = signatures.find(
     (signature) => normalizeFunctionName(signature.functionName) === wanted,
   );
+  if (named) return named;
 
-  return named || signatures[0];
+  // Without a name match, a private helper is never the entry point
+  // FlutterFlow calls, so it must not be mistaken for the action's signature.
+  const isPublic = (signature) => !signature.functionName.startsWith("_");
+  return signatures.find(isPublic) || signatures[0];
 }
 
 export function getDeclaredDartTypes(code = "") {
