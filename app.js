@@ -18,6 +18,7 @@ import {
   excludeProvisionedCodeFiles,
   findMissingCodeFiles,
 } from "./src/flutterFlowCodeFileProvisioning.js";
+import { buildReviewPresentation } from "./src/reviewPresentation.js";
 import { buildFlutterFlowSyncMetadata } from "./src/flutterFlowSyncMetadata.js";
 import {
   mergeDependenciesIntoYaml,
@@ -1222,8 +1223,6 @@ function updateKeyStatus(provider, statusElementId) {
 }
 
 function updateDeployButtonVisibility() {
-  const flutterFlowConfigured =
-    hasStoredKey("flutterflow") && hasStoredKey("flutterflow_project_id");
   const hasGeneratedCode =
     pipelineState.step2Result && pipelineState.step2Result.length > 0;
 
@@ -1234,10 +1233,7 @@ function updateDeployButtonVisibility() {
   // without closing the results.
   if (runBtn) runBtn.classList.remove("hidden");
   if (deployBtn) {
-    deployBtn.classList.toggle(
-      "hidden",
-      !(flutterFlowConfigured && hasGeneratedCode),
-    );
+    deployBtn.classList.toggle("hidden", !hasGeneratedCode);
   }
 }
 
@@ -1505,6 +1501,7 @@ let pipelineState = {
   artifactBundle: null,
   bundleReview: null,
   selectedArtifactId: null,
+  resultsViewMode: "summary",
   currentStep: 0,
   isRunning: false,
 };
@@ -1517,6 +1514,7 @@ function resetPipelineResults() {
   pipelineState.artifactBundle = null;
   pipelineState.bundleReview = null;
   pipelineState.selectedArtifactId = null;
+  pipelineState.resultsViewMode = "summary";
 }
 
 function updateBundleSpecFromArchitectResult() {
@@ -4667,6 +4665,7 @@ function showPaywallExhausted(count, limit, options = {}) {
 
   const resultsView = document.getElementById('results-view')
   if (resultsView) resultsView.classList.remove('visible')
+  document.body.classList.remove("results-fullscreen")
 
   const pipelineProgress = document.getElementById('pipeline-progress')
   if (pipelineProgress) pipelineProgress.classList.remove('visible')
@@ -5602,6 +5601,7 @@ function showPipelineProgress() {
 
   if (readyState) readyState.classList.add("hidden");
   if (resultsView) resultsView.classList.remove("visible");
+  document.body.classList.remove("results-fullscreen");
   if (progress) progress.classList.add("visible");
 
   pipelineStartTime = Date.now();
@@ -5688,80 +5688,239 @@ function hidePipelineProgress() {
   }, 400);
 }
 
-function renderSelectedArtifactReview(fallbackAuditContent = "") {
-  const selectedArtifact = getSelectedArtifact();
-  const reviewArtifact = pipelineState.bundleReview?.artifacts?.find(
-    (artifact) => artifact.id === selectedArtifact.id,
-  );
-  const review = reviewArtifact?.review || selectedArtifact.review;
+function reviewStatusIcon(status, className = "") {
+  const paths = {
+    pass: `<path d="M20 6 9 17l-5-5"/>`,
+    warning: `<path d="M12 9v4m0 4h.01"/><path d="M10.3 3.6 2.2 18a2 2 0 0 0 1.7 3h16.2a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0Z"/>`,
+    fail: `<path d="m15 9-6 6m0-6 6 6"/><circle cx="12" cy="12" r="9"/>`,
+  };
+  return `<svg class="review-status-icon ${className}" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths[status] || paths.warning}</svg>`;
+}
 
-  if (!review || typeof review === "string") {
-    return typeof review === "string" ? renderMarkdownAudit(review) : fallbackAuditContent;
-  }
+function reviewStatusLabel(status) {
+  return {
+    pass: "Passed review",
+    warning: "Needs attention",
+    fail: "Blocking issues",
+  }[status] || "Needs attention";
+}
 
-  const findings = Array.isArray(review.findings) ? review.findings : [];
-  const status = review.status || "pending";
-  const findingHtml = findings.length > 0
-    ? findings.map((finding) => `
-      <div class="audit-item">
-        <strong>${escapeHtml(finding.severity || "info")}</strong>: ${escapeHtml(finding.message || "")}
-        ${finding.suggestion ? `<br><span>${escapeHtml(finding.suggestion)}</span>` : ""}
-      </div>
-    `).join("")
-    : `<div class="audit-item">No artifact-specific findings.</div>`;
+function getReviewPresentation() {
+  return buildReviewPresentation({
+    bundle: pipelineState.artifactBundle,
+    reviewResult: pipelineState.step3Result,
+  });
+}
 
+function renderFinding(finding) {
   return `
-    <div class="audit-section">
-      <h3>${escapeHtml(selectedArtifact.artifactName)} review: ${escapeHtml(status)}</h3>
-      ${findingHtml}
+    <div class="review-finding review-finding-${escapeAttr(finding.severity)}">
+      ${reviewStatusIcon(finding.severity)}
+      <div>
+        <div class="review-finding-message">${escapeHtml(finding.message)}</div>
+        ${finding.suggestion ? `<div class="review-finding-suggestion">${escapeHtml(finding.suggestion)}</div>` : ""}
+        <span class="review-source">${escapeHtml(finding.source)}</span>
+      </div>
     </div>
   `;
 }
 
-function renderBundleControls() {
-  const bundle = pipelineState.artifactBundle;
-  const strip = document.getElementById("bundle-strip");
-  const tabs = document.getElementById("artifact-tabs");
-  const artifactCount = document.getElementById("bundle-artifact-count");
-  const deployableCount = document.getElementById("bundle-deployable-count");
-  const warningCount = document.getElementById("bundle-warning-count");
+function renderManualStep(step) {
+  return `
+    <li class="manual-step">
+      <div>
+        <strong>${escapeHtml(step.title)}</strong>
+        ${step.detail && step.detail !== step.title ? `<p>${escapeHtml(step.detail)}</p>` : ""}
+      </div>
+    </li>
+  `;
+}
 
-  if (!bundle || !Array.isArray(bundle.artifacts) || bundle.artifacts.length <= 1) {
+function renderSummaryDetail(presentation) {
+  const summaryDetail = document.getElementById("results-summary-detail");
+  const resultsTitle = document.getElementById("results-title");
+  if (!summaryDetail) return;
+  if (resultsTitle) {
+    resultsTitle.textContent = presentation.title;
+  }
+
+  const score = presentation.score;
+  const scoreTone = score == null
+    ? presentation.status
+    : score >= 80 ? "pass" : score >= 60 ? "warning" : "fail";
+  const scoreLabel = score == null
+    ? "Not scored"
+    : score >= 80 ? "Strong" : score >= 60 ? "Needs work" : "High risk";
+  const findings = presentation.findings.length
+    ? `
+      <ul class="summary-findings">
+        ${presentation.findings.map((finding) => `
+          <li class="summary-finding-${escapeAttr(finding.severity)}">
+            ${reviewStatusIcon(finding.severity)}
+            <span>${escapeHtml(finding.message)}</span>
+          </li>
+        `).join("")}
+      </ul>
+    `
+    : "";
+  const manualSteps = presentation.manualSteps.length
+    ? `
+      <section class="summary-manual-callout">
+        <h3>${reviewStatusIcon("warning")} Complete in FlutterFlow</h3>
+        <ul>
+          ${presentation.manualSteps.map((step) => `
+            <li>
+              <strong>${escapeHtml(step.title)}</strong>
+              ${step.detail && step.detail !== step.title ? `<span>${escapeHtml(step.detail)}</span>` : ""}
+            </li>
+          `).join("")}
+        </ul>
+      </section>
+    `
+    : "";
+
+  summaryDetail.innerHTML = `
+    <section class="review-summary">
+      <div class="review-summary-copy">
+        <p class="review-summary-text">${escapeHtml(presentation.summary)}</p>
+        ${findings}
+        ${manualSteps}
+      </div>
+      <div class="review-score-column">
+        <aside class="review-score review-score-${escapeAttr(scoreTone)}" aria-label="${score == null ? "Review not scored" : `Review score ${score} out of 100`}">
+          <span class="review-score-label">Score</span>
+          <strong>${score == null ? "—" : escapeHtml(score)}</strong>
+          <span class="review-score-total">${score == null ? "Not scored" : "out of 100"}</span>
+          <span class="review-score-status">${escapeHtml(scoreLabel)}</span>
+        </aside>
+        <div class="review-score-feedback">
+          <span>Is the generated code correct?</span>
+          <div class="review-score-feedback-controls">
+            <button class="feedback-btn" id="btn-feedback-up" onclick="submitResultsFeedback('up')" title="Yes">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3H14z"/></svg>
+            </button>
+            <button class="feedback-btn" id="btn-feedback-down" onclick="submitResultsFeedback('down')" title="No">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 15v4a3 3 0 003 3l4-9V2H5.72a2 2 0 00-2 1.7l-1.38 9a2 2 0 002 2.3H10z"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function renderSelectedArtifactReview(presentation) {
+  const selectedArtifact = presentation.artifacts.find(
+    (artifact) => artifact.id === pipelineState.selectedArtifactId,
+  ) || presentation.artifacts[0];
+  if (!selectedArtifact) return "";
+
+  const findings = selectedArtifact.findings.length
+    ? selectedArtifact.findings.map(renderFinding).join("")
+    : `<div class="review-empty-state">${reviewStatusIcon("pass")} No file-specific findings were returned.</div>`;
+  const dependencies = selectedArtifact.dependencies?.length
+    ? selectedArtifact.dependencies.map((dependency) => `
+      <li><code>${escapeHtml(dependency.name)}${dependency.version ? ` ${escapeHtml(dependency.version)}` : ""}</code>${dependency.reason ? `<p>${escapeHtml(dependency.reason)}</p>` : ""}</li>
+    `).join("")
+    : `<li class="review-muted">No external packages</li>`;
+  const imports = selectedArtifact.imports?.length
+    ? selectedArtifact.imports.map((item) => `<code>${escapeHtml(item)}</code>`).join("")
+    : `<span class="review-muted">No imports returned</span>`;
+  const publicApi = selectedArtifact.publicApi?.length
+    ? selectedArtifact.publicApi.map((item) => `<code>${escapeHtml(item)}</code>`).join("")
+    : `<span class="review-muted">No public API signature returned</span>`;
+  const relationships = selectedArtifact.relationships.length
+    ? selectedArtifact.relationships.map((relationship) => `
+      <li><strong>${escapeHtml(relationship.from || "Bundle")}</strong> ${escapeHtml(relationship.type)} <strong>${escapeHtml(relationship.to || "Bundle")}</strong>${relationship.description ? `<p>${escapeHtml(relationship.description)}</p>` : ""}</li>
+    `).join("")
+    : `<li class="review-muted">No relationships for this file</li>`;
+
+  return `
+    <div class="file-review-header file-review-${selectedArtifact.status}">
+      <div>
+        <span class="file-review-status">${reviewStatusIcon(selectedArtifact.status)} ${escapeHtml(reviewStatusLabel(selectedArtifact.status))}</span>
+        <h3>${escapeHtml(selectedArtifact.artifactName)}</h3>
+        ${selectedArtifact.description ? `<p>${escapeHtml(selectedArtifact.description)}</p>` : ""}
+      </div>
+      <div class="file-review-meta">
+        <span>${escapeHtml(selectedArtifact.artifactType)}</span>
+        <span>${escapeHtml(selectedArtifact.fileName)}</span>
+      </div>
+    </div>
+    <section class="file-review-section">
+      <h4>Code Review findings</h4>
+      ${findings}
+    </section>
+    ${selectedArtifact.manualSteps.length ? `
+      <section class="file-review-section file-manual-section">
+        <h4>Manual FlutterFlow steps for this file</h4>
+        <ol>${selectedArtifact.manualSteps.map(renderManualStep).join("")}</ol>
+      </section>
+    ` : ""}
+    <details class="file-technical-details">
+      <summary>File details</summary>
+      <div class="file-detail-grid">
+        <section class="file-review-section">
+          <h4>Dependencies</h4>
+          <ul class="dependency-list">${dependencies}</ul>
+        </section>
+        <section class="file-review-section">
+          <h4>Deployment</h4>
+          <dl class="file-deploy-facts">
+            <div><dt>Status</dt><dd>${escapeHtml(selectedArtifact.deployStatus || "pending")}</dd></div>
+            <div><dt>Order</dt><dd>${selectedArtifact.index + 1} of ${presentation.artifacts.length}</dd></div>
+            <div><dt>Path hint</dt><dd>${escapeHtml(selectedArtifact.pathHint || "Not returned")}</dd></div>
+          </dl>
+        </section>
+      </div>
+      <section class="file-review-section">
+        <h4>Public API</h4>
+        <div class="code-chip-list">${publicApi}</div>
+      </section>
+      <section class="file-review-section">
+        <h4>Imports</h4>
+        <div class="code-chip-list">${imports}</div>
+      </section>
+      <section class="file-review-section">
+        <h4>Relationships</h4>
+        <ul class="file-relationship-list">${relationships}</ul>
+      </section>
+    </details>
+  `;
+}
+
+function renderBundleControls(presentation) {
+  const strip = document.getElementById("bundle-strip");
+  const summaryTab = document.getElementById("results-summary-tab");
+  const tabs = document.getElementById("artifact-tabs");
+  const count = document.getElementById("results-file-count");
+  if (summaryTab) {
+    summaryTab.classList.toggle("active", pipelineState.resultsViewMode === "summary");
+  }
+  if (!presentation.artifacts.length) {
+    if (count) count.textContent = "0 files";
     if (strip) strip.classList.remove("visible");
     if (tabs) tabs.innerHTML = "";
     return;
   }
 
-  const compatibilityFindings = bundle.metadata?.compatibility?.findings || [];
-  const errorArtifactIds = new Set(
-    compatibilityFindings
-      .filter((finding) => finding.severity === "error")
-      .map((finding) => finding.artifactId),
-  );
-
-  if (artifactCount) artifactCount.textContent = String(bundle.artifacts.length);
-  if (deployableCount) {
-    deployableCount.textContent = String(
-      bundle.artifacts.filter((artifact) => !errorArtifactIds.has(artifact.id)).length,
-    );
+  if (count) {
+    const fileCount = presentation.artifacts.length;
+    count.textContent = `${fileCount} ${fileCount === 1 ? "file" : "files"}`;
   }
-  if (warningCount) {
-    warningCount.textContent = String(
-      (bundle.warnings || []).length
-        + compatibilityFindings.filter((finding) => finding.severity !== "error").length,
-    );
-  }
-
   if (tabs) {
-    tabs.innerHTML = bundle.artifacts.map((artifact) => `
+    tabs.innerHTML = presentation.artifacts.map((artifact) => `
       <button
         type="button"
-        class="artifact-tab${artifact.id === pipelineState.selectedArtifactId ? " active" : ""}"
+        class="artifact-tab${pipelineState.resultsViewMode === "file" && artifact.id === pipelineState.selectedArtifactId ? " active" : ""}"
         data-artifact-id="${escapeAttr(artifact.id)}"
-        title="${escapeAttr(artifact.fileName || artifact.artifactName)}"
+        title="${escapeAttr(`${reviewStatusLabel(artifact.status)} · ${artifact.fileName || artifact.artifactName}`)}"
       >
-        <span class="artifact-tab-name">${escapeHtml(artifact.artifactName)}</span>
-        <span class="artifact-tab-meta">${escapeHtml(artifact.artifactType)} · ${escapeHtml(artifact.fileName)}</span>
+        <span class="artifact-tab-status status-${escapeAttr(artifact.status)}">${reviewStatusIcon(artifact.status)}</span>
+        <span>
+          <span class="artifact-tab-name">${escapeHtml(artifact.artifactName)}</span>
+          <span class="artifact-tab-meta">${escapeHtml(artifact.artifactType)}</span>
+        </span>
       </button>
     `).join("");
     tabs.onclick = (event) => {
@@ -5775,33 +5934,48 @@ function renderBundleControls() {
   if (strip) strip.classList.add("visible");
 }
 
-function updateSelectedArtifactPanels(fallbackAuditContent = "") {
+function updateSelectedArtifactPanels() {
+  document.body.classList.add("results-fullscreen");
+  document.body.classList.toggle(
+    "results-with-sidebar",
+    IS_DEV && new URLSearchParams(window.location.search).get("debugSidebar") === "1",
+  );
   const resultsView = document.getElementById("results-view");
   const codeOutput = document.getElementById("results-code-output");
   const auditOutput = document.getElementById("results-audit-output");
+  const summaryDetail = document.getElementById("results-summary-detail");
+  const artifactSplit = document.getElementById("artifact-results-split");
+  const presentation = getReviewPresentation();
   const selectedCode = getSelectedArtifactCode();
 
-  // Code panel uses highlighted code (already sanitized by highlightCode)
+  renderSummaryDetail(presentation);
+  renderBundleControls(presentation);
+
   if (codeOutput) codeOutput.textContent = "";
   if (codeOutput) {
-    // Use the same highlightCode function used elsewhere in this codebase
     const highlighted = highlightCode(selectedCode);
-    // highlightCode returns hljs-processed HTML which is safe (generated by highlight.js)
     codeOutput.innerHTML = highlighted; // eslint-disable-line -- highlight.js output
   }
-  // renderMarkdownAudit escapes the model output before adding its own markup.
   if (auditOutput) {
-    auditOutput.innerHTML = renderSelectedArtifactReview(fallbackAuditContent); // eslint-disable-line -- renderMarkdownAudit output
+    auditOutput.innerHTML = renderSelectedArtifactReview(presentation);
+  }
+  if (summaryDetail) {
+    summaryDetail.classList.toggle("hidden", pipelineState.resultsViewMode !== "summary");
+  }
+  if (artifactSplit) {
+    artifactSplit.classList.toggle("hidden", pipelineState.resultsViewMode !== "file");
   }
   if (resultsView) resultsView.classList.add("visible");
-  renderBundleControls();
 }
 
 function showResultsView(codeContent, auditContent) {
   if (!pipelineState.selectedArtifactId) {
     pipelineState.selectedArtifactId = getPrimaryArtifact(pipelineState.artifactBundle).id;
   }
-  updateSelectedArtifactPanels(auditContent);
+  pipelineState.resultsViewMode = "summary";
+  document.body.classList.add("results-fullscreen");
+  updateSelectedArtifactPanels();
+  updateDeployButtonVisibility();
 
   // Reset feedback buttons
   const upBtn = document.getElementById("btn-feedback-up");
@@ -5874,6 +6048,19 @@ function showDebugMultiArtifactResults() {
   pipelineState.step3Result = JSON.stringify({
     schemaVersion: "artifact-bundle/v1",
     id: "debug-agent-ui",
+    overallReview: {
+      status: "warn",
+      score: 86,
+      summary: "The bundle structure is sound. AgentTimeline still needs its event rendering completed before release.",
+      manualActions: [
+        {
+          title: "Wire the generated AgentTimeline into the target page",
+          detail: "Add the custom widget in FlutterFlow and bind its event data.",
+          location: "UI Builder > Custom Widgets",
+          timing: "after deploy",
+        },
+      ],
+    },
     artifacts: [
       {
         id: "custom-class-agent-event",
@@ -5914,7 +6101,13 @@ function showDebugMultiArtifactResults() {
 
 function selectArtifact(artifactId) {
   pipelineState.selectedArtifactId = artifactId;
-  updateSelectedArtifactPanels(renderMarkdownAudit(pipelineState.step3Result || ""));
+  pipelineState.resultsViewMode = "file";
+  updateSelectedArtifactPanels();
+}
+
+function selectResultsSummary() {
+  pipelineState.resultsViewMode = "summary";
+  updateSelectedArtifactPanels();
 }
 
 function copyResultsCode() {
@@ -5975,6 +6168,7 @@ function hideErrorInputPanel() {
 
 window.copyResultsCode = copyResultsCode;
 window.selectArtifact = selectArtifact;
+window.selectResultsSummary = selectResultsSummary;
 window.submitResultsFeedback = submitResultsFeedback;
 window.showErrorInputPanel = showErrorInputPanel;
 window.hideErrorInputPanel = hideErrorInputPanel;

@@ -51,6 +51,7 @@ export function normalizeArtifact(rawArtifact = {}, index = 0) {
     code: artifact.code || artifact.content || "",
     dependencies: normalizeDependencies(artifact.dependencies),
     imports: Array.isArray(artifact.imports) ? artifact.imports : [],
+    publicApi: Array.isArray(artifact.publicApi) ? artifact.publicApi : [],
     relationships: normalizeRelationships(artifact.relationships),
     deployStatus: artifact.deployStatus || "pending",
     review: artifact.review || null,
@@ -75,6 +76,7 @@ export function normalizeDependencies(rawDependencies) {
           name,
           version: dep.version || null,
           inferred: Boolean(dep.inferred),
+          ...(dep.reason ? { reason: dep.reason } : {}),
         };
       })
       .filter(Boolean);
@@ -161,6 +163,7 @@ export function normalizeArtifactBundle(input, options = {}) {
     }));
 
   return {
+    schemaVersion: bundleLike.schemaVersion || options.schemaVersion || null,
     id: bundleLike.id || options.id || "bundle-current",
     title: bundleLike.title || bundleLike.name || options.title || "Generated artifact bundle",
     description: bundleLike.description || options.description || "",
