@@ -198,21 +198,26 @@ function hasCustomActionFutureFunction(code = "", functionName = "") {
 
 /**
  * Returns the identifiers in a return type FlutterFlow cannot accept.
- * Data Types (*Struct) and Documents (*Record) are accepted when they exist in
- * the project.
+ * Data Types (*Struct) and Documents (*Record) are accepted only when they
+ * are NOT declared in this push - a real FlutterFlow project type is never
+ * defined via `class`/`enum` in a pushed Code File, so a declared *Struct/
+ * *Record name is a local Dart class wearing the naming convention, not the
+ * real thing, and FlutterFlow still cannot process it as a return value.
  * @param {string|null} returnType - Return type text, e.g. "List<NfcTag>"
+ * @param {Set<string>} [declaredTypes] - Types declared in this push
  * @returns {string[]} Unsupported type identifiers
  */
-export function getUnsupportedReturnTypeIdentifiers(returnType) {
+export function getUnsupportedReturnTypeIdentifiers(returnType, declaredTypes = new Set()) {
   const identifiers = returnType?.match(/[A-Za-z_]\w*/g) || [];
 
-  return identifiers.filter(
-    (identifier) =>
-      !SUPPORTED_RETURN_TYPES.has(identifier)
-      && !SUPPORTED_RETURN_TYPE_SUFFIXES.some((suffix) =>
-        identifier.endsWith(suffix),
-      ),
-  );
+  return identifiers.filter((identifier) => {
+    if (SUPPORTED_RETURN_TYPES.has(identifier)) return false;
+
+    const looksLikeProjectType = SUPPORTED_RETURN_TYPE_SUFFIXES.some((suffix) =>
+      identifier.endsWith(suffix),
+    );
+    return !looksLikeProjectType || declaredTypes.has(identifier);
+  });
 }
 
 export function getCustomActionReturnTypeError(
@@ -220,7 +225,7 @@ export function getCustomActionReturnTypeError(
   { functionName = "", declaredTypes = new Set() } = {},
 ) {
   const returnType = getCustomActionReturnType(code, functionName);
-  const unsupported = getUnsupportedReturnTypeIdentifiers(returnType);
+  const unsupported = getUnsupportedReturnTypeIdentifiers(returnType, declaredTypes);
   if (unsupported.length === 0) return null;
 
   const [offending] = unsupported;

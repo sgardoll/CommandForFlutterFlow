@@ -198,7 +198,23 @@ test("allows FlutterFlow Data Type structs and supported primitives", () => {
   }
 });
 
-test("allows a struct bundled alongside the action that returns it", () => {
+test("allows an action to return an existing project Struct not declared in the push", () => {
+  const findings = validateArtifactCompatibility({
+    id: "load-product",
+    artifactName: "loadProduct",
+    artifactType: "CustomAction",
+    fileName: "load_product.dart",
+    code: "Future<ProductStruct> loadProduct() async => throw UnimplementedError();",
+  });
+
+  assert.deepEqual(findings, []);
+});
+
+test("rejects a Code File class named like a Struct bundled alongside the action that returns it", () => {
+  // A real FlutterFlow Data Type is never declared via `class` in a pushed
+  // Code File - it already exists in the project. A `class ...Struct` in the
+  // same push is a local Dart class wearing the naming convention, and
+  // FlutterFlow still cannot process it as a return value.
   const result = validateBundleCompatibility({
     artifacts: [
       {
@@ -218,8 +234,10 @@ test("allows a struct bundled alongside the action that returns it", () => {
     ],
   });
 
-  assert.equal(result.valid, true);
-  assert.deepEqual(result.findings, []);
+  assert.equal(result.valid, false);
+  assert.equal(result.findings.length, 1);
+  assert.equal(result.findings[0].severity, "error");
+  assert.match(result.findings[0].message, /ProductStruct/);
 });
 
 test("ignores type names that only appear in comments or strings", () => {
