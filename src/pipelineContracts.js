@@ -38,6 +38,11 @@ export function buildReviewPrompt(generatedBundle) {
   return stringifyPipelinePayload({
     task: "review_bundle",
     generatedBundle: parseJsonIfPossible(generatedBundle),
+    outputRequirements: {
+      overall: ["status", "score", "summary", "findings"],
+      scoreRange: [0, 100],
+      eachArtifact: ["id", "review.status", "review.findings"],
+    },
   });
 }
 

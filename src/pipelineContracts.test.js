@@ -36,6 +36,18 @@ test("review prompt sends generated bundle data without system instructions", ()
 
   assert.equal(payload.task, "review_bundle");
   assert.equal(payload.generatedBundle.artifacts[0].id, "action-a");
+  assert.deepEqual(payload.outputRequirements.overall, [
+    "status",
+    "score",
+    "summary",
+    "findings",
+  ]);
+  assert.deepEqual(payload.outputRequirements.scoreRange, [0, 100]);
+  assert.deepEqual(payload.outputRequirements.eachArtifact, [
+    "id",
+    "review.status",
+    "review.findings",
+  ]);
   assert.doesNotMatch(prompt, /Review every generated artifact/);
   assert.doesNotMatch(prompt, /bundleReview/);
 });

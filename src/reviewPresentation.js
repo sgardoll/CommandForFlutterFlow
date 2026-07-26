@@ -62,7 +62,7 @@ export function normalizeReviewStatus(value) {
   const status = String(value || "").toLowerCase();
   if (/(fail|error|critical|block|reject|invalid)/.test(status)) return "fail";
   if (/(warn|attention|manual|partial|incomplete|concern)/.test(status)) return "warning";
-  if (/(pass|success|ready|approve|valid|clean)/.test(status)) return "pass";
+  if (/(pass|success|ready|approve|valid|clean|info|notice)/.test(status)) return "pass";
   return null;
 }
 
@@ -177,12 +177,7 @@ function unwrapReviewPayload(reviewResult) {
   }
 
   const root = toObject(value);
-  const nested = toObject(
-    root.bundleReview
-      || root.reviewResult
-      || root.codeReview
-      || root.result,
-  );
+  const nested = toObject(root.reviewResult || root.codeReview || root.result);
   return { rawText: "", root: Object.keys(nested).length ? nested : root };
 }
 
@@ -268,7 +263,8 @@ export function buildReviewPresentation({ bundle, reviewResult }) {
   const artifacts = asArray(safeBundle.artifacts);
   const { root, rawText } = unwrapReviewPayload(reviewResult);
   const overallReview = toObject(
-    root.overallReview
+    root.bundleReview
+      || root.overallReview
       || root.overall
       || root.bundleSummary
       || root.summaryReview
