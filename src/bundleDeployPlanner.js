@@ -1,3 +1,5 @@
+import { extractPackageImports } from "./dartPackageImports.js";
+
 const CODE_TYPE = {
   ACTION: "A",
   WIDGET: "W",
@@ -104,13 +106,28 @@ export function buildBundleDeployPlan(bundle, options = {}) {
     });
   });
 
-  const dependencies = {
+  const declaredDependencies = {
     ...toDependencyMap(bundle?.dependencies),
     ...selected.reduce((acc, artifact) => ({
       ...acc,
       ...toDependencyMap(artifact.dependencies),
     }), {}),
   };
+
+  // A declared dependency list can miss a package the code actually imports.
+  // FlutterFlow rejects a push whose pubspec.yaml omits an imported package,
+  // so every artifact's code is also scanned directly as a safety net.
+  // Declared versions always win over this generic fallback.
+  const detectedDependencies = {};
+  selected.forEach((artifact) => {
+    extractPackageImports(artifact.code || "").forEach((name) => {
+      if (!(name in declaredDependencies)) {
+        detectedDependencies[name] = "^1.0.0";
+      }
+    });
+  });
+
+  const dependencies = { ...detectedDependencies, ...declaredDependencies };
 
   selected.forEach((artifact) => {
     (artifact.dependencies || []).forEach((dependency) => {

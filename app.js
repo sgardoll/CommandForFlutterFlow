@@ -24,6 +24,7 @@ import {
 } from "./src/flutterFlowCodeFileProvisioning.js";
 import { buildReviewPresentation } from "./src/reviewPresentation.js";
 import { formatFlutterFlowFileError } from "./src/flutterFlowFileErrors.js";
+import { extractPackageImports } from "./src/dartPackageImports.js";
 import { buildFlutterFlowSyncMetadata } from "./src/flutterFlowSyncMetadata.js";
 import {
   mergeDependenciesIntoYaml,
@@ -126,7 +127,7 @@ const PRO_MODELS = [
   'openai/gpt-5.6-sol',
   'z-ai/glm-5.2',
   'moonshotai/kimi-k3',
-  'openrouter/auto-beta-beta-beta-beta',
+  'openrouter/auto-beta',
   'openrouter/free',
   'openrouter/deepseek/deepseek-v4-pro',
 ]
@@ -139,7 +140,7 @@ const MODEL_LABELS = {
   'openai/gpt-5.6-sol': 'GPT-5.6 Sol',
   'z-ai/glm-5.2': 'GLM 5.2',
   'moonshotai/kimi-k3': 'Kimi K3',
-  'openrouter/auto-beta-beta-beta-beta': 'OpenRouter: Auto Router',
+  'openrouter/auto-beta': 'OpenRouter: Auto Router',
   'openrouter/free': 'OpenRouter: Free Models',
   'openrouter/deepseek/deepseek-v4-pro': 'DeepSeek v4 Pro',
 }
