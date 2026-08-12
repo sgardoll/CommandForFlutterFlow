@@ -33,6 +33,7 @@ import {
   validateProjectPubspec,
 } from "./src/pubspecSync.js";
 import { escapeAttr, escapeHtml, escapeHtmlText } from "./src/htmlEscape.js";
+import { resolvePipelineErrorStep } from "./src/pipelineErrors.js";
 import {
   extractCodeFromMarkdown,
   highlightCode,
@@ -2816,7 +2817,9 @@ async function executeCommit(code, options = {}) {
           const parsed = JSON.parse(match[0]);
           errorMap = new Map(Object.entries(parsed));
         }
-      } catch (e) {}
+      } catch (e) {
+        console.warn("Failed to parse error map from commit response:", e);
+      }
     }
 
     return {
@@ -3540,16 +3543,7 @@ async function runThinkingPipeline() {
       generator: 2,
       review: 3,
     };
-    let errorStep = modelArmorSteps[error.pipelineStep] || 1;
-    if (!error.pipelineStep && (
-      error.message.includes("Claude") ||
-      error.message.includes("OpenAI") ||
-      error.message.includes("Code Generator")
-    )) {
-      errorStep = 2;
-    } else if (!error.pipelineStep && error.message.includes("Code Review")) {
-      errorStep = 3;
-    }
+    const errorStep = resolvePipelineErrorStep(error, modelArmorSteps);
 
     selectWorkflowStep(errorStep);
     const resultDiv = document.getElementById(`step${errorStep}-result`);
