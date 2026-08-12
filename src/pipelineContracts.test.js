@@ -40,6 +40,7 @@ test("review prompt sends generated bundle data without system instructions", ()
     "status",
     "score",
     "summary",
+    "manualActions",
     "findings",
   ]);
   assert.deepEqual(payload.outputRequirements.scoreRange, [0, 100]);

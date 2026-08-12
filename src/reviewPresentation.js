@@ -258,6 +258,36 @@ function buildArtifactPresentation(bundle, reviewArtifacts, artifact, index) {
   };
 }
 
+/**
+ * Builds a deployable, user-actionable summary when the review returned no
+ * written summary. Never falls back to a useless placeholder: it synthesizes
+ * the verdict, per-artifact pass/warn/fail counts, and the manual steps the
+ * user must take in their own FlutterFlow project, and calls out when no
+ * numeric score was returned so a missing score is never mistaken for a pass.
+ */
+function buildFallbackSummary({ status, score, artifactPresentations, manualSteps }) {
+  const total = artifactPresentations.length;
+  if (total === 0 && manualSteps.length === 0) {
+    return score == null
+      ? "Code review returned no overall summary and no score."
+      : `Reviewed bundle with score ${score}/100.`;
+  }
+  const counts = artifactPresentations.reduce((result, artifact) => {
+    result[artifact.status] += 1;
+    return result;
+  }, { pass: 0, warning: 0, fail: 0 });
+  const parts = [];
+  if (status) parts.push(`Overall verdict: ${status}.`);
+  if (total) {
+    parts.push(`${total} artifact${total === 1 ? "" : "s"}: ${counts.pass} pass, ${counts.warning} warn, ${counts.fail} fail.`);
+  }
+  if (manualSteps.length) {
+    parts.push(`Do before deploy: ${manualSteps.map((step) => step.title).join("; ")}.`);
+  }
+  if (score == null) parts.push("No numeric score (0-100) was returned.");
+  return parts.join(" ");
+}
+
 export function buildReviewPresentation({ bundle, reviewResult }) {
   const safeBundle = toObject(bundle);
   const artifacts = asArray(safeBundle.artifacts);
@@ -320,8 +350,7 @@ export function buildReviewPresentation({ bundle, reviewResult }) {
     root.assessment,
     root.conclusion,
     rawText,
-    safeBundle.description,
-  ) || "Code Review completed without an overarching written summary.";
+  ) || buildFallbackSummary({ status, score: scoreValue, artifactPresentations, manualSteps });
   const counts = artifactPresentations.reduce((result, artifact) => {
     result[artifact.status] += 1;
     return result;

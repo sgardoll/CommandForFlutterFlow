@@ -238,3 +238,43 @@ test("falls back from malformed bundleReview to a valid overallReview", () => {
     assert.equal(presentation.findings[0].message, "The bundle structure is valid.");
   }
 });
+
+test("synthesizes an actionable summary and flags a missing score when none is returned", () => {
+  const presentation = buildReviewPresentation({
+    bundle,
+    reviewResult: JSON.stringify({
+      bundleReview: {
+        status: "warn",
+        manualActions: [{ title: "Add the http package to Project Dependencies" }],
+        findings: [{ severity: "warning", message: "Confirm endpoint auth." }],
+      },
+      artifacts: [
+        { id: "format_payload", review: { status: "pass", findings: [] } },
+        { id: "execute_webhook", review: { status: "warn", findings: [] } },
+      ],
+    }),
+  });
+
+  assert.equal(presentation.score, null);
+  assert.match(presentation.summary, /Overall verdict: warn/i);
+  assert.match(presentation.summary, /1 pass, 1 warn, 0 fail/);
+  assert.match(presentation.summary, /Add the http package/);
+  assert.match(presentation.summary, /No numeric score/);
+  assert.doesNotMatch(presentation.summary, /overarching written summary/);
+});
+
+test("keeps a supplied score and written summary verbatim", () => {
+  const presentation = buildReviewPresentation({
+    bundle,
+    reviewResult: JSON.stringify({
+      bundleReview: {
+        status: "pass",
+        score: 96,
+        summary: "Safe to deploy after adding the http dependency.",
+      },
+    }),
+  });
+
+  assert.equal(presentation.score, 96);
+  assert.equal(presentation.summary, "Safe to deploy after adding the http dependency.");
+});
