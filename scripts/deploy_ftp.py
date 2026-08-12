@@ -157,16 +157,50 @@ def prune_stale_files(ftp, local_files, local_dirs, dry_run):
     return removed, failed
 
 
+def ensure_dist_committed(allow_dirty):
+    """Refuse to deploy a dist/ the repo cannot reproduce.
+
+    The FTP mirror pushes whatever is on disk, so an uncommitted build silently
+    puts the live site ahead of git. Guard that: the deployed artifact must be
+    exactly what a fresh checkout would build, so the web stays reproducible.
+    """
+    if allow_dirty:
+        return
+    result = subprocess.run(
+        ["git", "status", "--porcelain", "--", "dist/"],
+        capture_output=True, text=True, cwd=REPO_ROOT,
+    )
+    if result.returncode != 0:
+        sys.exit(
+            "Could not validate git state; refusing to deploy.\n"
+            f"{result.stderr.strip() or result.stdout.strip()}"
+        )
+    if result.stdout.strip():
+        sys.exit(
+            "Refusing to deploy: dist/ has uncommitted changes and the live site "
+            "must be reproducible from git.\n"
+            "Commit the build first, e.g.:\n"
+            f"  git add dist/ && git commit -m \"build: rebuild dist\"\n"
+            'Or override for an emergency push with `--allow-dirty` (not recommended).'
+        )
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--dry-run", action="store_true",
         help="Show what would be uploaded and deleted without changing the server",
     )
+    parser.add_argument(
+        "--allow-dirty", action="store_true",
+        help="Allow deploying an uncommitted dist/ (not recommended)",
+    )
     args = parser.parse_args()
 
     if not DIST.is_dir():
         sys.exit(f"{DIST} does not exist. Run `npm run build` first.")
+
+    ensure_dist_committed(args.allow_dirty)
 
     local_files, local_dirs = local_files_and_dirs(DIST)
     if not local_files:
