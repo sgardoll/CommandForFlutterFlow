@@ -563,3 +563,83 @@ test("still flags a non-nullable field no constructor supplies", () => {
 
   assert.deepEqual(findings.map((finding) => finding.id), ["non-nullable-public-field"]);
 });
+
+test("a sibling widget's default does not rescue another widget's unsupplied field", () => {
+  const findings = getWidgetRuleFindings(`
+    class PriceTag extends StatefulWidget {
+      const PriceTag({super.key, this.width});
+      final double? width;
+      final double value;
+      @override
+      State<PriceTag> createState() => _PriceTagState();
+    }
+    class PriceSlider extends StatefulWidget {
+      const PriceSlider({super.key, this.value = 1.0});
+      final double value;
+      @override
+      State<PriceSlider> createState() => _PriceSliderState();
+    }
+  `);
+
+  assert.deepEqual(findings.map((finding) => finding.id), ["non-nullable-public-field"]);
+});
+
+test("a sibling widget's initializer list does not rescue another widget's field either", () => {
+  const findings = getWidgetRuleFindings(`
+    class BadgeA extends StatefulWidget {
+      const BadgeA({super.key});
+      final int count;
+      @override
+      State<BadgeA> createState() => _BadgeAState();
+    }
+    class BadgeB extends StatefulWidget {
+      const BadgeB({super.key}) : count = 3;
+      final int count;
+      @override
+      State<BadgeB> createState() => _BadgeBState();
+    }
+  `);
+
+  assert.deepEqual(findings.map((finding) => finding.id), ["non-nullable-public-field"]);
+});
+
+test("two public widgets that are each individually sound stay clean", () => {
+  const findings = getWidgetRuleFindings(`
+    class PriceTag extends StatefulWidget {
+      const PriceTag({super.key, this.value = 0.0});
+      final double value;
+      @override
+      State<PriceTag> createState() => _PriceTagState();
+    }
+    class PriceSlider extends StatefulWidget {
+      const PriceSlider({super.key, this.value});
+      final double? value;
+      @override
+      State<PriceSlider> createState() => _PriceSliderState();
+    }
+  `);
+
+  assert.deepEqual(findings, []);
+});
+
+test("required in one public widget is flagged even when a sibling is clean", () => {
+  const findings = getWidgetRuleFindings(`
+    class CleanOne extends StatefulWidget {
+      const CleanOne({super.key, this.width});
+      final double? width;
+      @override
+      State<CleanOne> createState() => _CleanOneState();
+    }
+    class BrokenOne extends StatefulWidget {
+      const BrokenOne({super.key, required this.label});
+      final String label;
+      @override
+      State<BrokenOne> createState() => _BrokenOneState();
+    }
+  `);
+
+  assert.deepEqual(findings.map((finding) => finding.id).sort(), [
+    "non-nullable-public-field",
+    "required-public-param",
+  ]);
+});

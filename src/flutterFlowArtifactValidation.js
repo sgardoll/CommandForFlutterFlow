@@ -66,7 +66,8 @@ const WIDGET_RULES = [
       + "FlutterFlow omits unset Define Parameters fields from the constructor call, so the widget "
       + "will not compile when placed. Make the parameter optional and nullable (`this.value` with "
       + "`final double? value`), or give it a constructor default (`this.value = 0.0`).",
-    detect: (stripped) => /\brequired\s+this\.\w+/.test(getPublicWidgetSpans(stripped)),
+    detect: (stripped) => getPublicWidgetSpans(stripped)
+      .some((span) => /\brequired\s+this\.\w+/.test(span)),
     pos: "class W extends StatefulWidget { const W({required this.value}); final double value; }",
     neg: "class _P { const _P({required this.t}); final double t; }\n"
       + "class W extends StatefulWidget { const W({this.value}); final double? value; }",
@@ -78,8 +79,10 @@ const WIDGET_RULES = [
       "CustomWidget declares a non-nullable field with no constructor default. FlutterFlow omits "
       + "unset Define Parameters fields, so the emitted call cannot supply it. Make the field "
       + "nullable (`final double? value`) or give the parameter a default (`this.value = 0.0`).",
-    detect: (stripped) => {
-      const span = getPublicWidgetSpans(stripped);
+    // Each class is judged against its OWN body. A field's default has to come
+    // from the constructor that builds that widget; a sibling widget in the
+    // same file declaring `this.value = 0.0` says nothing about this one.
+    detect: (stripped) => getPublicWidgetSpans(stripped).some((span) => {
       const fieldPattern = /^\s*final\s+(?:double|int|String|bool|Color|num)\s+(\w+)\s*;/gm;
       let match;
 
@@ -89,16 +92,14 @@ const WIDGET_RULES = [
         // parameter (`this.x = 0.0`), and an initializer list entry
         // (`const W() : x = 1`, `const W({double? v}) : x = v ?? 1.0`), where
         // the widget supplies the value itself and never exposes a parameter
-        // at all. Only the parameter form was recognised, so an
-        // initializer-list field was reported as an error and blocked a deploy
-        // the compiler was perfectly happy with.
+        // at all.
         const hasDefault = new RegExp(`this\\.${field}\\s*=(?!=)`).test(span)
           || new RegExp(`[:,]\\s*${field}\\s*=(?!=)`).test(span);
         if (!hasDefault) return true;
       }
 
       return false;
-    },
+    }),
     // Multi-line on purpose: the detector anchors `^\s*final`, so a single-line
     // control never matches and would void the rule.
     pos: "class W extends StatefulWidget {\n  const W({required this.value});\n  final double value;\n}",
@@ -213,12 +214,18 @@ function readClassSpan(code, className) {
 }
 
 /**
- * Joins the body of every PUBLIC Stat*Widget class in the source - the only
- * code FlutterFlow's Define Parameters panel can emit a constructor call for.
- * Private helpers (`_Row extends StatelessWidget`), painters, and plain data
- * classes are excluded: they are not placeable, so `required` is fine there.
+ * Returns the body of every PUBLIC Stat*Widget class in the source, one entry
+ * per class - the only code FlutterFlow's Define Parameters panel can emit a
+ * constructor call for. Private helpers (`_Row extends StatelessWidget`),
+ * painters, and plain data classes are excluded: they are not placeable, so
+ * `required` is fine there.
+ *
+ * Kept separate rather than concatenated because a rule that asks "does this
+ * field have a default?" must ask it of one class. Joined, a sibling widget's
+ * `this.value = 0.0` answers for a different widget's unsupplied `value`, and
+ * a widget FlutterFlow genuinely cannot construct passes validation.
  * @param {string} code - Source with comments and strings removed
- * @returns {string} Concatenated public widget class bodies
+ * @returns {string[]} One class body per public widget
  */
 function getPublicWidgetSpans(code) {
   const spans = [];
@@ -229,7 +236,7 @@ function getPublicWidgetSpans(code) {
     if (span) spans.push(span);
   }
 
-  return spans.join("\n");
+  return spans;
 }
 
 /**
