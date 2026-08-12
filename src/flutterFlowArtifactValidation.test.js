@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  calibrateWidgetRules,
   getCustomActionReturnType,
+  getWidgetRuleFindings,
   validateArtifactCompatibility,
   validateBundleCompatibility,
 } from "./flutterFlowArtifactValidation.js";
@@ -355,4 +357,164 @@ test("emits custom code file deploy hint for custom classes", () => {
       pathHint: "custom_code/",
     },
   ]);
+});
+
+test("every widget rule flags its positive control and stays silent on its negative one", () => {
+  const broken = calibrateWidgetRules().filter((result) => !result.usable);
+
+  assert.deepEqual(
+    broken,
+    [],
+    `VOID rule(s) - their silence proves nothing: ${broken.map((r) => r.id).join(", ")}`,
+  );
+});
+
+test("flags a required widget parameter FlutterFlow can leave unset", () => {
+  const findings = getWidgetRuleFindings(`
+    class AnimatedCustomSlider extends StatefulWidget {
+      const AnimatedCustomSlider({
+        super.key,
+        this.width,
+        this.height,
+        required this.value,
+      });
+      final double? width;
+      final double? height;
+      final double value;
+      @override
+      State<AnimatedCustomSlider> createState() => _AnimatedCustomSliderState();
+    }
+  `);
+
+  assert.deepEqual(
+    findings.map((finding) => finding.id).sort(),
+    ["non-nullable-public-field", "required-public-param"],
+  );
+  assert.ok(findings.every((finding) => finding.severity === "error"));
+});
+
+test("accepts a non-nullable widget field that has a constructor default", () => {
+  const findings = getWidgetRuleFindings(`
+    class QuantityStepper extends StatefulWidget {
+      const QuantityStepper({super.key, this.width, this.height, this.step = 1});
+      final double? width;
+      final double? height;
+      final int step;
+      @override
+      State<QuantityStepper> createState() => _QuantityStepperState();
+    }
+  `);
+
+  assert.deepEqual(findings, []);
+});
+
+test("ignores required on private helpers and non-widget classes", () => {
+  const findings = getWidgetRuleFindings(`
+    class _RingPainter extends CustomPainter {
+      const _RingPainter({required this.progress});
+      final double progress;
+    }
+    class _Row extends StatelessWidget {
+      const _Row({required this.label});
+      final String label;
+      @override
+      Widget build(BuildContext context) => Text(label);
+    }
+    class ProgressRing extends StatefulWidget {
+      const ProgressRing({super.key, this.width, this.height, this.progress});
+      final double? width;
+      final double? height;
+      final double? progress;
+      @override
+      State<ProgressRing> createState() => _ProgressRingState();
+    }
+  `);
+
+  assert.deepEqual(findings, []);
+});
+
+test("does not mistake required in a comment or string for a real parameter", () => {
+  const findings = getWidgetRuleFindings(`
+    class NoteCard extends StatefulWidget {
+      // const NoteCard({required this.title});
+      const NoteCard({super.key, this.title});
+      final String? title;
+      final String hint = "required this.title";
+      @override
+      State<NoteCard> createState() => _NoteCardState();
+    }
+  `);
+
+  assert.deepEqual(findings, []);
+});
+
+test("flags Image.asset fed by a String path parameter", () => {
+  const findings = getWidgetRuleFindings(`
+    class FadeInRoundedImage extends StatefulWidget {
+      const FadeInRoundedImage({super.key, this.width, this.height, this.imagePath});
+      final double? width;
+      final double? height;
+      final String? imagePath;
+      @override
+      State<FadeInRoundedImage> createState() => _FadeInRoundedImageState();
+    }
+    class _FadeInRoundedImageState extends State<FadeInRoundedImage> {
+      @override
+      Widget build(BuildContext context) => Image.asset(widget.imagePath!);
+    }
+  `);
+
+  assert.deepEqual(findings.map((finding) => finding.id), ["asset-without-anchor"]);
+  assert.equal(findings[0].severity, "warning");
+});
+
+test("does not flag a network image fed by a String path parameter", () => {
+  const findings = getWidgetRuleFindings(`
+    class RemoteImage extends StatefulWidget {
+      const RemoteImage({super.key, this.imagePath});
+      final String? imagePath;
+      @override
+      State<RemoteImage> createState() => _RemoteImageState();
+    }
+    class _RemoteImageState extends State<RemoteImage> {
+      @override
+      Widget build(BuildContext context) => Image.network(widget.imagePath!);
+    }
+  `);
+
+  assert.deepEqual(findings, []);
+});
+
+test("surfaces widget rule findings as artifact errors that block a bundle", () => {
+  const result = validateBundleCompatibility({
+    artifacts: [
+      {
+        id: "custom-widget-slider",
+        artifactName: "AnimatedCustomSlider",
+        artifactType: "CustomWidget",
+        fileName: "animated_custom_slider.dart",
+        code: `class AnimatedCustomSlider extends StatefulWidget {
+          const AnimatedCustomSlider({super.key, required this.value});
+          final double value;
+          @override
+          State<AnimatedCustomSlider> createState() => _AnimatedCustomSliderState();
+        }`,
+      },
+    ],
+  });
+
+  assert.equal(result.valid, false);
+  assert.ok(result.findings.some((finding) => /`required`/.test(finding.message)));
+});
+
+test("leaves non-widget artifacts untouched by the widget rules", () => {
+  const findings = validateArtifactCompatibility({
+    id: "custom-class-config",
+    artifactName: "AppConfig",
+    artifactType: "CustomClass",
+    fileName: "app_config.dart",
+    code: "class AppConfig { const AppConfig({required this.token}); final String token; }",
+  });
+
+  assert.deepEqual(findings, []);
 });

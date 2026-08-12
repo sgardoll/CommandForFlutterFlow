@@ -71,6 +71,13 @@ Future<void> _handle(HttpRequest request) async {
     }
 
     final scriptFile = await _writeDeployScript(workspace, classes);
+    // Unlike `ai init`, `ai run`/`ai validate` are passthrough commands: the
+    // CLI forwards these arguments verbatim to the vendored flutterflow_ai SDK,
+    // so whether that SDK honours FF_API_KEY is not something this repo can
+    // verify. Keep --api-key here until a live run proves the env var alone
+    // authenticates; dropping it on assumption would either break every deploy
+    // or, worse, silently fall through to a key left in the shared workspace by
+    // an earlier request.
     final args = <String>[
       'ai',
       dryRun ? 'validate' : 'run',
@@ -161,8 +168,14 @@ Future<_RunOutcome?> _ensureWorkspace(
   final parent = workspace.parent;
   await parent.create(recursive: true);
   final workspaceName = workspace.path.split(Platform.pathSeparator).last;
+  // The key goes via FF_API_KEY only: process arguments are readable from any
+  // process listing and routinely end up in logs, and a FlutterFlow key carries
+  // full project write access. `flutterflow ai init` reads FF_API_KEY directly
+  // (flutterflow_cli ai_router.dart), and deliberately does NOT persist a key
+  // that came from the environment to its credential store - which is what we
+  // want here, because the workspace below is shared across requests.
   final result = await _runFlutterFlow(
-    ['ai', 'init', workspaceName, '--yes', '--api-key', apiKey],
+    ['ai', 'init', workspaceName, '--yes'],
     workingDirectory: parent.path,
     apiKey: apiKey,
     channel: channel,

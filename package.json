@@ -10,7 +10,8 @@
     "test": "node --test src/*.test.js",
     "test:proxies": "php scripts/test-proxy-allowlist.php",
     "test:key-storage": "npm run build && node scripts/test-key-storage.mjs",
-    "verify:buildship-mcp": "node scripts/verify-buildship-mcp.mjs"
+    "verify:buildship-mcp": "node scripts/verify-buildship-mcp.mjs",
+    "audit:widget": "node scripts/audit-ff-widget.mjs"
   },
   "devDependencies": {
     "playwright": "^1.58.2",
@@ -19,6 +20,6 @@
     "vite": "^5.0.0"
   },
   "dependencies": {
-    "posthog-js": "^1.353.0"
+    "posthog-js": "^1.415.7"
   }
 }

@@ -18,6 +18,7 @@ import {
   getDeclaredDartTypes,
   validateBundleCompatibility,
 } from "./src/flutterFlowArtifactValidation.js";
+import { applyFlutterFlowHeader } from "./src/flutterFlowHeader.js";
 import { buildBundleDeployPlan } from "./src/bundleDeployPlanner.js";
 import {
   excludeProvisionedCodeFiles,
@@ -2157,7 +2158,7 @@ import '/flutter_flow/uploaded_file.dart';
   }
 
   return {
-    content: header + cleanedCode,
+    content: applyFlutterFlowHeader(cleanedCode, header),
     fileName,
     codeType,
     artifactType,
