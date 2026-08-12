@@ -39,7 +39,7 @@ export function buildReviewPrompt(generatedBundle) {
     task: "review_bundle",
     generatedBundle: parseJsonIfPossible(generatedBundle),
     outputRequirements: {
-      overall: ["status", "score", "summary", "findings"],
+      bundleReview: ["status", "score", "summary", "findings"],
       scoreRange: [0, 100],
       eachArtifact: ["id", "review.status", "review.findings"],
     },

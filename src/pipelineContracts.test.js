@@ -36,7 +36,7 @@ test("review prompt sends generated bundle data without system instructions", ()
 
   assert.equal(payload.task, "review_bundle");
   assert.equal(payload.generatedBundle.artifacts[0].id, "action-a");
-  assert.deepEqual(payload.outputRequirements.overall, [
+  assert.deepEqual(payload.outputRequirements.bundleReview, [
     "status",
     "score",
     "summary",
@@ -49,7 +49,6 @@ test("review prompt sends generated bundle data without system instructions", ()
     "review.findings",
   ]);
   assert.doesNotMatch(prompt, /Review every generated artifact/);
-  assert.doesNotMatch(prompt, /bundleReview/);
 });
 
 test("BuildShip context only sends runtime state", () => {
