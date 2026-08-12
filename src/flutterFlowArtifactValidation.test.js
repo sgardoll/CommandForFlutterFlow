@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   calibrateWidgetRules,
+  getBlockingWidgetErrors,
   getCustomActionReturnType,
   getWidgetRuleFindings,
   validateArtifactCompatibility,
@@ -642,4 +643,38 @@ test("required in one public widget is flagged even when a sibling is clean", ()
     "non-nullable-public-field",
     "required-public-param",
   ]);
+});
+
+test("a widget FlutterFlow cannot construct blocks the deploy, not just the review", () => {
+  // The reported case: one placeable widget and one with `required this.value`
+  // in the same file. The review called it blocking while the deploy gate,
+  // which reads these errors, still let the file through.
+  const errors = getBlockingWidgetErrors(`
+    class BrandBadge extends StatelessWidget {
+      const BrandBadge({super.key, this.width, this.value = 0.0});
+      final double? width;
+      final double value;
+    }
+    class BrandBanner extends StatelessWidget {
+      const BrandBanner({super.key, this.width, required this.value});
+      final double? width;
+      final double value;
+    }
+  `);
+
+  assert.equal(errors.length, 2);
+  assert.ok(errors.every((message) => typeof message === "string" && message.length > 0));
+});
+
+test("a placeable widget carrying only a warning still deploys", () => {
+  const errors = getBlockingWidgetErrors(`
+    class Banner extends StatelessWidget {
+      const Banner({super.key, this.imagePath});
+      final String? imagePath;
+      @override
+      Widget build(BuildContext context) => Image.asset(imagePath ?? "");
+    }
+  `);
+
+  assert.deepEqual(errors, []);
 });
