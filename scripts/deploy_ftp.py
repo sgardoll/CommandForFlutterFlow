@@ -157,32 +157,60 @@ def prune_stale_files(ftp, local_files, local_dirs, dry_run):
     return removed, failed
 
 
+def _git(args):
+    return subprocess.run(
+        ["git", *args], capture_output=True, text=True, cwd=REPO_ROOT,
+    )
+
+
 def ensure_dist_committed(allow_dirty):
     """Refuse to deploy a dist/ the repo cannot reproduce.
 
-    The FTP mirror pushes whatever is on disk, so an uncommitted build silently
-    puts the live site ahead of git. Guard that: the deployed artifact must be
-    exactly what a fresh checkout would build, so the web stays reproducible.
+    The FTP mirror pushes whatever is on disk, so the deployed artifact must be
+    exactly what a fresh checkout would build. Two checks:
+      - no uncommitted changes to tracked files under dist/
+      - every file that will be uploaded exists at HEAD. git ignores
+        dist/assets/, so a new content-hashed bundle there never shows up in
+        the porcelain status yet would still ship over FTP — checking status
+        alone can't see it.
     """
     if allow_dirty:
         return
-    result = subprocess.run(
-        ["git", "status", "--porcelain", "--", "dist/"],
-        capture_output=True, text=True, cwd=REPO_ROOT,
-    )
-    if result.returncode != 0:
+
+    status = _git(["status", "--porcelain", "--", "dist/"])
+    if status.returncode != 0:
         sys.exit(
             "Could not validate git state; refusing to deploy.\n"
-            f"{result.stderr.strip() or result.stdout.strip()}"
+            f"{status.stderr.strip() or status.stdout.strip()}"
         )
-    if result.stdout.strip():
+    if status.stdout.strip():
         sys.exit(
-            "Refusing to deploy: dist/ has uncommitted changes and the live site "
-            "must be reproducible from git.\n"
+            "Refusing to deploy: tracked files under dist/ have uncommitted "
+            "changes and the live site must be reproducible from git.\n"
             "Commit the build first, e.g.:\n"
-            f"  git add dist/ && git commit -m \"build: rebuild dist\"\n"
+            f'  git add -f dist/ && git commit -m "build: rebuild dist"\n'
             'Or override for an emergency push with `--allow-dirty` (not recommended).'
         )
+
+    tracked = _git(["ls-tree", "-r", "--name-only", "HEAD", "--", "dist/"])
+    if tracked.returncode != 0:
+        sys.exit(
+            "Could not enumerate committed dist files; refusing to deploy.\n"
+            f"{tracked.stderr.strip() or tracked.stdout.strip()}"
+        )
+    committed = set(tracked.stdout.split())
+
+    local_files, _ = local_files_and_dirs(DIST)
+    for rel in local_files:
+        git_path = f"dist/{rel}"
+        if git_path not in committed:
+            sys.exit(
+                f"Refusing to deploy: {git_path} is not committed at HEAD. "
+                "git ignores dist/assets/, so new content-hashed build output "
+                "never appears in the porcelain status; commit the build first:\n"
+                '  git add -f dist/ && git commit -m "build: rebuild dist"\n'
+                'Or override for an emergency push with `--allow-dirty` (not recommended).'
+            )
 
 
 def main():
