@@ -42,6 +42,14 @@ That class file is then excluded from the extension-style sync; the remaining
 bundle files and dependency changes still use `syncCustomCodeChanges`. Existing
 code files that appear in project exports use the normal sync path directly.
 
+The runner streams its progress. When the request body sets `"stream": true`
+the response is NDJSON — one `{"event":"phase"|"log"|"result"}` object per
+line — so the deploy overlay can report the step the runner is really on and
+show why a deploy failed part way through. Without that flag the runner
+answers with the single JSON body it always did, so an older client keeps
+working; likewise a browser talking to a runner deployed before streaming
+falls back to an estimated timeline. Redeploy the runner to get live phases.
+
 The production runner defaults to:
 
 ```text
