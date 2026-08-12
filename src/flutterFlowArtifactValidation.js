@@ -49,6 +49,79 @@ const SUPPORTED_RETURN_TYPES = new Set([
 // "<Collection>Record", so both suffixes are selectable return values.
 const SUPPORTED_RETURN_TYPE_SUFFIXES = ["Struct", "Record"];
 
+// Unset FlutterFlow "Define Parameters" fields are OMITTED from the constructor
+// call FlutterFlow emits, not passed as null. So a `required` parameter, or a
+// non-nullable field with no constructor default, makes that call fail to
+// compile and the widget cannot be placed at all.
+//
+// Both rules are scoped to public Stat*Widget classes on purpose: private
+// helpers and painters are not placeable from the FlutterFlow panel and use
+// `required` legitimately. Judging the whole file instead flags healthy widgets.
+const WIDGET_RULES = [
+  {
+    id: "required-public-param",
+    severity: "error",
+    message:
+      "CustomWidget constructor uses `required` on a parameter FlutterFlow can leave unset. "
+      + "FlutterFlow omits unset Define Parameters fields from the constructor call, so the widget "
+      + "will not compile when placed. Make the parameter optional and nullable (`this.value` with "
+      + "`final double? value`), or give it a constructor default (`this.value = 0.0`).",
+    detect: (stripped) => getPublicWidgetSpans(stripped)
+      .some((span) => /\brequired\s+this\.\w+/.test(span)),
+    pos: "class W extends StatefulWidget { const W({required this.value}); final double value; }",
+    neg: "class _P { const _P({required this.t}); final double t; }\n"
+      + "class W extends StatefulWidget { const W({this.value}); final double? value; }",
+  },
+  {
+    id: "non-nullable-public-field",
+    severity: "error",
+    message:
+      "CustomWidget declares a non-nullable field with no constructor default. FlutterFlow omits "
+      + "unset Define Parameters fields, so the emitted call cannot supply it. Make the field "
+      + "nullable (`final double? value`) or give the parameter a default (`this.value = 0.0`).",
+    // Each class is judged against its OWN body. A field's default has to come
+    // from the constructor that builds that widget; a sibling widget in the
+    // same file declaring `this.value = 0.0` says nothing about this one.
+    detect: (stripped) => getPublicWidgetSpans(stripped).some((span) => {
+      const fieldPattern = /^\s*final\s+(?:double|int|String|bool|Color|num)\s+(\w+)\s*;/gm;
+      let match;
+
+      while ((match = fieldPattern.exec(span)) !== null) {
+        const field = match[1];
+        // Two forms keep a blank panel constructible: a default on the
+        // parameter (`this.x = 0.0`), and an initializer list entry
+        // (`const W() : x = 1`, `const W({double? v}) : x = v ?? 1.0`), where
+        // the widget supplies the value itself and never exposes a parameter
+        // at all.
+        const hasDefault = new RegExp(`this\\.${field}\\s*=(?!=)`).test(span)
+          || new RegExp(`[:,]\\s*${field}\\s*=(?!=)`).test(span);
+        if (!hasDefault) return true;
+      }
+
+      return false;
+    }),
+    // Multi-line on purpose: the detector anchors `^\s*final`, so a single-line
+    // control never matches and would void the rule.
+    pos: "class W extends StatefulWidget {\n  const W({required this.value});\n  final double value;\n}",
+    neg: "class _P {\n  const _P({required this.t});\n  final double t;\n}\n"
+      + "class W extends StatefulWidget {\n  const W({this.value = 1.0});\n  final double value;\n}",
+  },
+  {
+    id: "asset-without-anchor",
+    severity: "warning",
+    message:
+      "CustomWidget calls Image.asset with a path arriving as a String parameter. An asset reaches "
+      + "the build only when a FlutterFlow widget NODE references it - a filename passed as a "
+      + "parameter does not count, so the image renders as a broken-image icon on device. "
+      + "\"Download Unused Project Assets\" does not fix it (FlutterFlow issues 522, 2271, 3799). "
+      + "Keep something in the UI referencing the file, or load it over the network instead.",
+    detect: (stripped) =>
+      /Image\.asset\s*\(/.test(stripped) && /final\s+String\??\s+\w*[Pp]ath\b/.test(stripped),
+    pos: "class W extends StatefulWidget { final String? imagePath; }\nvar x = Image.asset(widget.imagePath);",
+    neg: "class W extends StatefulWidget { final String? imagePath; }\nvar x = Image.network(widget.imagePath);",
+  },
+];
+
 function createFinding(artifact, severity, message) {
   return {
     artifactId: artifact.id,
@@ -117,6 +190,88 @@ function readBalancedGeneric(code, start) {
   }
 
   return null;
+}
+
+/**
+ * Returns the brace-matched body of `class <name> ... { ... }`, which a regex
+ * cannot do - a widget body contains nested braces on every build method.
+ * @param {string} code - Source with comments and strings removed
+ * @param {string} className - Class to extract
+ * @returns {string|null} Full `class ... { ... }` text, or null
+ */
+function readClassSpan(code, className) {
+  const header = new RegExp(`class\\s+${className}\\b[^{]*\\{`).exec(code);
+  if (!header) return null;
+
+  let depth = 0;
+
+  for (let i = header.index + header[0].length - 1; i < code.length; i++) {
+    if (code[i] === "{") depth++;
+    else if (code[i] === "}" && --depth === 0) return code.slice(header.index, i + 1);
+  }
+
+  return null;
+}
+
+/**
+ * Returns the body of every PUBLIC Stat*Widget class in the source, one entry
+ * per class - the only code FlutterFlow's Define Parameters panel can emit a
+ * constructor call for. Private helpers (`_Row extends StatelessWidget`),
+ * painters, and plain data classes are excluded: they are not placeable, so
+ * `required` is fine there.
+ *
+ * Kept separate rather than concatenated because a rule that asks "does this
+ * field have a default?" must ask it of one class. Joined, a sibling widget's
+ * `this.value = 0.0` answers for a different widget's unsupplied `value`, and
+ * a widget FlutterFlow genuinely cannot construct passes validation.
+ * @param {string} code - Source with comments and strings removed
+ * @returns {string[]} One class body per public widget
+ */
+function getPublicWidgetSpans(code) {
+  const spans = [];
+  const declarations = code.matchAll(/class\s+([A-Z]\w*)\s+extends\s+Stat(?:eless|eful)Widget/g);
+
+  for (const declaration of declarations) {
+    const span = readClassSpan(code, declaration[1]);
+    if (span) spans.push(span);
+  }
+
+  return spans;
+}
+
+/**
+ * Proves a rule can see the defect it claims to detect before it is allowed to
+ * report. A rule must flag its positive control and stay silent on its negative
+ * one; otherwise it is unusable and its silence proves nothing.
+ * @param {object} rule - Rule with detect/pos/neg
+ * @returns {{id: string, positiveOk: boolean, negativeOk: boolean, usable: boolean}}
+ */
+export function calibrateRule(rule) {
+  const positiveOk = rule.detect(stripCommentsAndStrings(rule.pos)) === true;
+  const negativeOk = rule.detect(stripCommentsAndStrings(rule.neg)) === false;
+
+  return { id: rule.id, positiveOk, negativeOk, usable: positiveOk && negativeOk };
+}
+
+export function calibrateWidgetRules() {
+  return WIDGET_RULES.map(calibrateRule);
+}
+
+// Calibrated once at load: a rule broken by a later edit is suppressed rather
+// than silently reporting every widget as clean.
+const USABLE_WIDGET_RULES = WIDGET_RULES.filter((rule) => calibrateRule(rule).usable);
+
+/**
+ * Runs the calibrated CustomWidget pattern rules over Dart source.
+ * @param {string} code - Dart source
+ * @returns {Array<{id: string, severity: string, message: string}>} Triggered rules
+ */
+export function getWidgetRuleFindings(code = "") {
+  const stripped = stripCommentsAndStrings(code);
+
+  return USABLE_WIDGET_RULES
+    .filter((rule) => rule.detect(stripped))
+    .map(({ id, severity, message }) => ({ id, severity, message }));
 }
 
 /**
@@ -310,12 +465,18 @@ export function validateArtifactCompatibility(artifact, options = {}) {
     return findings;
   }
 
-  if (artifact.artifactType === "CustomWidget" && !/class\s+\w+\s+extends\s+(StatelessWidget|StatefulWidget)/.test(code)) {
-    findings.push(createFinding(
-      artifact,
-      "warning",
-      "CustomWidget code should declare a widget class extending StatelessWidget or StatefulWidget.",
-    ));
+  if (artifact.artifactType === "CustomWidget") {
+    if (!/class\s+\w+\s+extends\s+(StatelessWidget|StatefulWidget)/.test(code)) {
+      findings.push(createFinding(
+        artifact,
+        "warning",
+        "CustomWidget code should declare a widget class extending StatelessWidget or StatefulWidget.",
+      ));
+    }
+
+    for (const rule of getWidgetRuleFindings(code)) {
+      findings.push(createFinding(artifact, rule.severity, rule.message));
+    }
   }
 
   if (

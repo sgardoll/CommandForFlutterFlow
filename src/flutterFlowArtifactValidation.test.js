@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  calibrateWidgetRules,
   getCustomActionReturnType,
+  getWidgetRuleFindings,
   validateArtifactCompatibility,
   validateBundleCompatibility,
 } from "./flutterFlowArtifactValidation.js";
@@ -354,5 +356,290 @@ test("emits custom code file deploy hint for custom classes", () => {
       fileName: "user_profile.dart",
       pathHint: "custom_code/",
     },
+  ]);
+});
+
+test("every widget rule flags its positive control and stays silent on its negative one", () => {
+  const broken = calibrateWidgetRules().filter((result) => !result.usable);
+
+  assert.deepEqual(
+    broken,
+    [],
+    `VOID rule(s) - their silence proves nothing: ${broken.map((r) => r.id).join(", ")}`,
+  );
+});
+
+test("flags a required widget parameter FlutterFlow can leave unset", () => {
+  const findings = getWidgetRuleFindings(`
+    class AnimatedCustomSlider extends StatefulWidget {
+      const AnimatedCustomSlider({
+        super.key,
+        this.width,
+        this.height,
+        required this.value,
+      });
+      final double? width;
+      final double? height;
+      final double value;
+      @override
+      State<AnimatedCustomSlider> createState() => _AnimatedCustomSliderState();
+    }
+  `);
+
+  assert.deepEqual(
+    findings.map((finding) => finding.id).sort(),
+    ["non-nullable-public-field", "required-public-param"],
+  );
+  assert.ok(findings.every((finding) => finding.severity === "error"));
+});
+
+test("accepts a non-nullable widget field that has a constructor default", () => {
+  const findings = getWidgetRuleFindings(`
+    class QuantityStepper extends StatefulWidget {
+      const QuantityStepper({super.key, this.width, this.height, this.step = 1});
+      final double? width;
+      final double? height;
+      final int step;
+      @override
+      State<QuantityStepper> createState() => _QuantityStepperState();
+    }
+  `);
+
+  assert.deepEqual(findings, []);
+});
+
+test("ignores required on private helpers and non-widget classes", () => {
+  const findings = getWidgetRuleFindings(`
+    class _RingPainter extends CustomPainter {
+      const _RingPainter({required this.progress});
+      final double progress;
+    }
+    class _Row extends StatelessWidget {
+      const _Row({required this.label});
+      final String label;
+      @override
+      Widget build(BuildContext context) => Text(label);
+    }
+    class ProgressRing extends StatefulWidget {
+      const ProgressRing({super.key, this.width, this.height, this.progress});
+      final double? width;
+      final double? height;
+      final double? progress;
+      @override
+      State<ProgressRing> createState() => _ProgressRingState();
+    }
+  `);
+
+  assert.deepEqual(findings, []);
+});
+
+test("does not mistake required in a comment or string for a real parameter", () => {
+  const findings = getWidgetRuleFindings(`
+    class NoteCard extends StatefulWidget {
+      // const NoteCard({required this.title});
+      const NoteCard({super.key, this.title});
+      final String? title;
+      final String hint = "required this.title";
+      @override
+      State<NoteCard> createState() => _NoteCardState();
+    }
+  `);
+
+  assert.deepEqual(findings, []);
+});
+
+test("flags Image.asset fed by a String path parameter", () => {
+  const findings = getWidgetRuleFindings(`
+    class FadeInRoundedImage extends StatefulWidget {
+      const FadeInRoundedImage({super.key, this.width, this.height, this.imagePath});
+      final double? width;
+      final double? height;
+      final String? imagePath;
+      @override
+      State<FadeInRoundedImage> createState() => _FadeInRoundedImageState();
+    }
+    class _FadeInRoundedImageState extends State<FadeInRoundedImage> {
+      @override
+      Widget build(BuildContext context) => Image.asset(widget.imagePath!);
+    }
+  `);
+
+  assert.deepEqual(findings.map((finding) => finding.id), ["asset-without-anchor"]);
+  assert.equal(findings[0].severity, "warning");
+});
+
+test("does not flag a network image fed by a String path parameter", () => {
+  const findings = getWidgetRuleFindings(`
+    class RemoteImage extends StatefulWidget {
+      const RemoteImage({super.key, this.imagePath});
+      final String? imagePath;
+      @override
+      State<RemoteImage> createState() => _RemoteImageState();
+    }
+    class _RemoteImageState extends State<RemoteImage> {
+      @override
+      Widget build(BuildContext context) => Image.network(widget.imagePath!);
+    }
+  `);
+
+  assert.deepEqual(findings, []);
+});
+
+test("surfaces widget rule findings as artifact errors that block a bundle", () => {
+  const result = validateBundleCompatibility({
+    artifacts: [
+      {
+        id: "custom-widget-slider",
+        artifactName: "AnimatedCustomSlider",
+        artifactType: "CustomWidget",
+        fileName: "animated_custom_slider.dart",
+        code: `class AnimatedCustomSlider extends StatefulWidget {
+          const AnimatedCustomSlider({super.key, required this.value});
+          final double value;
+          @override
+          State<AnimatedCustomSlider> createState() => _AnimatedCustomSliderState();
+        }`,
+      },
+    ],
+  });
+
+  assert.equal(result.valid, false);
+  assert.ok(result.findings.some((finding) => /`required`/.test(finding.message)));
+});
+
+test("leaves non-widget artifacts untouched by the widget rules", () => {
+  const findings = validateArtifactCompatibility({
+    id: "custom-class-config",
+    artifactName: "AppConfig",
+    artifactType: "CustomClass",
+    fileName: "app_config.dart",
+    code: "class AppConfig { const AppConfig({required this.token}); final String token; }",
+  });
+
+  assert.deepEqual(findings, []);
+});
+
+test("accepts a non-nullable field supplied by a constructor initializer list", () => {
+  const findings = getWidgetRuleFindings(`
+    class StepBadge extends StatefulWidget {
+      const StepBadge({super.key, this.width, this.height}) : value = 1;
+      final double? width;
+      final double? height;
+      final int value;
+      @override
+      State<StepBadge> createState() => _StepBadgeState();
+    }
+  `);
+
+  assert.deepEqual(findings, []);
+});
+
+test("accepts an initializer list that derives a non-nullable field from a nullable parameter", () => {
+  const findings = getWidgetRuleFindings(`
+    class RatingStars extends StatefulWidget {
+      const RatingStars({super.key, double? rating, this.width})
+          : value = rating ?? 0.0;
+      final double? width;
+      final double value;
+      @override
+      State<RatingStars> createState() => _RatingStarsState();
+    }
+  `);
+
+  assert.deepEqual(findings, []);
+});
+
+test("still flags a non-nullable field no constructor supplies", () => {
+  const findings = getWidgetRuleFindings(`
+    class BrokenBadge extends StatefulWidget {
+      const BrokenBadge({super.key, this.width}) : other = 1;
+      final double? width;
+      final int other;
+      final double value;
+      @override
+      State<BrokenBadge> createState() => _BrokenBadgeState();
+    }
+  `);
+
+  assert.deepEqual(findings.map((finding) => finding.id), ["non-nullable-public-field"]);
+});
+
+test("a sibling widget's default does not rescue another widget's unsupplied field", () => {
+  const findings = getWidgetRuleFindings(`
+    class PriceTag extends StatefulWidget {
+      const PriceTag({super.key, this.width});
+      final double? width;
+      final double value;
+      @override
+      State<PriceTag> createState() => _PriceTagState();
+    }
+    class PriceSlider extends StatefulWidget {
+      const PriceSlider({super.key, this.value = 1.0});
+      final double value;
+      @override
+      State<PriceSlider> createState() => _PriceSliderState();
+    }
+  `);
+
+  assert.deepEqual(findings.map((finding) => finding.id), ["non-nullable-public-field"]);
+});
+
+test("a sibling widget's initializer list does not rescue another widget's field either", () => {
+  const findings = getWidgetRuleFindings(`
+    class BadgeA extends StatefulWidget {
+      const BadgeA({super.key});
+      final int count;
+      @override
+      State<BadgeA> createState() => _BadgeAState();
+    }
+    class BadgeB extends StatefulWidget {
+      const BadgeB({super.key}) : count = 3;
+      final int count;
+      @override
+      State<BadgeB> createState() => _BadgeBState();
+    }
+  `);
+
+  assert.deepEqual(findings.map((finding) => finding.id), ["non-nullable-public-field"]);
+});
+
+test("two public widgets that are each individually sound stay clean", () => {
+  const findings = getWidgetRuleFindings(`
+    class PriceTag extends StatefulWidget {
+      const PriceTag({super.key, this.value = 0.0});
+      final double value;
+      @override
+      State<PriceTag> createState() => _PriceTagState();
+    }
+    class PriceSlider extends StatefulWidget {
+      const PriceSlider({super.key, this.value});
+      final double? value;
+      @override
+      State<PriceSlider> createState() => _PriceSliderState();
+    }
+  `);
+
+  assert.deepEqual(findings, []);
+});
+
+test("required in one public widget is flagged even when a sibling is clean", () => {
+  const findings = getWidgetRuleFindings(`
+    class CleanOne extends StatefulWidget {
+      const CleanOne({super.key, this.width});
+      final double? width;
+      @override
+      State<CleanOne> createState() => _CleanOneState();
+    }
+    class BrokenOne extends StatefulWidget {
+      const BrokenOne({super.key, required this.label});
+      final String label;
+      @override
+      State<BrokenOne> createState() => _BrokenOneState();
+    }
+  `);
+
+  assert.deepEqual(findings.map((finding) => finding.id).sort(), [
+    "non-nullable-public-field",
+    "required-public-param",
   ]);
 });
