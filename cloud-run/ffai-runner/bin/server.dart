@@ -16,6 +16,7 @@ Future<void> main() async {
 }
 
 Future<void> _handle(HttpRequest request) async {
+  final channel = _ResponseChannel(request.response);
   try {
     _writeCorsHeaders(request.response);
 
@@ -26,7 +27,7 @@ Future<void> _handle(HttpRequest request) async {
     }
 
     if (request.method != 'POST' || request.uri.path != '/deployCustomClasses') {
-      await _json(request, HttpStatus.notFound, {
+      await channel.result(HttpStatus.notFound, {
         'success': false,
         'error': 'Not found.',
       });
@@ -46,17 +47,24 @@ Future<void> _handle(HttpRequest request) async {
     final dryRun = payload['dryRun'] == true;
     final classes = _normalizeClasses(payload['customClasses']);
 
+    // Only stream for callers that asked for it, so older clients keep getting
+    // the single JSON response they parse.
+    if (payload['stream'] == true) {
+      channel.beginStream();
+    }
+    channel.phase('connected', 'Connected to the FlutterFlow deploy runner.');
+
     final workspace = Directory(
       Platform.environment['FFAI_WORKSPACE'] ?? '/workspace/custom_code_connect',
     );
-    final initResult = await _ensureWorkspace(workspace, apiKey);
+    final initResult = await _ensureWorkspace(workspace, apiKey, channel);
     if (initResult != null) {
-      await _json(request, HttpStatus.badGateway, {
+      await channel.result(HttpStatus.badGateway, {
         'success': false,
-        'error': 'FlutterFlow AI workspace initialization failed.',
-        'details': _trimOutput(
-          '${initResult.stderr}'.isNotEmpty ? initResult.stderr : initResult.stdout,
-        ),
+        'error': initResult.timedOut
+            ? 'Preparing the FlutterFlow AI workspace timed out.'
+            : 'FlutterFlow AI workspace initialization failed.',
+        'details': _trimOutput(initResult.output),
         'exitCode': initResult.exitCode,
       });
       return;
@@ -79,27 +87,40 @@ Future<void> _handle(HttpRequest request) async {
       args.addAll(['--commit-message', commitMessage]);
     }
 
-    final result = await Process.run(
-      'flutterflow',
+    channel.phase(
+      'deploy_start',
+      classes.length == 1
+          ? 'Deploying ${classes.single.className} to FlutterFlow...'
+          : 'Deploying ${classes.length} custom classes to FlutterFlow...',
+    );
+
+    final result = await _runFlutterFlow(
       args,
       workingDirectory: workspace.path,
-      environment: {
-        'FF_API_KEY': apiKey,
-        'FLUTTERFLOW_API_KEY': apiKey,
-      },
-    ).timeout(const Duration(minutes: 5));
+      apiKey: apiKey,
+      channel: channel,
+    );
+
+    if (result.timedOut) {
+      await channel.result(HttpStatus.gatewayTimeout, {
+        'success': false,
+        'error': 'FlutterFlow AI DSL deploy timed out.',
+        'details': _trimOutput(result.output),
+      });
+      return;
+    }
 
     if (result.exitCode != 0) {
-      await _json(request, HttpStatus.badGateway, {
+      await channel.result(HttpStatus.badGateway, {
         'success': false,
         'error': 'FlutterFlow AI DSL deploy failed.',
-        'details': _trimOutput('${result.stderr}'.isNotEmpty ? result.stderr : result.stdout),
+        'details': _trimOutput(result.output),
         'exitCode': result.exitCode,
       });
       return;
     }
 
-    await _json(request, HttpStatus.ok, {
+    await channel.result(HttpStatus.ok, {
       'success': true,
       'message': 'Custom classes upserted through FlutterFlow AI DSL.',
       'deployed': classes
@@ -110,49 +131,212 @@ Future<void> _handle(HttpRequest request) async {
           .toList(),
       'dryRun': dryRun,
     });
-  } on TimeoutException {
-    await _json(request, HttpStatus.gatewayTimeout, {
-      'success': false,
-      'error': 'FlutterFlow AI DSL deploy timed out.',
-    });
   } on FormatException catch (error) {
-    await _json(request, HttpStatus.badRequest, {
+    await channel.result(HttpStatus.badRequest, {
       'success': false,
       'error': error.message,
     });
   } catch (error, stackTrace) {
     stderr.writeln(error);
     stderr.writeln(stackTrace);
-    await _json(request, HttpStatus.internalServerError, {
+    await channel.result(HttpStatus.internalServerError, {
       'success': false,
       'error': '$error',
     });
   }
 }
 
-Future<ProcessResult?> _ensureWorkspace(Directory workspace, String apiKey) async {
+Future<_RunOutcome?> _ensureWorkspace(
+  Directory workspace,
+  String apiKey,
+  _ResponseChannel channel,
+) async {
   final packageConfig = File('${workspace.path}/.dart_tool/package_config.json');
   if (packageConfig.existsSync()) {
+    channel.phase('workspace_ready', 'Build environment is ready.');
     return null;
   }
 
+  channel.phase('workspace_init', 'Preparing the FlutterFlow AI workspace...');
   final parent = workspace.parent;
   await parent.create(recursive: true);
   final workspaceName = workspace.path.split(Platform.pathSeparator).last;
-  final result = await Process.run(
-    'flutterflow',
+  final result = await _runFlutterFlow(
     ['ai', 'init', workspaceName, '--yes', '--api-key', apiKey],
     workingDirectory: parent.path,
+    apiKey: apiKey,
+    channel: channel,
+  );
+
+  if (result.timedOut || result.exitCode != 0) {
+    return result;
+  }
+
+  channel.phase('workspace_ready', 'Build environment is ready.');
+  return null;
+}
+
+/// Runs the FlutterFlow CLI, forwarding its output line by line so the caller
+/// can report real progress instead of guessing at it.
+Future<_RunOutcome> _runFlutterFlow(
+  List<String> args, {
+  required String workingDirectory,
+  required String apiKey,
+  required _ResponseChannel channel,
+  Duration timeout = const Duration(minutes: 5),
+}) async {
+  final process = await Process.start(
+    'flutterflow',
+    args,
+    workingDirectory: workingDirectory,
     environment: {
       'FF_API_KEY': apiKey,
       'FLUTTERFLOW_API_KEY': apiKey,
     },
-  ).timeout(const Duration(minutes: 5));
+  );
 
-  if (result.exitCode != 0) {
-    return result;
+  final output = StringBuffer();
+  var timedOut = false;
+  final timer = Timer(timeout, () {
+    timedOut = true;
+    process.kill(ProcessSignal.sigkill);
+  });
+
+  void consume(String rawLine) {
+    final line = _redact(rawLine, apiKey).trimRight();
+    if (line.isEmpty) return;
+
+    // Markers are progress reporting, not output worth showing in an error.
+    final marker = _readPhaseMarker(line);
+    if (marker != null) {
+      channel.phase(marker.phase, marker.message);
+      return;
+    }
+
+    output.writeln(line);
+    channel.log(line);
   }
-  return null;
+
+  final stdoutDone = process.stdout
+      .transform(utf8.decoder)
+      .transform(const LineSplitter())
+      .forEach(consume);
+  final stderrDone = process.stderr
+      .transform(utf8.decoder)
+      .transform(const LineSplitter())
+      .forEach(consume);
+
+  final exitCode = await process.exitCode;
+  await Future.wait([stdoutDone, stderrDone]);
+  timer.cancel();
+
+  return _RunOutcome(
+    exitCode: exitCode,
+    output: output.toString(),
+    timedOut: timedOut,
+  );
+}
+
+/// Phase markers the generated DSL script prints, so the deploy reports where
+/// it actually is rather than one opaque "deploying" step.
+const phaseMarkerPrefix = '__FFAI_PHASE__';
+
+_PhaseMarker? _readPhaseMarker(String line) {
+  if (!line.startsWith(phaseMarkerPrefix)) return null;
+  final rest = line.substring(phaseMarkerPrefix.length);
+  final separator = rest.indexOf(':', 1);
+  if (!rest.startsWith(':') || separator == -1) return null;
+  return _PhaseMarker(
+    phase: rest.substring(1, separator),
+    message: rest.substring(separator + 1),
+  );
+}
+
+/// Removes the API key from CLI output, which is echoed back to the browser.
+String _redact(String value, String apiKey) {
+  if (apiKey.length < 8) return value;
+  return value.replaceAll(apiKey, '***');
+}
+
+final class _PhaseMarker {
+  const _PhaseMarker({required this.phase, required this.message});
+
+  final String phase;
+  final String message;
+}
+
+final class _RunOutcome {
+  const _RunOutcome({
+    required this.exitCode,
+    required this.output,
+    required this.timedOut,
+  });
+
+  final int exitCode;
+  final String output;
+  final bool timedOut;
+}
+
+/// Writes either a stream of NDJSON events or a single JSON body, depending on
+/// what the caller asked for. Events are written through one chained future so
+/// they can never interleave.
+final class _ResponseChannel {
+  _ResponseChannel(this._response);
+
+  final HttpResponse _response;
+  bool _streaming = false;
+  bool _closed = false;
+  Future<void> _writes = Future<void>.value();
+
+  void beginStream() {
+    _streaming = true;
+    _response.statusCode = HttpStatus.ok;
+    _response.headers.contentType = ContentType(
+      'application',
+      'x-ndjson',
+      charset: 'utf-8',
+    );
+    _response.headers.set('Cache-Control', 'no-cache');
+    // Tells fronting proxies to pass each chunk straight through.
+    _response.headers.set('X-Accel-Buffering', 'no');
+    _response.bufferOutput = false;
+  }
+
+  void phase(String phase, String message) {
+    _write({'event': 'phase', 'phase': phase, 'message': message});
+  }
+
+  void log(String message) {
+    _write({'event': 'log', 'message': message});
+  }
+
+  void _write(Map<String, Object?> event) {
+    if (!_streaming || _closed) return;
+    _writes = _writes.then((_) {
+      _response.write('${jsonEncode(event)}\n');
+      return _response.flush();
+      // A disconnected client must not take down the deploy.
+    }).catchError((Object _) {});
+  }
+
+  Future<void> result(int statusCode, Map<String, Object?> payload) async {
+    if (_closed) return;
+
+    if (_streaming) {
+      _write({'event': 'result', ...payload});
+      _closed = true;
+      await _writes;
+    } else {
+      _closed = true;
+      _response.statusCode = statusCode;
+      _response.headers.contentType = ContentType.json;
+      _response.write(jsonEncode(payload));
+    }
+
+    try {
+      await _response.close();
+    } catch (_) {}
+  }
 }
 
 void _writeCorsHeaders(HttpResponse response) {
@@ -263,11 +447,14 @@ import 'package:flutterflow_ai/flutterflow_ai.dart';
 
 Future<void> main(List<String> args) async {
   final options = _parseCliOptions(args);
+  _phase('project_fetch', 'Opening your FlutterFlow project...');
   try {
     await flutterFlowAI(
       (app) {
         app.raw((project) {
-$calls        });
+          _phase('applying', 'Applying your custom classes...');
+$calls          _phase('uploading', 'Saving the changes to FlutterFlow...');
+        });
       },
       apiKey: options.apiKey,
       baseUrl: options.baseUrl,
@@ -279,6 +466,10 @@ $calls        });
     stderr.writeln('Error: \${formatFlutterFlowAIError(error)}');
     exit(1);
   }
+}
+
+void _phase(String phase, String message) {
+  stdout.writeln('$phaseMarkerPrefix:\$phase:\$message');
 }
 
 final class _CliOptions {
@@ -360,17 +551,6 @@ String _trimOutput(Object value) {
   final text = '$value'.trim();
   if (text.length <= 4000) return text;
   return '${text.substring(0, 4000)}...';
-}
-
-Future<void> _json(
-  HttpRequest request,
-  int statusCode,
-  Map<String, Object?> payload,
-) async {
-  request.response.statusCode = statusCode;
-  request.response.headers.contentType = ContentType.json;
-  request.response.write(jsonEncode(payload));
-  await request.response.close();
 }
 
 final class CustomClassEntry {

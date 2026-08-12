@@ -26,6 +26,7 @@ import {
 import { buildReviewPresentation } from "./src/reviewPresentation.js";
 import { formatFlutterFlowFileError } from "./src/flutterFlowFileErrors.js";
 import { extractPackageImports } from "./src/dartPackageImports.js";
+import { readProvisionResponse } from "./src/provisionStream.js";
 import { buildFlutterFlowSyncMetadata } from "./src/flutterFlowSyncMetadata.js";
 import {
   mergeDependenciesIntoYaml,
@@ -1859,6 +1860,7 @@ async function provisionMissingCodeFiles(
   console.log(
     `Provisioning ${missingCodeFiles.length} new FlutterFlow custom code file(s) before sync.`,
   );
+  commitProgress.set("provision");
   const response = await fetch(FLUTTERFLOW_CLASS_PROVISION_ENDPOINT, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -1868,17 +1870,16 @@ async function provisionMissingCodeFiles(
       baseUrl: apiClient.baseUrl,
       commitMessage,
       customClasses: missingCodeFiles,
+      stream: true,
     }),
   });
-  const responseText = await response.text();
-  let result = {};
-  try {
-    result = responseText ? JSON.parse(responseText) : {};
-  } catch {
-    result = {};
-  }
 
-  if (!response.ok || result.success === false) {
+  const result = await readProvisionResponse(response, {
+    onPhase: (message) => commitProgress.setSubstatus(message),
+    onLog: (message) => console.log(`[custom class deploy] ${message}`),
+  });
+
+  if (!result.success) {
     const details = result.details ? ` ${result.details}` : "";
     throw new Error(
       `${result.error || "FlutterFlow custom class provisioning failed."}${details}`,
@@ -2573,6 +2574,7 @@ async function commitToFlutterFlow(dartCode, fileName, options = {}) {
       path: "pubspec.yaml",
     });
 
+    commitProgress.set("package");
     const zippedCustomCode = await createZipFromFileMap(fileMapWithPubspec);
 
     const pushRequest = {
@@ -2593,6 +2595,7 @@ async function commitToFlutterFlow(dartCode, fileName, options = {}) {
     // response is lost, so the exported project snapshot is now stale.
     invalidateProjectSourceCache(apiClient);
 
+    commitProgress.set("push");
     const response = await apiClient.pushCode(pushRequest);
     const result = await parsePushCodeResponse(response);
 
@@ -2749,6 +2752,7 @@ async function executeCommit(code, options = {}) {
       path: "pubspec.yaml",
     });
 
+    commitProgress.set("package");
     const zippedCustomCode = await createZipFromFileMap(fileMapWithPubspec);
 
     const pushRequest = {
@@ -2767,6 +2771,7 @@ async function executeCommit(code, options = {}) {
     // response is lost, so the exported project snapshot is now stale.
     invalidateProjectSourceCache(apiClient);
 
+    commitProgress.set("push");
     const response = await apiClient.pushCode(pushRequest);
     const result = await parsePushCodeResponse(response);
 
@@ -2902,6 +2907,7 @@ async function executeBundleCommit(bundlePlan, options = {}) {
       path: "pubspec.yaml",
     });
 
+    commitProgress.set("package");
     const zippedCustomCode = await createZipFromFileMap(fileMapWithPubspec);
     const pushRequest = {
       project_id: projectId,
@@ -2918,6 +2924,7 @@ async function executeBundleCommit(bundlePlan, options = {}) {
     // response is lost, so the exported project snapshot is now stale.
     invalidateProjectSourceCache(apiClient);
 
+    commitProgress.set("push");
     const response = await apiClient.pushCode(pushRequest);
     const result = await parsePushCodeResponse(response);
 
@@ -3659,7 +3666,9 @@ async function initiateCommitToFlutterFlow() {
     return;
   }
 
-  showCommitProgress();
+  showCommitProgress({
+    withProvisioning: codeInfo.codeType === CodeType.CODE_FILE,
+  });
   trackEvent("Deploy to FlutterFlow Started", { artifactType, artifactName });
 
   const result = await executeCommit(code, {
@@ -4812,15 +4821,18 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   window.addEventListener("commitStateChange", (event) => {
     const { state } = event.detail;
-    updateProgressFromState(state);
 
     if (
       state === CommitState.PREPARING ||
       state === CommitState.VALIDATING ||
       state === CommitState.PUSHING
     ) {
-      showCommitProgress();
+      // Only open the overlay for flows that didn't open it themselves;
+      // re-opening mid-commit would reset the progress back to step one.
+      if (!commitProgress.phaseId) showCommitProgress();
+      updateProgressFromState(state);
     } else if (state === CommitState.SUCCESS || state === CommitState.ERROR) {
+      updateProgressFromState(state);
       setTimeout(hideCommitProgress, 1000);
     }
   });
@@ -5034,24 +5046,160 @@ function toggleCodePreview() {
 }
 
 /**
- * Shows the commit progress overlay.
+ * Commit phases, each owning a slice of the progress bar. The bar eases
+ * forward inside its slice while a phase runs, so a long phase still looks
+ * alive.
  */
-function showCommitProgress() {
-  const overlay = document.getElementById("commit-progress-overlay");
-  if (overlay) {
-    overlay.classList.add("open");
-    updateCommitProgress(25, "Preparing code...", "Step 1 of 4");
-  }
+const CommitPhases = {
+  prepare: { message: "Preparing your code...", start: 4, end: 14 },
+  validate: {
+    message: "Checking FlutterFlow credentials...",
+    start: 14,
+    end: 22,
+  },
+  project: { message: "Reading your FlutterFlow project...", start: 22, end: 40 },
+  provision: {
+    message: "Creating custom classes in FlutterFlow...",
+    start: 40,
+    end: 82,
+  },
+  package: { message: "Packaging files for upload...", start: 82, end: 88 },
+  push: { message: "Pushing to FlutterFlow...", start: 88, end: 97 },
+  done: { message: "Complete!", start: 100, end: 100 },
+};
+
+/**
+ * Fallback sub-status for the custom class deploy, used only until the runner
+ * reports its first real phase. A runner that predates streaming never does,
+ * so this stays as the estimate for the whole request.
+ */
+const PROVISION_SUBSTATUS = [
+  { after: 0, text: "Starting a FlutterFlow build runner..." },
+  { after: 12, text: "Preparing the FlutterFlow AI workspace..." },
+  { after: 35, text: "Uploading your custom classes..." },
+  { after: 60, text: "FlutterFlow is applying the changes..." },
+  { after: 100, text: "Still working — this can take a couple of minutes..." },
+];
+
+const commitProgress = {
+  sequence: [],
+  phaseId: null,
+  phaseStartedAt: null,
+  timer: null,
+  substatus: null,
+  liveSubstatus: false,
+
+  /**
+   * Opens the overlay and starts a fresh run.
+   * @param {Object} options
+   * @param {boolean} options.withProvisioning - Include the custom class
+   *   provisioning step, which is only run for CodeFile artifacts.
+   */
+  start({ withProvisioning = false } = {}) {
+    this.sequence = ["prepare", "validate", "project"];
+    if (withProvisioning) this.sequence.push("provision");
+    this.sequence.push("package", "push", "done");
+
+    const overlay = document.getElementById("commit-progress-overlay");
+    if (overlay) overlay.classList.add("open");
+
+    this.set("prepare");
+  },
+
+  /**
+   * Moves to a phase. Phases not in the current sequence are appended in
+   * place, so an unexpected provisioning run still gets its own step.
+   * @param {string} phaseId - Key of CommitPhases
+   * @param {string} [substatus] - Extra line shown under the step counter
+   */
+  set(phaseId, substatus = null) {
+    if (!CommitPhases[phaseId] || phaseId === this.phaseId) return;
+    if (!this.sequence.includes(phaseId)) {
+      const before = this.sequence.indexOf("package");
+      this.sequence.splice(before === -1 ? this.sequence.length : before, 0, phaseId);
+    }
+
+    this.phaseId = phaseId;
+    this.phaseStartedAt = Date.now();
+    this.substatus = substatus;
+    this.liveSubstatus = false;
+    this.render();
+
+    if (this.timer) clearInterval(this.timer);
+    if (phaseId !== "done") {
+      this.timer = setInterval(() => this.render(), 500);
+    }
+  },
+
+  /**
+   * Reports a phase the deploy runner sent back. Real phases replace the
+   * estimated timeline for the rest of the step.
+   * @param {string} text - Message to show under the step counter
+   */
+  setSubstatus(text) {
+    if (!text) return;
+    this.liveSubstatus = true;
+    this.substatus = text;
+    this.render();
+  },
+
+  /** Renders the current phase, easing the bar toward the phase's end. */
+  render() {
+    const phase = CommitPhases[this.phaseId];
+    if (!phase) return;
+
+    const elapsed = (Date.now() - this.phaseStartedAt) / 1000;
+    // Approach the phase's end asymptotically; a phase never claims to be
+    // finished until the next one actually starts.
+    const eased = phase.start + (phase.end - phase.start) * (1 - Math.exp(-elapsed / 25));
+
+    if (this.phaseId === "provision" && !this.liveSubstatus) {
+      const stage = PROVISION_SUBSTATUS.filter((s) => elapsed >= s.after).pop();
+      if (stage) this.substatus = stage.text;
+    }
+
+    const index = this.sequence.indexOf(this.phaseId);
+    const step = index === -1 ? 1 : index + 1;
+    const detailParts = [`Step ${step} of ${this.sequence.length}`];
+    if (elapsed >= 5) detailParts.push(formatCommitElapsed(elapsed));
+
+    updateCommitProgress(
+      this.phaseId === "done" ? 100 : eased,
+      phase.message,
+      detailParts.join(" · "),
+      this.substatus,
+    );
+  },
+
+  /** Stops the ticker and hides the overlay. */
+  stop() {
+    if (this.timer) clearInterval(this.timer);
+    this.timer = null;
+    this.phaseId = null;
+    const overlay = document.getElementById("commit-progress-overlay");
+    if (overlay) overlay.classList.remove("open");
+  },
+};
+
+function formatCommitElapsed(seconds) {
+  const total = Math.floor(seconds);
+  if (total < 60) return `${total}s elapsed`;
+  return `${Math.floor(total / 60)}m ${String(total % 60).padStart(2, "0")}s elapsed`;
+}
+
+/**
+ * Shows the commit progress overlay.
+ * @param {Object} [options] - Passed through to commitProgress.start
+ */
+function showCommitProgress(options) {
+  commitProgress.start(options);
 }
 
 /**
  * Hides the commit progress overlay.
  */
 function hideCommitProgress() {
-  const overlay = document.getElementById("commit-progress-overlay");
-  if (overlay) {
-    overlay.classList.remove("open");
-  }
+  commitProgress.stop();
 }
 
 /**
@@ -5059,14 +5207,16 @@ function hideCommitProgress() {
  * @param {number} percent - Progress percentage (0-100)
  * @param {string} message - Status message
  * @param {string} detail - Detailed step info
+ * @param {string} [substatus] - Live sub-status for long-running steps
  */
-function updateCommitProgress(percent, message, detail) {
+function updateCommitProgress(percent, message, detail, substatus = null) {
   const progressBar = document.getElementById("commit-progress-bar");
   const progressMessage = document.getElementById("progress-message");
   const progressDetail = document.getElementById("progress-detail");
+  const progressSubstatus = document.getElementById("progress-substatus");
 
   if (progressBar) {
-    progressBar.style.width = `${percent}%`;
+    progressBar.style.width = `${Math.round(percent * 10) / 10}%`;
   }
   if (progressMessage) {
     progressMessage.textContent = message;
@@ -5074,46 +5224,49 @@ function updateCommitProgress(percent, message, detail) {
   if (progressDetail) {
     progressDetail.textContent = detail;
   }
+  if (progressSubstatus) {
+    progressSubstatus.textContent = substatus || "";
+    progressSubstatus.classList.toggle("hidden", !substatus);
+  }
 }
 
 /**
- * Maps commit state to progress UI.
+ * Maps commit state to a progress phase. Only covers the coarse states; the
+ * commit flows report the finer phases themselves.
  * @param {string} state - CommitState value
  */
 function updateProgressFromState(state) {
-  const stateProgressMap = {
-    [CommitState.IDLE]: { percent: 0, message: "Ready", detail: "" },
-    [CommitState.PREPARING]: {
-      percent: 25,
-      message: "Preparing code...",
-      detail: "Step 1 of 4",
-    },
-    [CommitState.VALIDATING]: {
-      percent: 50,
-      message: "Validating...",
-      detail: "Step 2 of 4",
-    },
-    [CommitState.PUSHING]: {
-      percent: 75,
-      message: "Pushing to FlutterFlow...",
-      detail: "Step 3 of 4",
-    },
-    [CommitState.SUCCESS]: {
-      percent: 100,
-      message: "Complete!",
-      detail: "Step 4 of 4",
-    },
-    [CommitState.ERROR]: {
-      percent: 100,
-      message: "Failed",
-      detail: "Error occurred",
-    },
+  const statePhaseMap = {
+    [CommitState.PREPARING]: "prepare",
+    [CommitState.VALIDATING]: "validate",
+    [CommitState.PUSHING]: "project",
+    [CommitState.SUCCESS]: "done",
   };
 
-  const progress = stateProgressMap[state];
-  if (progress) {
-    updateCommitProgress(progress.percent, progress.message, progress.detail);
+  if (state === CommitState.ERROR) {
+    if (commitProgress.timer) clearInterval(commitProgress.timer);
+    commitProgress.timer = null;
+    updateCommitProgress(100, "Failed", "Error occurred");
+    return;
   }
+
+  const phaseId = statePhaseMap[state];
+  if (phaseId) commitProgress.set(phaseId);
+}
+
+/**
+ * Whether a commit will need the custom class provisioning step, which is the
+ * slow Cloud Run deploy.
+ * @param {Object} commitData - Pending commit data (bundle plan or single file)
+ * @returns {boolean} True if any artifact is a custom code file
+ */
+function commitNeedsProvisioning(commitData) {
+  if (commitData.bundlePlan) {
+    return commitData.bundlePlan.fileEntries.some(
+      (entry) => entry.type === CodeType.CODE_FILE,
+    );
+  }
+  return commitData.codeInfo?.codeType === CodeType.CODE_FILE;
 }
 
 /**
@@ -5127,7 +5280,7 @@ async function confirmCommitToFlutterFlow() {
 
   const commitData = pendingCommitData;
   closeCommitConfirmModal();
-  showCommitProgress();
+  showCommitProgress({ withProvisioning: commitNeedsProvisioning(commitData) });
 
   if (commitData.bundlePlan) {
     const result = await executeBundleCommit(commitData.bundlePlan, {
@@ -5224,6 +5377,8 @@ window.regenerateFromPastedErrors = regenerateFromPastedErrors;
 window.clearErrorInput = clearErrorInput;
 window.setFlutterFlowEndpoint = setFlutterFlowEndpoint;
 window.getFlutterFlowEndpoint = getFlutterFlowEndpoint;
+// Exposed so the deploy progress overlay can be driven in a browser test.
+window.commitProgress = commitProgress;
 window.openSignInModal = openSignInModal;
 window.closeSignInModal = closeSignInModal;
 window.handleMagicLinkRequest = handleMagicLinkRequest;
