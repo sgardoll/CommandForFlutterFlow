@@ -1,5 +1,8 @@
-const DEFAULT_ARTIFACT_TYPE = "CustomWidget";
-const DEFAULT_ARTIFACT_NAME = "GeneratedWidget";
+// A missing artifactType must not silently become a CustomWidget (which would
+// misroute a class/function into lib/custom_code/widgets). Standalone code
+// files under lib/custom_code/ is the safe default.
+const DEFAULT_ARTIFACT_TYPE = "CodeFile";
+const DEFAULT_ARTIFACT_NAME = "GeneratedCode";
 
 const ARTIFACT_TYPE_TO_CODE_TYPE = {
   CustomAction: "A",
@@ -47,6 +50,7 @@ export function normalizeArtifact(rawArtifact = {}, index = 0) {
     artifactType,
     artifactName,
     fileName,
+    deployPath: artifact.deployPath || "",
     description: artifact.description || "",
     code: artifact.code || artifact.content || "",
     dependencies: normalizeDependencies(artifact.dependencies),
@@ -148,6 +152,13 @@ export function normalizeArtifactBundle(input, options = {}) {
         },
       ];
 
+  rawArtifacts.forEach((raw, index) => {
+    if (!raw?.artifactType && !raw?.type) {
+      warnings.push(
+        `Artifact ${index + 1} has no artifactType; it will deploy as a standalone code file under lib/custom_code/ root.`,
+      );
+    }
+  });
   const artifacts = rawArtifacts.map((artifact, index) => normalizeArtifact(artifact, index));
   const idMap = new Map(
     rawArtifacts
