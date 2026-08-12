@@ -75,3 +75,30 @@ test("keeps a package import that only shares a prefix with a header import", ()
 
   assert.ok(result.includes("package:flutter/material_extras.dart"));
 });
+
+test("keeps a prefixed import of a URI the header also provides", () => {
+  const result = applyFlutterFlowHeader(
+    "import 'package:flutter/material.dart' as material;\n\nclass W { material.Widget? w; }",
+    WIDGET_HEADER,
+  );
+
+  assert.ok(result.includes("import 'package:flutter/material.dart' as material;"));
+});
+
+test("keeps a show/hide import of a URI the header also provides", () => {
+  const result = applyFlutterFlowHeader(
+    "import 'package:flutter/material.dart' show Colors;\n\nclass W {}",
+    WIDGET_HEADER,
+  );
+
+  assert.ok(result.includes("show Colors"));
+});
+
+test("still drops a plain duplicate that carries a trailing comment", () => {
+  const result = applyFlutterFlowHeader(
+    "import 'package:flutter/material.dart'; // needed\n\nclass W {}",
+    WIDGET_HEADER,
+  );
+
+  assert.equal(result.match(/package:flutter\/material\.dart/g).length, 1);
+});

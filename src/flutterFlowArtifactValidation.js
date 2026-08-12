@@ -84,7 +84,17 @@ const WIDGET_RULES = [
       let match;
 
       while ((match = fieldPattern.exec(span)) !== null) {
-        if (!new RegExp(`this\\.${match[1]}\\s*=`).test(span)) return true;
+        const field = match[1];
+        // Two forms keep a blank panel constructible: a default on the
+        // parameter (`this.x = 0.0`), and an initializer list entry
+        // (`const W() : x = 1`, `const W({double? v}) : x = v ?? 1.0`), where
+        // the widget supplies the value itself and never exposes a parameter
+        // at all. Only the parameter form was recognised, so an
+        // initializer-list field was reported as an error and blocked a deploy
+        // the compiler was perfectly happy with.
+        const hasDefault = new RegExp(`this\\.${field}\\s*=(?!=)`).test(span)
+          || new RegExp(`[:,]\\s*${field}\\s*=(?!=)`).test(span);
+        if (!hasDefault) return true;
       }
 
       return false;

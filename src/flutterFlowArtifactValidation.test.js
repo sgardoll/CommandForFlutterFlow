@@ -518,3 +518,48 @@ test("leaves non-widget artifacts untouched by the widget rules", () => {
 
   assert.deepEqual(findings, []);
 });
+
+test("accepts a non-nullable field supplied by a constructor initializer list", () => {
+  const findings = getWidgetRuleFindings(`
+    class StepBadge extends StatefulWidget {
+      const StepBadge({super.key, this.width, this.height}) : value = 1;
+      final double? width;
+      final double? height;
+      final int value;
+      @override
+      State<StepBadge> createState() => _StepBadgeState();
+    }
+  `);
+
+  assert.deepEqual(findings, []);
+});
+
+test("accepts an initializer list that derives a non-nullable field from a nullable parameter", () => {
+  const findings = getWidgetRuleFindings(`
+    class RatingStars extends StatefulWidget {
+      const RatingStars({super.key, double? rating, this.width})
+          : value = rating ?? 0.0;
+      final double? width;
+      final double value;
+      @override
+      State<RatingStars> createState() => _RatingStarsState();
+    }
+  `);
+
+  assert.deepEqual(findings, []);
+});
+
+test("still flags a non-nullable field no constructor supplies", () => {
+  const findings = getWidgetRuleFindings(`
+    class BrokenBadge extends StatefulWidget {
+      const BrokenBadge({super.key, this.width}) : other = 1;
+      final double? width;
+      final int other;
+      final double value;
+      @override
+      State<BrokenBadge> createState() => _BrokenBadgeState();
+    }
+  `);
+
+  assert.deepEqual(findings.map((finding) => finding.id), ["non-nullable-public-field"]);
+});

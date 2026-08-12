@@ -36,6 +36,14 @@ export function stripFlutterFlowHeader(code = "") {
   return code.slice(markerIndex + HEADER_END_MARKER.length).replace(/^\s*\n/, "");
 }
 
+// An unqualified `import 'uri';` is the only form the header's own import can
+// substitute for. A prefixed or filtered import binds names the header does not
+// provide, so dropping it as a duplicate breaks the file: remove
+// `import 'package:flutter/material.dart' as material;` and every `material.`
+// reference stops resolving. A repeated import is legal Dart anyway, so keeping
+// these costs nothing.
+const PLAIN_IMPORT = /^\s*import\s+['"][^'"]+['"]\s*;\s*(?:\/\/.*)?$/;
+
 /**
  * Applies exactly one FlutterFlow header to generated code, whether or not the
  * generator emitted one, and removes body imports the header already provides.
@@ -53,7 +61,8 @@ export function applyFlutterFlowHeader(code = "", header = "") {
     .split("\n")
     .filter((line) => {
       const uri = readImportUri(line);
-      return uri === null || !headerUris.has(uri);
+      if (uri === null || !headerUris.has(uri)) return true;
+      return !PLAIN_IMPORT.test(line);
     })
     .join("\n")
     .replace(/^\s*\/\/ Automatic FlutterFlow imports\s*$/m, "")

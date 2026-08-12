@@ -40,6 +40,7 @@ import {
   calibrateWidgetRules,
   getWidgetRuleFindings,
 } from "../src/flutterFlowArtifactValidation.js";
+import { applyFlutterFlowHeader } from "../src/flutterFlowHeader.js";
 
 const FF_HEADER_TEMPLATE = `// Automatic FlutterFlow imports
 import '/backend/schema/structs/index.dart';
@@ -197,23 +198,13 @@ const hasFfHeader = (code) => /DO NOT REMOVE OR MODIFY THE CODE ABOVE/.test(code
 
 /**
  * Prepends FlutterFlow's real header, dropping imports it already provides.
- * Matching on the import URI rather than the whole line matters: FF's header
- * carries trailing comments that generated files omit, so a line-equality
- * filter leaves duplicates behind and the harness reports its own noise as a
- * defect of the widget.
+ * Delegates to the shipped normalizer so the harness cannot disagree with what
+ * the deploy path actually writes - and so its import handling stays correct:
+ * matching on URI alone would drop a prefixed `as` import and make the analyzer
+ * report unresolved references that belong to the harness, not the widget.
  */
 function withFfHeader(code) {
-  if (hasFfHeader(code)) return code;
-
-  const readUri = (line) => (/^\s*import\s+['"]([^'"]+)['"]/.exec(line) || [])[1];
-  const headerUris = new Set((FF_HEADER.match(/^import .*$/gm) || []).map(readUri));
-  const body = code
-    .split("\n")
-    .filter((line) => !headerUris.has(readUri(line)))
-    .join("\n")
-    .replace(/^\s*\/\/ Automatic FlutterFlow imports\s*$/m, "");
-
-  return `${FF_HEADER}\n${body}`;
+  return hasFfHeader(code) ? code : applyFlutterFlowHeader(code, `${FF_HEADER}\n`);
 }
 
 /**
