@@ -20,6 +20,6 @@
     "vite": "^5.0.0"
   },
   "dependencies": {
-    "posthog-js": "^1.353.0"
+    "posthog-js": "^1.415.7"
   }
 }
