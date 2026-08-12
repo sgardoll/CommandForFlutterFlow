@@ -275,6 +275,19 @@ export function getWidgetRuleFindings(code = "") {
 }
 
 /**
+ * The CustomWidget rule messages that must stop a deploy - the defects that
+ * make FlutterFlow's generated constructor call fail to compile, so the widget
+ * cannot be placed at all. Warnings (a broken asset path, say) still deploy.
+ * @param {string} code - Dart source
+ * @returns {string[]} Blocking messages, empty when the widget is placeable
+ */
+export function getBlockingWidgetErrors(code = "") {
+  return getWidgetRuleFindings(code)
+    .filter((finding) => finding.severity === "error")
+    .map((finding) => finding.message);
+}
+
+/**
  * Finds every `Future<...> name(` signature in already-stripped Dart source.
  * @param {string} code - Source with comments and strings removed
  * @returns {Array<{functionName: string, returnType: string|null}>}

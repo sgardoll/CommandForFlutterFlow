@@ -13,6 +13,7 @@ import {
 } from "./src/pipelineContracts.js";
 import { createModelArmorError } from "./src/modelArmorResponse.js";
 import {
+  getBlockingWidgetErrors,
   getCustomActionReturnTypeError,
   getCustomClassFileNameError,
   getDeclaredDartTypes,
@@ -2280,6 +2281,13 @@ function validateDartFile(
     errors.push(
       "No widget class definition found (must extend StatelessWidget or StatefulWidget)",
     );
+  }
+
+  // A widget FlutterFlow cannot construct from an unset Define Parameters
+  // panel is reported as blocking in the review, so it has to block here too -
+  // otherwise the deploy lands code the project cannot compile.
+  if (codeType === CodeType.WIDGET) {
+    errors.push(...getBlockingWidgetErrors(content));
   }
 
   if (codeType === CodeType.ACTION) {

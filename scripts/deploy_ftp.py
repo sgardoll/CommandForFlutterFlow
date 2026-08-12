@@ -157,16 +157,78 @@ def prune_stale_files(ftp, local_files, local_dirs, dry_run):
     return removed, failed
 
 
+def _git(args):
+    return subprocess.run(
+        ["git", *args], capture_output=True, text=True, cwd=REPO_ROOT,
+    )
+
+
+def ensure_dist_committed(allow_dirty):
+    """Refuse to deploy a dist/ the repo cannot reproduce.
+
+    The FTP mirror pushes whatever is on disk, so the deployed artifact must be
+    exactly what a fresh checkout would build. Two checks:
+      - no uncommitted changes to tracked files under dist/
+      - every file that will be uploaded exists at HEAD. git ignores
+        dist/assets/, so a new content-hashed bundle there never shows up in
+        the porcelain status yet would still ship over FTP — checking status
+        alone can't see it.
+    """
+    if allow_dirty:
+        return
+
+    status = _git(["status", "--porcelain", "--", "dist/"])
+    if status.returncode != 0:
+        sys.exit(
+            "Could not validate git state; refusing to deploy.\n"
+            f"{status.stderr.strip() or status.stdout.strip()}"
+        )
+    if status.stdout.strip():
+        sys.exit(
+            "Refusing to deploy: tracked files under dist/ have uncommitted "
+            "changes and the live site must be reproducible from git.\n"
+            "Commit the build first, e.g.:\n"
+            f'  git add -f dist/ && git commit -m "build: rebuild dist"\n'
+            'Or override for an emergency push with `--allow-dirty` (not recommended).'
+        )
+
+    tracked = _git(["ls-tree", "-r", "--name-only", "HEAD", "--", "dist/"])
+    if tracked.returncode != 0:
+        sys.exit(
+            "Could not enumerate committed dist files; refusing to deploy.\n"
+            f"{tracked.stderr.strip() or tracked.stdout.strip()}"
+        )
+    committed = set(tracked.stdout.split())
+
+    local_files, _ = local_files_and_dirs(DIST)
+    for rel in local_files:
+        git_path = f"dist/{rel}"
+        if git_path not in committed:
+            sys.exit(
+                f"Refusing to deploy: {git_path} is not committed at HEAD. "
+                "git ignores dist/assets/, so new content-hashed build output "
+                "never appears in the porcelain status; commit the build first:\n"
+                '  git add -f dist/ && git commit -m "build: rebuild dist"\n'
+                'Or override for an emergency push with `--allow-dirty` (not recommended).'
+            )
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--dry-run", action="store_true",
         help="Show what would be uploaded and deleted without changing the server",
     )
+    parser.add_argument(
+        "--allow-dirty", action="store_true",
+        help="Allow deploying an uncommitted dist/ (not recommended)",
+    )
     args = parser.parse_args()
 
     if not DIST.is_dir():
         sys.exit(f"{DIST} does not exist. Run `npm run build` first.")
+
+    ensure_dist_committed(args.allow_dirty)
 
     local_files, local_dirs = local_files_and_dirs(DIST)
     if not local_files:
