@@ -20,7 +20,17 @@ export function extractTopLevelFunctionNames(source) {
   return names;
 }
 
-function deriveIdentifierName(fileName, codeType) {
+/**
+ * Derives the identifier FlutterFlow uses to find a file's declaration from the
+ * file name. FlutterFlow's own snake_case is naive - one underscore before
+ * every capital - so `initQAAnalytics` is filed as `init_q_a_analytics.dart`,
+ * not the human-idiomatic `init_qa_analytics.dart`. Only the naive form
+ * round-trips back to the identifier FlutterFlow looks for.
+ * @param {string} fileName - Bare file name, e.g. "init_q_a_analytics.dart"
+ * @param {string} codeType - Code type (A, W, F, C)
+ * @returns {string} Identifier sent as old/new_identifier_name
+ */
+export function deriveIdentifierName(fileName, codeType) {
   const baseName = fileName.replace(/\.dart$/, "");
   if (codeType === "W") {
     return baseName.replace(/(^|_)(\w)/g, (_, __, character) =>

@@ -1,3 +1,5 @@
+import { deriveIdentifierName } from "./flutterFlowSyncMetadata.js";
+
 const SUPPORTED_TYPES = new Set([
   "CustomWidget",
   "CustomAction",
@@ -381,15 +383,18 @@ function pascalCaseToSnakeCase(name) {
 }
 
 /**
- * Checks that a CustomClass/CodeFile's file name is the exact snake_case
- * conversion of a class or enum it declares. FlutterFlow derives the file's
- * identity from this relationship, not the other way around - an extra,
- * missing, or different word in the file name is a mismatch even though the
- * file compiles and runs fine as plain Dart.
+ * Checks whether a CustomClass/CodeFile's file name is the snake_case form of a
+ * class or enum it declares. This is a convention, NOT a FlutterFlow
+ * requirement: a Code File's path is a free-text field in the FlutterFlow
+ * editor, so `q_a_service.dart` holding `class QAService` is perfectly valid.
+ * It stays worth surfacing because provisioning derives the Code File's name
+ * from the file name (see flutterFlowCodeFileProvisioning.js), so agreeing
+ * names keep the FlutterFlow entry recognisable - which makes this advice, not
+ * a blocker.
  * @param {string} fileName - Bare name or full path, e.g.
  *   "pipedream_integration_model.dart" or "lib/custom_code/pipedream_integration_model.dart"
  * @param {string} code - Dart source
- * @returns {string|null} Error message, or null if a declared type matches
+ * @returns {string|null} Advisory message, or null if a declared type matches
  */
 export function getCustomClassFileNameError(fileName, code) {
   const declaredTypes = getDeclaredDartTypes(code);
@@ -403,8 +408,46 @@ export function getCustomClassFileNameError(fileName, code) {
   if (matchesSomeDeclaredType) return null;
 
   const [primary] = declaredTypes;
-  const expectedFileName = `${pascalCaseToSnakeCase(primary)}.dart`;
-  return `File name "${fileName}" does not match declared class "${primary}". FlutterFlow expects the file to be named "${expectedFileName}" - rename the file (or the class) so they agree exactly.`;
+  const suggestedFileName = `${pascalCaseToSnakeCase(primary)}.dart`;
+  return `File name "${fileName}" does not match declared class "${primary}". FlutterFlow accepts this, but naming the file "${suggestedFileName}" keeps the Code File recognisable in the editor.`;
+}
+
+/**
+ * Converts a Dart identifier to the file name FlutterFlow files it under -
+ * an underscore before every capital, all lowercase.
+ * @param {string} name - Dart identifier, e.g. "initQAAnalytics"
+ * @returns {string} File stem, e.g. "init_q_a_analytics"
+ */
+function identifierToFlutterFlowFileStem(name) {
+  return String(name || "")
+    .replace(/([A-Z])/g, "_$1")
+    .toLowerCase()
+    .replace(/^_/, "");
+}
+
+/**
+ * Checks that a CustomAction's file name yields the function the code actually
+ * declares. FlutterFlow reads the action's identity back out of the file name
+ * and then looks for that exact declaration, so an acronym written the human
+ * way ("init_qa_analytics.dart" for `initQAAnalytics`) resolves to a name that
+ * is nowhere in the file and the commit fails with
+ * `Action "initQaAnalytics" declaration not found.`
+ * @param {string} fileName - Bare name or full path
+ * @param {string} code - Dart source
+ * @param {string} [artifactName] - Action name, used to pick the entry point
+ * @returns {string|null} Error message, or null when the names agree
+ */
+export function getCustomActionFileNameError(fileName, code, artifactName = "") {
+  const declaredName = getCustomActionSignature(code, artifactName)?.functionName;
+  // No Future function at all is a separate finding, not a naming problem.
+  if (!declaredName) return null;
+
+  const baseName = String(fileName || "").split("/").pop();
+  const derivedName = deriveIdentifierName(baseName, "A");
+  if (derivedName === declaredName) return null;
+
+  const expectedFileName = `${identifierToFlutterFlowFileStem(declaredName)}.dart`;
+  return `File name "${baseName}" does not match Action "${declaredName}". FlutterFlow derives the action from the file name, so it looks for "${derivedName}" and reports Action "${derivedName}" declaration not found. Rename the file to "${expectedFileName}" - FlutterFlow puts an underscore before every capital - or rename the function to "${derivedName}".`;
 }
 
 function hasCustomActionFutureFunction(code = "", functionName = "") {
@@ -512,6 +555,15 @@ export function validateArtifactCompatibility(artifact, options = {}) {
     if (returnTypeError) {
       findings.push(createFinding(artifact, "error", returnTypeError));
     }
+
+    const fileNameError = getCustomActionFileNameError(
+      fileName,
+      code,
+      artifact.artifactName,
+    );
+    if (fileNameError) {
+      findings.push(createFinding(artifact, "error", fileNameError));
+    }
   }
 
   if (artifact.artifactType === "CustomFunction" && /class\s+\w+\s+extends\s+(StatelessWidget|StatefulWidget)/.test(code)) {
@@ -525,7 +577,7 @@ export function validateArtifactCompatibility(artifact, options = {}) {
   if (artifact.artifactType === "CustomClass" || artifact.artifactType === "CodeFile") {
     const fileNameError = getCustomClassFileNameError(fileName, code);
     if (fileNameError) {
-      findings.push(createFinding(artifact, "error", fileNameError));
+      findings.push(createFinding(artifact, "warning", fileNameError));
     }
   }
 

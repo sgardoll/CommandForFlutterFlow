@@ -14,8 +14,8 @@ import {
 import { createModelArmorError } from "./src/modelArmorResponse.js";
 import {
   getBlockingWidgetErrors,
+  getCustomActionFileNameError,
   getCustomActionReturnTypeError,
-  getCustomClassFileNameError,
   getDeclaredDartTypes,
   validateBundleCompatibility,
 } from "./src/flutterFlowArtifactValidation.js";
@@ -31,9 +31,11 @@ import { extractPackageImports } from "./src/dartPackageImports.js";
 import { readProvisionResponse } from "./src/provisionStream.js";
 import { buildFlutterFlowSyncMetadata } from "./src/flutterFlowSyncMetadata.js";
 import {
+  applyDependencyOverrides,
   mergeDependenciesIntoYaml,
   validateProjectPubspec,
 } from "./src/pubspecSync.js";
+import { planDependencyChanges } from "./src/dependencyResolution.js";
 import { escapeAttr, escapeHtml, escapeHtmlText } from "./src/htmlEscape.js";
 import { resolvePipelineErrorStep } from "./src/pipelineErrors.js";
 import {
@@ -1898,18 +1900,25 @@ async function provisionMissingCodeFiles(
 
 /**
  * Reads the project's current pubspec.yaml, then merges in the packages the
- * generated code needs.
+ * generated code needs at versions the project can actually build.
  *
  * FlutterFlow applies the pushed `serialized_yaml` as the project's complete
  * dependency set, so this must start from the file already in the project.
  * Synthesizing one would silently drop every package the project already had.
  *
+ * A package the project already declares keeps its version. One it does not
+ * gets the newest pub.dev release compatible with the SDK floor the project's
+ * own `environment:` block declares.
+ *
  * @param {FlutterFlowApiClient} apiClient - Client for the target project
- * @param {Object<string, string>} newDependencies - name -> version constraint
+ * @param {Object<string, string>} newDependencies - name -> the minimum
+ *   version the generated code requires, or "" when it needs no specific one
  * @returns {Promise<{
  *   yaml: string,
  *   added: string[],
  *   alreadyPresent: string[],
+ *   overridden: Array<{name: string, from: string, to: string}>,
+ *   warnings: string[],
  *   remoteFiles: Map<string, string>,
  * }>}
  * @throws If the project's pubspec.yaml cannot be read, so a deploy fails
@@ -1941,8 +1950,32 @@ async function resolveProjectPubspec(apiClient, newDependencies = {}) {
     projectSourceCache.set(cacheKey, projectSource);
   }
 
+  const plan = await planDependencyChanges(
+    projectSource.pubspecYaml,
+    newDependencies,
+  );
+  const overrides = applyDependencyOverrides(
+    projectSource.pubspecYaml,
+    plan.overrides,
+  );
+  const merged = mergeDependenciesIntoYaml(overrides.yaml, plan.additions);
+
+  plan.warnings.forEach((warning) => console.warn(`[pubspec] ${warning}`));
+  if (merged.added.length > 0) {
+    console.log(
+      "Adding dependencies:",
+      merged.added.map((name) => `${name}: ${plan.additions[name] || "any"}`).join(", "),
+      plan.sdk.dartSdkFloor ? `(resolved for Dart ${plan.sdk.dartSdkFloor})` : "",
+    );
+  }
+  plan.kept.forEach(({ name, constraint }) =>
+    console.log(`Keeping your existing ${name}: ${constraint || "(non-version source)"}`),
+  );
+
   return {
-    ...mergeDependenciesIntoYaml(projectSource.pubspecYaml, newDependencies),
+    ...merged,
+    overridden: overrides.overridden,
+    warnings: plan.warnings,
     remoteFiles: projectSource.files,
   };
 }
@@ -2168,14 +2201,18 @@ import '/flutter_flow/uploaded_file.dart';
 }
 
 /**
- * Extracts pubspec dependencies from generated code analysis.
+ * Extracts the packages generated code imports.
+ *
+ * Each is left without a version: the deploy resolves one against the
+ * project's own pubspec and SDK floor rather than guessing here.
+ *
  * @param {string} code - Dart code to analyze
- * @returns {Object} Map of package names to versions
+ * @returns {Object} Map of package names to required minimum versions
  */
 function extractDependencies(code) {
   const deps = {};
   for (const name of extractPackageImports(code)) {
-    deps[name] = "^1.0.0";
+    deps[name] = "";
   }
   return deps;
 }
@@ -2296,12 +2333,18 @@ function validateDartFile(
       declaredTypes,
     });
     if (returnTypeError) errors.push(returnTypeError);
-  }
 
-  if (codeType === CodeType.CODE_FILE) {
-    const fileNameError = getCustomClassFileNameError(fileName, content);
+    const fileNameError = getCustomActionFileNameError(
+      fileName,
+      content,
+      artifactName,
+    );
     if (fileNameError) errors.push(fileNameError);
   }
+
+  // A Code File's path is author-controlled in FlutterFlow, so a file name that
+  // disagrees with the declared class is a naming convention, not something
+  // FlutterFlow rejects. It stays a review warning and no longer blocks here.
 
   return {
     valid: errors.length === 0,
@@ -3185,32 +3228,11 @@ function copyCode(elementId) {
     });
 }
 
+// The workflow steps deliberately no longer name the model that runs each one -
+// which model handles Prompt Architect, Code Generator or Code Review is our
+// call, not something the user has to reason about. Logging stays for support.
 function updateModelInfo(selectedModel) {
-  // Update step 1 (Prompt Architect) model label - uses PROMPT_ARCHITECT_MODEL
-  const step1Label = document.getElementById("step1-model-label")
-  if (step1Label) {
-    step1Label.textContent = getModelLabel(PROMPT_ARCHITECT_MODEL)
-  }
-
-  // Update step 2 (Code Generator) model label - shows selected model
-  // If user is on free tier and selected a paid model, show: "Selected Model → Free Model"
   const effectiveModel = getEffectiveModel(selectedModel)
-  const step2Label = document.getElementById("step2-model-label")
-  if (step2Label) {
-    if (effectiveModel !== selectedModel) {
-      // Free tier user selected a paid model - show both
-      step2Label.textContent = `${getModelLabel(selectedModel)} → ${getModelLabel(effectiveModel)} (Free Tier)`
-    } else {
-      // User's selection matches effective model
-      step2Label.textContent = getModelLabel(selectedModel)
-    }
-  }
-
-  // Update step 3 (Code Review) model label - uses CODE_REVIEW_MODEL
-  const step3Label = document.getElementById("step3-model-label")
-  if (step3Label) {
-    step3Label.textContent = getModelLabel(CODE_REVIEW_MODEL)
-  }
 
   console.log(`Step 1 (Prompt Architect): ${getModelLabel(PROMPT_ARCHITECT_MODEL)}`)
   if (effectiveModel !== selectedModel) {
@@ -4904,7 +4926,14 @@ function openCommitConfirmModal(codeInfo, checks, deps, bundlePlan = null) {
   const depsSection = document.getElementById("confirm-deps-section");
   if (deps && Object.keys(deps).length > 0) {
     depsList.innerHTML = Object.entries(deps)
-      .map(([name, version]) => `<li>• ${escapeHtmlText(name)}: ${escapeHtmlText(version)}</li>`)
+      .map(([name, version]) => {
+        // A package with no declared minimum has its version resolved against
+        // the project's pubspec at push time, so promising one here would lie.
+        const constraint = version
+          ? `at least ${escapeHtmlText(version)}`
+          : "version resolved from your project";
+        return `<li>• ${escapeHtmlText(name)}: ${constraint}</li>`;
+      })
       .join("");
     depsSection.classList.remove("hidden");
   } else {
@@ -5495,6 +5524,9 @@ function reviewStatusIcon(status, className = "") {
     pass: `<path d="M20 6 9 17l-5-5"/>`,
     warning: `<path d="M12 9v4m0 4h.01"/><path d="M10.3 3.6 2.2 18a2 2 0 0 0 1.7 3h16.2a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0Z"/>`,
     fail: `<path d="m15 9-6 6m0-6 6 6"/><circle cx="12" cy="12" r="9"/>`,
+    // Manual follow-up is information, not an alert - the triangle is reserved
+    // for findings that actually stop the push.
+    info: `<circle cx="12" cy="12" r="9"/><path d="M12 16v-4m0-4h.01"/>`,
   };
   return `<svg class="review-status-icon ${className}" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths[status] || paths.warning}</svg>`;
 }
@@ -5571,7 +5603,8 @@ function renderSummaryDetail(presentation) {
   const manualSteps = presentation.manualSteps.length
     ? `
       <section class="summary-manual-callout">
-        <h3>${reviewStatusIcon("warning")} Complete in FlutterFlow</h3>
+        <h3>${reviewStatusIcon("info")} Complete in FlutterFlow</h3>
+        <p class="summary-manual-lead">For your information — these don't block the deploy. Finish them by hand in the FlutterFlow editor once the code is pushed.</p>
         <ul>
           ${presentation.manualSteps.map((step) => `
             <li>

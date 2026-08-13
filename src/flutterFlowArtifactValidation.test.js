@@ -204,11 +204,14 @@ test("allows FlutterFlow Data Type structs and supported primitives", () => {
   ];
 
   for (const code of supported) {
+    // FlutterFlow files an action under its function name, so the fixture has
+    // to name the file after the function or the naming rule fires instead.
+    const functionName = code.match(/\b(\w+)\(/)[1];
     const findings = validateArtifactCompatibility({
       id: "supported",
-      artifactName: "supported",
+      artifactName: functionName,
       artifactType: "CustomAction",
-      fileName: "supported.dart",
+      fileName: `${functionName.replace(/([A-Z])/g, "_$1").toLowerCase()}.dart`,
       code,
     });
 
@@ -274,7 +277,81 @@ test("ignores type names that only appear in comments or strings", () => {
   assert.deepEqual(findings, []);
 });
 
-test("rejects a CustomClass file name with a word not in the declared class", () => {
+const INIT_QA_ANALYTICS_CODE = [
+  "import 'package:flutter/material.dart';",
+  "import '/custom_code/qa.dart';",
+  "",
+  "Future<void> initQAAnalytics(",
+  "  bool isInternal,",
+  "  String? buildNumber,",
+  "  bool? captureErrors,",
+  ") async {",
+  "  await QA.i.install(isInternal: isInternal, buildNumber: buildNumber);",
+  "}",
+].join("\n");
+
+test("rejects a CustomAction file name that drops an acronym's capitals", () => {
+  const findings = validateArtifactCompatibility({
+    id: "init-qa-analytics",
+    artifactName: "initQAAnalytics",
+    artifactType: "CustomAction",
+    fileName: "init_qa_analytics.dart",
+    code: INIT_QA_ANALYTICS_CODE,
+  });
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].severity, "error");
+  assert.match(findings[0].message, /init_qa_analytics\.dart/);
+  assert.match(findings[0].message, /initQAAnalytics/);
+  // The name FlutterFlow reports back, and the file name that fixes it.
+  assert.match(findings[0].message, /initQaAnalytics/);
+  assert.match(findings[0].message, /init_q_a_analytics\.dart/);
+});
+
+test("allows a CustomAction file name using FlutterFlow's per-capital underscores", () => {
+  const findings = validateArtifactCompatibility({
+    id: "init-qa-analytics",
+    artifactName: "initQAAnalytics",
+    artifactType: "CustomAction",
+    fileName: "init_q_a_analytics.dart",
+    code: INIT_QA_ANALYTICS_CODE,
+  });
+
+  assert.deepEqual(findings, []);
+});
+
+test("allows CustomAction file names without acronyms", () => {
+  for (const [fileName, functionName] of [
+    ["log_app_error.dart", "logAppError"],
+    ["log_op_failed.dart", "logOpFailed"],
+  ]) {
+    const findings = validateArtifactCompatibility({
+      id: fileName,
+      artifactName: functionName,
+      artifactType: "CustomAction",
+      fileName,
+      code: `Future<void> ${functionName}(String message) async {}`,
+    });
+
+    assert.deepEqual(findings, [], `${fileName} should pass`);
+  }
+});
+
+test("does not report a naming error when the action has no Future function", () => {
+  const findings = validateArtifactCompatibility({
+    id: "init-qa-analytics",
+    artifactName: "initQAAnalytics",
+    artifactType: "CustomAction",
+    fileName: "init_qa_analytics.dart",
+    code: "void initQAAnalytics() {}",
+  });
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].severity, "warning");
+  assert.match(findings[0].message, /async Future function/);
+});
+
+test("advises, without blocking, on a CustomClass file name that is not its class", () => {
   const findings = validateArtifactCompatibility({
     id: "pipedream-integration",
     artifactName: "PipedreamIntegration",
@@ -284,7 +361,8 @@ test("rejects a CustomClass file name with a word not in the declared class", ()
   });
 
   assert.equal(findings.length, 1);
-  assert.equal(findings[0].severity, "error");
+  // A Code File path is author-controlled in FlutterFlow, so this never blocks.
+  assert.equal(findings[0].severity, "warning");
   assert.match(findings[0].message, /pipedream_integration_model\.dart/);
   assert.match(findings[0].message, /PipedreamIntegration/);
   assert.match(findings[0].message, /pipedream_integration\.dart/);
