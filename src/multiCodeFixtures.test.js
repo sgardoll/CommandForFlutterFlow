@@ -62,7 +62,9 @@ test("package-backed fixture treats agent_kit as dependency metadata", () => {
   });
 
   const plan = buildBundleDeployPlan(bundle);
-  assert.deepEqual(plan.dependencies, { agent_kit: "^0.1.0" });
+  // The package reaches the deploy; its version does not, because nothing
+  // flagged ^0.1.0 as required and the project may already have its own.
+  assert.deepEqual(plan.dependencies, { agent_kit: "" });
   assert.equal(plan.fileEntries[0].path, "lib/custom_code/widgets/agent_view.dart");
 });
 

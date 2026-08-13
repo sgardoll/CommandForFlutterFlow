@@ -75,6 +75,10 @@ export function normalizeDependencies(rawDependencies) {
         return {
           name,
           version: dep.version || null,
+          // Set only when the code will not compile below this version. It is
+          // the one thing that can overrule a version the project already
+          // declares, so an unflagged version stays advisory.
+          versionRequired: Boolean(dep.versionRequired || dep.required),
           inferred: Boolean(dep.inferred),
           ...(dep.reason ? { reason: dep.reason } : {}),
         };

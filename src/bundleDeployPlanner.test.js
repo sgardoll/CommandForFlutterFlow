@@ -30,7 +30,7 @@ test("builds deploy entries in deploy order", () => {
   assert.equal(plan.fileEntries[1].path, "lib/custom_code/widgets/widget_a.dart");
 });
 
-test("merges bundle and artifact dependencies with missing-version warnings", () => {
+test("merges bundle and artifact dependencies", () => {
   const plan = buildBundleDeployPlan({
     dependencies: [{ name: "intl", version: "^0.20.0" }],
     artifacts: [
@@ -45,8 +45,47 @@ test("merges bundle and artifact dependencies with missing-version warnings", ()
     ],
   });
 
+  // An unflagged version is advisory only — the deploy resolves the real one
+  // against the project's own pubspec — and a dependency without a version is
+  // the normal case, not a warning.
+  assert.deepEqual(plan.dependencies, { intl: "", http: "" });
+  assert.deepEqual(plan.warnings, []);
+});
+
+test("carries through only a version the generator flagged as required", () => {
+  const plan = buildBundleDeployPlan({
+    artifacts: [
+      {
+        id: "action-a",
+        artifactType: "CustomAction",
+        artifactName: "loadThing",
+        fileName: "load_thing.dart",
+        code: "Future loadThing() async {}",
+        dependencies: [
+          { package: "intl", version: "^0.20.0", versionRequired: true },
+          { package: "http", version: "^1.2.0" },
+        ],
+      },
+    ],
+  });
+
   assert.deepEqual(plan.dependencies, { intl: "^0.20.0", http: "" });
-  assert.deepEqual(plan.warnings, ['loadThing dependency "http" has no explicit version.']);
+});
+
+test("gives a package found only in the code no invented version", () => {
+  const plan = buildBundleDeployPlan({
+    artifacts: [
+      {
+        id: "action-a",
+        artifactType: "CustomAction",
+        artifactName: "record",
+        fileName: "record_audio.dart",
+        code: "import 'package:record/record.dart';\nFuture recordAudio() async {}",
+      },
+    ],
+  });
+
+  assert.deepEqual(plan.dependencies, { record: "" });
 });
 
 test("uses FlutterFlow custom functions file for function artifacts", () => {
