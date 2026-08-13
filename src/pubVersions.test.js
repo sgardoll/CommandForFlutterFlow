@@ -49,6 +49,20 @@ test("expands a caret constraint to its real upper bound", () => {
   });
   // Below 1.0.0 the minor position is the breaking one.
   assert.equal(parseConstraint("^0.19.0").max, "0.20.0");
+
+  // Pub applies that to every zero major, with no npm-style 0.0.x special
+  // case: pub_semver's nextBreaking increments the minor whenever major is 0,
+  // so ^0.0.3 reaches 0.1.0, not 0.0.4.
+  assert.equal(parseConstraint("^0.0.3").max, "0.1.0");
+});
+
+test("a ^0.0.x constraint still contains later 0.0.x releases", () => {
+  // The npm reading (<0.0.4) would report this as unsatisfiable and make
+  // dependency resolution rewrite a constraint the project can already meet.
+  assert.equal(constraintContains("^0.0.3", "0.0.9"), true);
+  assert.equal(constraintContains("^0.0.3", "0.0.3"), true);
+  assert.equal(constraintContains("^0.0.3", "0.1.0"), false);
+  assert.equal(constraintContains("^0.0.3", "0.0.2"), false);
 });
 
 test("parses range, exact, and unbounded constraints", () => {

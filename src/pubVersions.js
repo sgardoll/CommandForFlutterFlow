@@ -75,6 +75,13 @@ function formatVersion({ major, minor, patch }) {
 
 // `^1.2.3` allows <2.0.0, but `^0.1.2` only allows <0.2.0 — below 1.0.0 the
 // minor position carries the breaking-change signal.
+//
+// This holds for EVERY zero major, including `^0.0.3`, which pub reads as
+// <0.1.0 and not <0.0.4. npm special-cases 0.0.x to the next patch; pub does
+// not. See pub_semver's Version.nextBreaking, the rule `^` resolves through:
+// `if (major == 0) return _incrementMinor();`. Narrowing 0.0.x here would make
+// constraintContains() reject versions the project can actually resolve, and
+// dependency resolution would rewrite a constraint that was never broken.
 function caretUpperBound(version) {
   const parsed = parseVersion(version);
   if (!parsed) return null;
