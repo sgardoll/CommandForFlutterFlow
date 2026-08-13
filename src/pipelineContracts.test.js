@@ -36,12 +36,12 @@ test("review prompt sends generated bundle data without system instructions", ()
 
   assert.equal(payload.task, "review_bundle");
   assert.equal(payload.generatedBundle.artifacts[0].id, "action-a");
-  assert.deepEqual(payload.outputRequirements.overall, [
+  assert.deepEqual(payload.outputRequirements.bundleReview, [
     "status",
     "score",
     "summary",
-    "findings",
     "manualActions",
+    "findings",
   ]);
   assert.deepEqual(payload.outputRequirements.scoreRange, [0, 100]);
   assert.deepEqual(payload.outputRequirements.eachArtifact, [
@@ -51,7 +51,7 @@ test("review prompt sends generated bundle data without system instructions", ()
   ]);
   assert.doesNotMatch(prompt, /Review every generated artifact/);
 
-  // Manual steps must be constrained, or the review volunteers work
+  // Manual actions must be constrained, or the review volunteers work
   // FlutterFlow already does - creating the action, declaring its parameters.
   const manualActions = payload.outputRequirements.manualActions;
   assert.match(manualActions.definition, /will NOT do/);
@@ -64,7 +64,6 @@ test("review prompt sends generated bundle data without system instructions", ()
     "must exclude parameters FlutterFlow derives",
   );
   assert.match(manualActions.preferEmpty, /empty array/);
-  assert.doesNotMatch(prompt, /bundleReview/);
 });
 
 test("BuildShip context only sends runtime state", () => {

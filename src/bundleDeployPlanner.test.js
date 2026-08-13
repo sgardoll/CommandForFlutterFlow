@@ -105,7 +105,7 @@ test("uses FlutterFlow custom functions file for function artifacts", () => {
   assert.equal(plan.fileEntries[0].type, "F");
 });
 
-test("blocks duplicate deploy targets before file map construction", () => {
+test("merges multiple function artifacts into the shared custom_functions.dart", () => {
   const plan = buildBundleDeployPlan({
     artifacts: [
       {
@@ -123,8 +123,37 @@ test("blocks duplicate deploy targets before file map construction", () => {
     ],
   });
 
-  assert.equal(plan.fileEntries.length, 2);
-  assert.equal(plan.errors.length, 2);
-  assert.match(plan.errors[0], /Duplicate deploy file name "custom_functions\.dart"/);
-  assert.match(plan.errors[1], /Duplicate deploy path "lib\/flutter_flow\/custom_functions\.dart"/);
+  assert.equal(plan.fileEntries.length, 1);
+  assert.equal(plan.fileEntries[0].fileName, "custom_functions.dart");
+  assert.equal(plan.fileEntries[0].path, "lib/flutter_flow/custom_functions.dart");
+  assert.match(plan.fileEntries[0].content, /formatA/);
+  assert.match(plan.fileEntries[0].content, /formatB/);
+  assert.equal(plan.errors.length, 0);
+});
+
+test("honors an explicit deployPath and still flags true duplicate targets", () => {
+  const plan = buildBundleDeployPlan({
+    artifacts: [
+      {
+        id: "widget-a",
+        artifactType: "CustomWidget",
+        artifactName: "WidgetA",
+        fileName: "widget_a.dart",
+        deployPath: "lib/custom_code/actions/override_a.dart",
+        code: "class WidgetA extends StatelessWidget {}",
+      },
+      {
+        id: "widget-b",
+        artifactType: "CustomWidget",
+        artifactName: "WidgetB",
+        fileName: "widget_b.dart",
+        deployPath: "lib/custom_code/actions/override_a.dart",
+        code: "class WidgetB extends StatelessWidget {}",
+      },
+    ],
+  });
+
+  assert.equal(plan.fileEntries[0].path, "lib/custom_code/actions/override_a.dart");
+  assert.equal(plan.errors.length, 1);
+  assert.match(plan.errors[0], /Duplicate deploy path/);
 });

@@ -39,9 +39,7 @@ export function buildReviewPrompt(generatedBundle) {
     task: "review_bundle",
     generatedBundle: parseJsonIfPossible(generatedBundle),
     outputRequirements: {
-      // manualActions, not manualSteps - it is the name the review stage
-      // already emits under bundleReview, with title/location/timing/detail.
-      overall: ["status", "score", "summary", "findings", "manualActions"],
+      bundleReview: ["status", "score", "summary", "manualActions", "findings"],
       scoreRange: [0, 100],
       eachArtifact: ["id", "review.status", "review.findings"],
       // Without this the review volunteers "next steps" that FlutterFlow

@@ -90,7 +90,7 @@ export function buildBundleDeployPlan(bundle, options = {}) {
     .filter(Boolean);
 
   const warnings = [...(bundle?.warnings || [])];
-  const fileEntries = [];
+  let fileEntries = [];
 
   selected.forEach((artifact) => {
     const fileName = toFileName(artifact);
@@ -106,10 +106,36 @@ export function buildBundleDeployPlan(bundle, options = {}) {
       fileName,
       content,
       type: codeType,
-      path: getBundleFilePath(fileName, codeType),
+      // An explicit deployPath from the pipeline contract wins; otherwise the
+      // path is inferred from the artifact type.
+      path: artifact.deployPath || getBundleFilePath(fileName, codeType),
+      deployPath: artifact.deployPath || "",
       deployMode: "customCodeSync",
     });
   });
+
+  // FlutterFlow keeps every custom function in the single shared file
+  // lib/flutter_flow/custom_functions.dart. Multiple function artifacts must
+  // merge into that one entry rather than colliding, which previously blocked
+  // the deploy with a duplicate-path error or silently dropped functions.
+  const SHARED_FUNCTIONS_PATH = "lib/flutter_flow/custom_functions.dart";
+  const functionEntries = fileEntries
+    .map((entry, index) => ({ entry, index }))
+    .filter(({ entry }) => entry.type === CODE_TYPE.FUNCTION && entry.path === SHARED_FUNCTIONS_PATH);
+  if (functionEntries.length > 1) {
+    const first = functionEntries[0];
+    const merged = {
+      ...first.entry,
+      artifactId: functionEntries.map(({ entry }) => entry.artifactId).join("+"),
+      artifactName: first.entry.artifactName,
+      content: functionEntries
+        .map(({ entry }) => `// ${entry.artifactId}\n${entry.content}`)
+        .join("\n\n"),
+    };
+    const laterIndexes = new Set(functionEntries.slice(1).map(({ index }) => index));
+    fileEntries = fileEntries.filter((_, index) => !laterIndexes.has(index));
+    fileEntries[first.index] = merged;
+  }
 
   const declaredDependencies = {
     ...toDependencyMap(bundle?.dependencies),

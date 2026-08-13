@@ -410,7 +410,7 @@ test("validates a bundle and emits deploy path hints", () => {
     {
       artifactId: "custom-function-format",
       fileName: "format_thing.dart",
-      pathHint: "custom_functions/",
+      pathHint: "flutter_flow/custom_functions.dart",
     },
   ]);
 });
