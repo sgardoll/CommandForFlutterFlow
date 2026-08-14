@@ -29,6 +29,13 @@ ASSET_REFERENCE = re.compile(
     r"""\b(?:src|href)\s*=\s*(?P<q>["'])(?P<path>[^"']+)(?P=q)""",
     re.IGNORECASE,
 )
+# The page carries its stylesheet inline, so the built font arrives as a CSS
+# `src: url(...)` - a colon, not an `=`, and therefore invisible to the
+# attribute pattern above. Quotes are optional in CSS url().
+CSS_URL_REFERENCE = re.compile(
+    r"""\burl\(\s*(?P<q>["']?)(?P<path>[^"')]+)(?P=q)\s*\)""",
+    re.IGNORECASE,
+)
 URI_SCHEME = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*:")
 
 HOST = "ftp.connectio.com.au"
@@ -223,16 +230,23 @@ def ensure_dist_committed(allow_dirty):
 
 
 def missing_referenced_assets(index_html):
-    """Returns the root-relative paths index.html points at that aren't on disk.
+    """Returns the paths index.html points at that aren't on disk.
 
-    Only root-relative references are checked - external URLs, protocol-relative
-    hosts, data: URIs and in-page anchors are somebody else's problem.
+    Covers both HTML attributes (src=/href=) and CSS url() in the inline
+    stylesheet - the built font is only reachable through the latter. External
+    URLs, protocol-relative hosts, data: URIs and in-page anchors (including
+    url(#svg-gradient)) are somebody else's problem.
     """
     missing = []
-    for match in ASSET_REFERENCE.finditer(index_html):
+    matches = [
+        *ASSET_REFERENCE.finditer(index_html),
+        *CSS_URL_REFERENCE.finditer(index_html),
+    ]
+    for match in matches:
         ref = match.group("path").strip()
         # Anything carrying a scheme (http:, data:, mailto:), a protocol-relative
-        # host, or a bare in-page anchor is not a file this deploy ships.
+        # host, or a bare in-page anchor is not a file this deploy ships. The
+        # anchor case also covers CSS's url(#gradient-id) SVG fragments.
         if ref.startswith(("#", "//")) or URI_SCHEME.match(ref):
             continue
         rel = ref.split("?", 1)[0].split("#", 1)[0].lstrip("/")

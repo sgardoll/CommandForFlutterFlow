@@ -64,6 +64,25 @@ def main():
             "<script src='/assets/never-built-2.js'></script>",
             ["assets/never-built-2.js"],
         ),
+        # The stylesheet is inline, so the built font is reachable only through
+        # CSS url() - a colon, not an `=`. Missing it would let the mirror prune
+        # the production font while the guard stayed silent.
+        (
+            "a missing font in CSS url() is caught",
+            "<style>@font-face{font-family:D;src:url('/assets/never-built.ttf');}</style>",
+            ["assets/never-built.ttf"],
+        ),
+        (
+            "an unquoted CSS url() is checked",
+            "<style>@font-face{src:url(/assets/never-built-3.ttf);}</style>",
+            ["assets/never-built-3.ttf"],
+        ),
+        (
+            "SVG fragment and data: url() are ignored",
+            "<style>.a{fill:url(#gem-grad)}"
+            ".b{background:url(\"data:image/svg+xml,%3Csvg%3E%3C/svg%3E\")}</style>",
+            [],
+        ),
     ]
 
     # Resolve the real bundle name for the query-string case.
