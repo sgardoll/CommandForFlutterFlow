@@ -29,6 +29,16 @@ sit on the server forever. It never lists or deletes a remote directory that
 has no local counterpart. Use `--dry-run` to preview without changing the
 server.
 
+Because pruning deletes remote files, `npm run build` is not optional. The
+script refuses to run when `dist/index.html` names a file that was never built:
+uploading it would replace the live page with one whose bundle 404s *and* prune
+the bundle currently serving the site, so the site would stay down until
+someone rebuilt. `dist/index.html` is tracked while `dist/assets/` is
+gitignored, so a fresh clone is already in that state until it builds. This
+check is not skippable with `--allow-dirty` — that flag covers a `dist/` git
+cannot reproduce, not one that is internally broken. `npm run test:deploy-guard`
+exercises it.
+
 ## FlutterFlow custom-class deploys
 
 FlutterFlow's VS Code extension supports editing existing standalone Custom Code
