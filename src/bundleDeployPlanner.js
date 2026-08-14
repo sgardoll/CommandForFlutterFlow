@@ -46,11 +46,16 @@ function toFileName(artifact) {
   return source.endsWith(".dart") ? source : `${source}.dart`;
 }
 
+// name -> the minimum version the code genuinely needs, or "" for "just make
+// sure this package is there". A version is only carried through when the
+// generating stage flagged it as required; otherwise the deploy picks the
+// version, since a package the project already has should keep its own.
 function toDependencyMap(dependencies = []) {
   return dependencies.reduce((acc, dependency) => {
     const name = dependency.name || dependency.package;
     if (!name || name === "flutter") return acc;
-    acc[name] = dependency.version || "";
+    const required = dependency.versionRequired || dependency.required;
+    acc[name] = required ? dependency.version || "" : "";
     return acc;
   }, {});
 }
@@ -143,26 +148,21 @@ export function buildBundleDeployPlan(bundle, options = {}) {
   // A declared dependency list can miss a package the code actually imports.
   // FlutterFlow rejects a push whose pubspec.yaml omits an imported package,
   // so every artifact's code is also scanned directly as a safety net.
-  // Declared versions always win over this generic fallback.
+  //
+  // A detected package carries no version: the deploy resolves one against the
+  // project's own pubspec and SDK. Naming a version here would be a guess, and
+  // the guess this replaced (`^1.0.0`) pinned every package to its first major.
   const detectedDependencies = {};
   selected.forEach((artifact) => {
     extractPackageImports(artifact.code || "").forEach((name) => {
       if (!(name in declaredDependencies)) {
-        detectedDependencies[name] = "^1.0.0";
+        detectedDependencies[name] = "";
       }
     });
   });
 
   const dependencies = { ...detectedDependencies, ...declaredDependencies };
 
-  selected.forEach((artifact) => {
-    (artifact.dependencies || []).forEach((dependency) => {
-      const name = dependency.name || dependency.package;
-      if (name && !dependency.version) {
-        warnings.push(`${artifact.artifactName || artifact.id} dependency "${name}" has no explicit version.`);
-      }
-    });
-  });
   const errors = getDuplicateTargetErrors(fileEntries);
 
   return {

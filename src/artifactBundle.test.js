@@ -22,7 +22,7 @@ test("normalizes a single widget fixture into a one-artifact bundle", () => {
   assert.equal(bundle.artifacts[0].codeType, "W");
   assert.deepEqual(bundle.deployOrder, ["custom-widget-tool-call-card"]);
   assert.deepEqual(bundle.artifacts[0].dependencies, [
-    { name: "agent_kit", version: "^0.1.2", inferred: false },
+    { name: "agent_kit", version: "^0.1.2", versionRequired: false, inferred: false },
   ]);
 });
 

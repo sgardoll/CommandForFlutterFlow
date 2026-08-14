@@ -50,6 +50,20 @@ test("review prompt sends generated bundle data without system instructions", ()
     "review.findings",
   ]);
   assert.doesNotMatch(prompt, /Review every generated artifact/);
+
+  // Manual actions must be constrained, or the review volunteers work
+  // FlutterFlow already does - creating the action, declaring its parameters.
+  const manualActions = payload.outputRequirements.manualActions;
+  assert.match(manualActions.definition, /will NOT do/);
+  assert.ok(
+    manualActions.exclude.some((rule) => /deploying the code creates it/.test(rule)),
+    "must exclude creating the artifact itself",
+  );
+  assert.ok(
+    manualActions.exclude.some((rule) => /function signature/.test(rule)),
+    "must exclude parameters FlutterFlow derives",
+  );
+  assert.match(manualActions.preferEmpty, /empty array/);
 });
 
 test("BuildShip context only sends runtime state", () => {

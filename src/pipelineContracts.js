@@ -42,6 +42,19 @@ export function buildReviewPrompt(generatedBundle) {
       bundleReview: ["status", "score", "summary", "manualActions", "findings"],
       scoreRange: [0, 100],
       eachArtifact: ["id", "review.status", "review.findings"],
+      // Without this the review volunteers "next steps" that FlutterFlow
+      // already handles - telling the user to create the very action the
+      // deploy creates, or to declare parameters read off the signature.
+      manualActions: {
+        definition: "Setup the developer must perform by hand in the FlutterFlow editor that FlutterFlow will NOT do for them.",
+        exclude: [
+          "creating the Custom Action, Widget or Code File itself - deploying the code creates it",
+          "declaring parameters or return values FlutterFlow derives from the function signature",
+          "anything that resolves as a side effect of using the action or widget in the editor",
+          "generic advice such as testing, reviewing or rebuilding the app",
+        ],
+        preferEmpty: "Return an empty array when nothing qualifies - an empty list is the expected result for most bundles.",
+      },
     },
   });
 }
