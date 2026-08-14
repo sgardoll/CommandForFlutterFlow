@@ -18,9 +18,18 @@ Password resolution: FTP_PASSWORD env var if set, else macOS Keychain
 import argparse
 import ftplib
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
+
+# src=/href= on any tag, single or double quoted. Only used to find the built
+# assets index.html depends on, so attribute order and tag name don't matter.
+ASSET_REFERENCE = re.compile(
+    r"""\b(?:src|href)\s*=\s*(?P<q>["'])(?P<path>[^"']+)(?P=q)""",
+    re.IGNORECASE,
+)
+URI_SCHEME = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*:")
 
 HOST = "ftp.connectio.com.au"
 PORT = 21
@@ -213,6 +222,58 @@ def ensure_dist_committed(allow_dirty):
             )
 
 
+def missing_referenced_assets(index_html):
+    """Returns the root-relative paths index.html points at that aren't on disk.
+
+    Only root-relative references are checked - external URLs, protocol-relative
+    hosts, data: URIs and in-page anchors are somebody else's problem.
+    """
+    missing = []
+    for match in ASSET_REFERENCE.finditer(index_html):
+        ref = match.group("path").strip()
+        # Anything carrying a scheme (http:, data:, mailto:), a protocol-relative
+        # host, or a bare in-page anchor is not a file this deploy ships.
+        if ref.startswith(("#", "//")) or URI_SCHEME.match(ref):
+            continue
+        rel = ref.split("?", 1)[0].split("#", 1)[0].lstrip("/")
+        if not rel:
+            continue
+        if not (DIST / rel).is_file():
+            missing.append(rel)
+    return sorted(set(missing))
+
+
+def ensure_dist_self_consistent():
+    """Refuse to deploy a dist/ whose index.html points at files that aren't built.
+
+    The mirror prunes any remote file with no local counterpart, so an
+    index.html referencing a bundle that was never built is worse than a no-op:
+    it uploads the broken HTML *and* deletes the working bundle currently
+    serving production, leaving the site down until someone rebuilds.
+
+    That state is reachable without any uncommitted change - dist/index.html is
+    tracked while dist/assets/ is gitignored, so a fresh clone that skips
+    `npm run build` has the HTML and none of the JS it names. Deliberately not
+    skippable by --allow-dirty: that flag is for deploying a dist git cannot
+    reproduce, never for one that is internally broken.
+    """
+    index_html = DIST / "index.html"
+    if not index_html.is_file():
+        sys.exit(f"Refusing to deploy: {index_html} does not exist. Run `npm run build` first.")
+
+    missing = missing_referenced_assets(index_html.read_text(encoding="utf-8"))
+    if missing:
+        listed = "\n".join(f"  {rel}" for rel in missing)
+        sys.exit(
+            "Refusing to deploy: dist/index.html references files that are not "
+            "built:\n"
+            f"{listed}\n"
+            "Uploading this would also prune the bundle currently serving the "
+            "site, taking production down. Rebuild first:\n"
+            "  npm run build"
+        )
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -228,6 +289,7 @@ def main():
     if not DIST.is_dir():
         sys.exit(f"{DIST} does not exist. Run `npm run build` first.")
 
+    ensure_dist_self_consistent()
     ensure_dist_committed(args.allow_dirty)
 
     local_files, local_dirs = local_files_and_dirs(DIST)
