@@ -4671,7 +4671,16 @@ async function callBuildShip(step, model, prompt, context = {}, images = []) {
       }),
     })
 
-    const data = await res.json()
+    // BuildShip occasionally answers 200 with a bare success token (e.g. "OK")
+    // instead of a JSON body. Parse defensively so we surface the raw body in
+    // the error rather than crashing on JSON.parse.
+    const rawText = await res.text()
+    let data = {}
+    try {
+      data = rawText ? JSON.parse(rawText) : {}
+    } catch {
+      data = {}
+    }
 
     if (res.status === 429) {
       if (data.serverCount !== undefined) {
@@ -4693,7 +4702,8 @@ async function callBuildShip(step, model, prompt, context = {}, images = []) {
 
     let output = data.output || data.content
     if (!output) {
-      throw new Error(`BuildShip returned no output for step "${step}"`)
+      const body = rawText ? ` (body: ${rawText.slice(0, 120)})` : ''
+      throw new Error(`BuildShip returned no output for step "${step}"${body}`)
     }
 
     // Coerce non-string content (OpenRouter may return array of content parts)
