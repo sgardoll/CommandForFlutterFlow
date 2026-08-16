@@ -122,6 +122,42 @@ const WIDGET_RULES = [
     pos: "class W extends StatefulWidget { final String? imagePath; }\nvar x = Image.asset(widget.imagePath);",
     neg: "class W extends StatefulWidget { final String? imagePath; }\nvar x = Image.network(widget.imagePath);",
   },
+  {
+    id: "unsupported-param-type",
+    severity: "error",
+    message:
+      "CustomWidget exposes a Flutter data type FlutterFlow cannot express as a Define Parameter: "
+      + "TextStyle, BoxShadow, FontWeight, FontStyle, EdgeInsets, Offset, Alignment/AlignmentGeometry, "
+      + "Border, BorderRadius, BoxDecoration, BoxConstraints, BorderSide, Gradient, or ThemeData "
+      + "(or references TextDirection.ltr/rtl). FlutterFlow's supported data types "
+      + "(docs.flutterflow.io/resources/data-representation/data-types) are only int, double, bool, "
+      + "string, Color, Image, DateTime, Json, LatLng, and the FF objects, so this parameter cannot be "
+      + "configured in the editor and the widget will not place or compile. Expose primitives instead "
+      + "(color, fontSize as double?, fontWeight via a custom enum, doubles for spacing).",
+    detect: (stripped) => {
+      // TextDirection.ltr/.rtl fails FlutterFlow's build wherever it appears
+      // (even inside a private state class), so scan the whole file for it.
+      if (/TextDirection\.(?:ltr|rtl)\b/.test(stripped)) return true;
+      // Unsupported Define-Parameter types only matter on the placeable public
+      // widget; a private painter's TextStyle is legitimate.
+      return getPublicWidgetSpans(stripped).some((span) =>
+        /final\s+(TextStyle|BoxShadow|FontWeight|FontStyle|EdgeInsets|Offset|Alignment(?:Geometry)?|Border(?:Radius|Side)?|BoxDecoration|BoxConstraints|Gradient|LinearGradient|RadialGradient|ThemeData)\??\s+\w+\s*;/.test(span));
+    },
+    // Scoped to the public placeable widget: a local EdgeInsets.all(...) or a
+    // private painter's TextStyle is fine and must stay unflagged.
+    pos: "class W extends StatefulWidget {\n"
+      + "  const W({this.textStyle});\n"
+      + "  final TextStyle? textStyle;\n"
+      + "  @override _S createState() => _S();\n"
+      + "}\n"
+      + "class _S extends State<W> { @override Widget build(BuildContext c) => const SizedBox(); }",
+    neg: "class W extends StatefulWidget {\n"
+      + "  const W({this.width});\n"
+      + "  final double? width;\n"
+      + "  @override _S createState() => _S();\n"
+      + "}\n"
+      + "class _S extends State<W> { @override Widget build(BuildContext c) => Padding(padding: const EdgeInsets.all(8), child: const SizedBox()); }",
+  },
 ];
 
 function createFinding(artifact, severity, message) {

@@ -547,6 +547,61 @@ test("flags Image.asset fed by a String path parameter", () => {
   assert.equal(findings[0].severity, "warning");
 });
 
+test("flags a widget with an unsupported TextStyle parameter", () => {
+  const findings = getWidgetRuleFindings(`
+    class ThemedCard extends StatefulWidget {
+      const ThemedCard({super.key, this.textStyle});
+      final TextStyle? textStyle;
+      @override
+      State<ThemedCard> createState() => _ThemedCardState();
+    }
+    class _ThemedCardState extends State<ThemedCard> {
+      @override
+      Widget build(BuildContext context) => const SizedBox();
+    }
+  `);
+
+  assert.deepEqual(findings.map((finding) => finding.id), ["unsupported-param-type"]);
+  assert.equal(findings[0].severity, "error");
+});
+
+test("flags TextDirection.ltr which FlutterFlow's build cannot resolve", () => {
+  const findings = getWidgetRuleFindings(`
+    class DirectionalBar extends StatefulWidget {
+      const DirectionalBar({super.key, this.direction});
+      final TextDirection? direction;
+      @override
+      State<DirectionalBar> createState() => _DirectionalBarState();
+    }
+    class _DirectionalBarState extends State<DirectionalBar> {
+      @override
+      Widget build(BuildContext context) => Text('x',
+        textDirection: widget.direction ?? TextDirection.ltr);
+    }
+  `);
+
+  assert.deepEqual(findings.map((finding) => finding.id), ["unsupported-param-type"]);
+  assert.equal(findings[0].severity, "error");
+});
+
+test("does not flag a clean widget that only uses EdgeInsets locally", () => {
+  const findings = getWidgetRuleFindings(`
+    class CleanBox extends StatefulWidget {
+      const CleanBox({super.key, this.width});
+      final double? width;
+      @override
+      State<CleanBox> createState() => _CleanBoxState();
+    }
+    class _CleanBoxState extends State<CleanBox> {
+      @override
+      Widget build(BuildContext context) =>
+        Padding(padding: const EdgeInsets.all(8), child: const SizedBox());
+    }
+  `);
+
+  assert.deepEqual(findings.map((finding) => finding.id), []);
+});
+
 test("does not flag a network image fed by a String path parameter", () => {
   const findings = getWidgetRuleFindings(`
     class RemoteImage extends StatefulWidget {
