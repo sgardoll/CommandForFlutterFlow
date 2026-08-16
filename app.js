@@ -3170,18 +3170,18 @@ async function runPromptArchitect(userInput, images = []) {
   }
 }
 
-async function runCodeGenerator(masterPrompt, selectedModel) {
+async function runCodeGenerator(masterPrompt, selectedModel, images = []) {
   const prompt = buildGeneratorPrompt(masterPrompt)
   const context = createBuildShipContext("generator", pipelineState.bundleSpec)
   try {
-    const result = await callBuildShip("generator", selectedModel, prompt, context)
+    const result = await callBuildShip("generator", selectedModel, prompt, context, images)
     return result
   } catch (primaryError) {
     if (primaryError.isModelArmor) throw primaryError
     if (selectedModel !== FALLBACK_MODEL) {
       console.warn(`Code Generator failed with ${selectedModel}, retrying with fallback model:`, primaryError.message)
       try {
-        const result = await callBuildShip("generator", FALLBACK_MODEL, prompt, context)
+        const result = await callBuildShip("generator", FALLBACK_MODEL, prompt, context, images)
         return result
       } catch (fallbackError) {
         if (fallbackError.isModelArmor) throw fallbackError
@@ -3628,11 +3628,15 @@ async function runThinkingPipeline() {
     updatePipelineProgressStep(1);
     showStepLoading(1, true);
 
+    // Uploaded image URLs are sent to both the architect and the generator so
+    // the vision-carrying model sees them when producing the widget.
+    const imagePayload = promptImages
+      .filter((img) => img.url)
+      .map((img) => ({ url: img.url }));
+
     pipelineState.step1Result = await runPromptArchitect(
       userInput,
-      promptImages
-        .filter((img) => img.url)
-        .map((img) => ({ url: img.url })),
+      imagePayload,
     );
     updateBundleSpecFromArchitectResult();
     trackEvent("Prompt Architect Completed");
@@ -3651,6 +3655,7 @@ async function runThinkingPipeline() {
     pipelineState.step2Result = await runCodeGenerator(
       pipelineState.step1Result,
       effectiveModel,
+      imagePayload,
     );
     updateArtifactBundleFromGeneratedCode();
     trackEvent("Code Generator Completed");
