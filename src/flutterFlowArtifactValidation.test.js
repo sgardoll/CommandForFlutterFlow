@@ -565,7 +565,7 @@ test("flags a widget with an unsupported TextStyle parameter", () => {
   assert.equal(findings[0].severity, "error");
 });
 
-test("flags TextDirection.ltr which FlutterFlow's build cannot resolve", () => {
+test("flags TextDirection used as a public widget parameter", () => {
   const findings = getWidgetRuleFindings(`
     class DirectionalBar extends StatefulWidget {
       const DirectionalBar({super.key, this.direction});
@@ -582,6 +582,47 @@ test("flags TextDirection.ltr which FlutterFlow's build cannot resolve", () => {
 
   assert.deepEqual(findings.map((finding) => finding.id), ["unsupported-param-type"]);
   assert.equal(findings[0].severity, "error");
+});
+
+// TextDirection.ltr is ordinary, safe Flutter code when it only feeds an
+// internal API like TextPainter - it is NOT itself the defect. The build
+// failure it can cause ("The getter 'ltr' isn't defined for the type
+// 'TextDirection'") comes from a name collision elsewhere in the project that
+// no text-based check can see, so this literal must stay unflagged unless it
+// is exposed as a public parameter (covered by the test above).
+test("does not flag TextDirection.ltr used internally for TextPainter layout", () => {
+  const findings = getWidgetRuleFindings(`
+    class NeonOutlineText extends StatefulWidget {
+      const NeonOutlineText({super.key, this.width, this.height, this.text = 'INTERSTELLAR'});
+      final double? width;
+      final double? height;
+      final String? text;
+      @override
+      State<NeonOutlineText> createState() => _NeonOutlineTextState();
+    }
+    class _NeonOutlineTextState extends State<NeonOutlineText> {
+      @override
+      Widget build(BuildContext context) => CustomPaint(
+        painter: _NeonPainter(widget.text ?? ''),
+      );
+    }
+    class _NeonPainter extends CustomPainter {
+      _NeonPainter(this.text);
+      final String text;
+      @override
+      void paint(Canvas canvas, Size size) {
+        final tp = TextPainter(
+          text: TextSpan(text: text),
+          textDirection: TextDirection.ltr,
+        );
+        tp.layout();
+      }
+      @override
+      bool shouldRepaint(covariant _NeonPainter oldDelegate) => true;
+    }
+  `);
+
+  assert.deepEqual(findings.map((finding) => finding.id), []);
 });
 
 test("does not flag a clean widget that only uses EdgeInsets locally", () => {

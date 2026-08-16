@@ -127,22 +127,22 @@ const WIDGET_RULES = [
     severity: "error",
     message:
       "CustomWidget exposes a Flutter data type FlutterFlow cannot express as a Define Parameter: "
-      + "TextStyle, BoxShadow, FontWeight, FontStyle, EdgeInsets, Offset, Alignment/AlignmentGeometry, "
-      + "Border, BorderRadius, BoxDecoration, BoxConstraints, BorderSide, Gradient, or ThemeData "
-      + "(or references TextDirection.ltr/rtl). FlutterFlow's supported data types "
+      + "TextStyle, BoxShadow, FontWeight, FontStyle, TextDirection, TextAlign, EdgeInsets, Offset, "
+      + "Alignment/AlignmentGeometry, Border, BorderRadius, BoxDecoration, BoxConstraints, BorderSide, "
+      + "Gradient, or ThemeData. FlutterFlow's supported data types "
       + "(docs.flutterflow.io/resources/data-representation/data-types) are only int, double, bool, "
       + "string, Color, Image, DateTime, Json, LatLng, and the FF objects, so this parameter cannot be "
       + "configured in the editor and the widget will not place or compile. Expose primitives instead "
       + "(color, fontSize as double?, fontWeight via a custom enum, doubles for spacing).",
-    detect: (stripped) => {
-      // TextDirection.ltr/.rtl fails FlutterFlow's build wherever it appears
-      // (even inside a private state class), so scan the whole file for it.
-      if (/TextDirection\.(?:ltr|rtl)\b/.test(stripped)) return true;
-      // Unsupported Define-Parameter types only matter on the placeable public
-      // widget; a private painter's TextStyle is legitimate.
-      return getPublicWidgetSpans(stripped).some((span) =>
-        /final\s+(TextStyle|BoxShadow|FontWeight|FontStyle|EdgeInsets|Offset|Alignment(?:Geometry)?|Border(?:Radius|Side)?|BoxDecoration|BoxConstraints|Gradient|LinearGradient|RadialGradient|ThemeData)\??\s+\w+\s*;/.test(span));
-    },
+    // Scoped to the public placeable widget's OWN parameters. A private
+    // painter's TextStyle, or TextDirection.ltr feeding a TextPainter, is
+    // ordinary safe Flutter code - it only breaks the build on a genuine
+    // name collision elsewhere in the project, which no text-based check
+    // (this one or an LLM prompt) can see. Flagging the literal itself was a
+    // false-positive generator; only the unsupported-parameter-type case is
+    // deterministically detectable.
+    detect: (stripped) => getPublicWidgetSpans(stripped).some((span) =>
+      /final\s+(TextStyle|BoxShadow|FontWeight|FontStyle|TextDirection|TextAlign|EdgeInsets|Offset|Alignment(?:Geometry)?|Border(?:Radius|Side)?|BoxDecoration|BoxConstraints|Gradient|LinearGradient|RadialGradient|ThemeData)\??\s+\w+\s*;/.test(span)),
     // Scoped to the public placeable widget: a local EdgeInsets.all(...) or a
     // private painter's TextStyle is fine and must stay unflagged.
     pos: "class W extends StatefulWidget {\n"
