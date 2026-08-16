@@ -172,14 +172,31 @@ function modelSupportsImages(model) {
 }
 
 const MAX_PROMPT_IMAGES = 4
+// Keep incoming base64 (data-URL) payloads bounded so the request stays small
+// enough to reach the model. 8 MB per file is a generous ceiling for screenshots.
+const MAX_PROMPT_IMAGE_BYTES = 8 * 1024 * 1024
 let promptImages = [] // Array of { dataUrl, name } attached to the prompt
 
 function handlePromptImageSelect(event) {
   const files = Array.from(event.target.files || [])
   if (!files.length) return
 
+  // Drop oversized files up front rather than reading them into memory.
+  const oversized = files.filter((f) => f.size > MAX_PROMPT_IMAGE_BYTES)
+  if (oversized.length) {
+    showToast(
+      `Skipped ${oversized.length} image(s) over the ${(MAX_PROMPT_IMAGE_BYTES / 1024 / 1024).toFixed(0)} MB limit.`,
+      "warning",
+    )
+  }
+  const validFiles = files.filter((f) => f.size <= MAX_PROMPT_IMAGE_BYTES)
+  if (!validFiles.length) {
+    event.target.value = ""
+    return
+  }
+
   const remaining = MAX_PROMPT_IMAGES - promptImages.length
-  const toAdd = files.slice(0, remaining)
+  const toAdd = validFiles.slice(0, remaining)
 
   const readPromises = toAdd.map(
     (file) =>
@@ -193,12 +210,22 @@ function handlePromptImageSelect(event) {
 
   Promise.all(readPromises).then((images) => {
     const added = images.filter(Boolean)
+    event.target.value = ""
+    // A non-vision model may have been selected while FileReader was reading;
+    // don't restore images that the model-change handler cleared.
+    if (
+      added.length &&
+      !modelSupportsImages(
+        document.getElementById("code-generator-model")?.value,
+      )
+    ) {
+      return
+    }
     promptImages.push(...added)
-    if (files.length > remaining) {
+    if (validFiles.length > remaining) {
       showToast(`You can attach up to ${MAX_PROMPT_IMAGES} images.`, "info")
     }
     renderPromptImages()
-    event.target.value = ""
   })
 }
 
@@ -818,6 +845,10 @@ let flutterflowProjectId = "";
 // commit targets this project instead of the API Keys default, without
 // changing the stored configuration.
 let commitTargetProjectId = null;
+
+// Guards against a stale in-flight project fetch overwriting the confirm
+// modal's dropdown when the modal is closed/reopened before the fetch returns.
+let confirmProjectToken = 0;
 
 async function initializeApiKeys() {
   // Remove an exportable key left by an earlier version even if its encrypted
@@ -3063,7 +3094,6 @@ async function executeBundleCommit(bundlePlan, options = {}) {
 
 async function runPromptArchitect(userInput, images = []) {
   const context = createBuildShipContext("architect")
-  if (images.length) context.images = images
   try {
     const result = await callBuildShip(
       "architect",
@@ -4930,8 +4960,15 @@ async function populateConfirmProjectSelect() {
   const select = document.getElementById("confirm-project-select");
   if (!select) return;
 
+  // Only the latest request may write to the shared dropdown. If the modal is
+  // closed and reopened while this is in flight, its token falls behind and it
+  // bails instead of resetting the selection with stale data.
+  const token = ++confirmProjectToken;
+  const isCurrent = () => token === confirmProjectToken;
+
   const apiKey = await getApiKey("flutterflow");
   const storedId = await getApiKey("flutterflow_project_id");
+  if (!isCurrent()) return;
 
   if (!apiKey) {
     select.innerHTML =
@@ -4945,6 +4982,7 @@ async function populateConfirmProjectSelect() {
   try {
     const client = new FlutterFlowApiClient(apiKey, "");
     const projects = await client.listProjects();
+    if (!isCurrent()) return;
 
     if (!projects || projects.length === 0) {
       select.innerHTML = '<option value="">No projects found</option>';
@@ -4962,6 +5000,7 @@ async function populateConfirmProjectSelect() {
 
     if (storedId) select.value = storedId;
   } catch (error) {
+    if (!isCurrent()) return;
     console.error("Failed to load projects for deploy:", error);
     select.innerHTML =
       '<option value="">Failed to load projects — check your API Key</option>';
