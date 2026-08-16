@@ -172,16 +172,58 @@ function modelSupportsImages(model) {
 }
 
 const MAX_PROMPT_IMAGES = 4
-// Keep incoming base64 (data-URL) payloads bounded so the request stays small
-// enough to reach the model. 8 MB per file is a generous ceiling for screenshots.
+// Keep incoming files bounded so uploads stay quick. 8 MB per file is generous.
 const MAX_PROMPT_IMAGE_BYTES = 8 * 1024 * 1024
-let promptImages = [] // Array of { dataUrl, name } attached to the prompt
+const PIPELINE_IMAGE_ENDPOINT =
+  "https://4tgke4.buildship.run/service/runpipeline-image"
+// Attached prompt images. Each item holds a local dataUrl (for the thumbnail
+// preview) plus the uploaded url returned by the image endpoint — the url is
+// what actually gets sent to the pipeline.
+let promptImages = [] // Array of { dataUrl, name, url }
 
-function handlePromptImageSelect(event) {
+function readAsDataUrl(file) {
+  return new Promise((resolve) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result)
+    reader.onerror = () => resolve(null)
+    reader.readAsDataURL(file)
+  })
+}
+
+// Uploads one image file to the BuildShip image endpoint. The endpoint is
+// called separately from the pipeline so we pass real URLs, not base64.
+async function uploadPromptImage(file) {
+  const formData = new FormData()
+  formData.append("file", file)
+  const res = await fetch(PIPELINE_IMAGE_ENDPOINT, {
+    method: "POST",
+    body: formData,
+  })
+  return res.json()
+}
+
+// Normalises an uploaded file object into a URL string.
+function uploadedFileUrl(uploaded) {
+  if (typeof uploaded === "string") return uploaded
+  if (uploaded && typeof uploaded === "object") {
+    return (
+      uploaded.url ||
+      uploaded.fileUrl ||
+      uploaded.file_url ||
+      uploaded.downloadUrl ||
+      uploaded.imageUrl ||
+      uploaded.image_url ||
+      ""
+    )
+  }
+  return ""
+}
+
+async function handlePromptImageSelect(event) {
   const files = Array.from(event.target.files || [])
   if (!files.length) return
 
-  // Drop oversized files up front rather than reading them into memory.
+  // Drop oversized files up front rather than uploading/reading them.
   const oversized = files.filter((f) => f.size > MAX_PROMPT_IMAGE_BYTES)
   if (oversized.length) {
     showToast(
@@ -198,35 +240,35 @@ function handlePromptImageSelect(event) {
   const remaining = MAX_PROMPT_IMAGES - promptImages.length
   const toAdd = validFiles.slice(0, remaining)
 
-  const readPromises = toAdd.map(
-    (file) =>
-      new Promise((resolve) => {
-        const reader = new FileReader()
-        reader.onload = () => resolve({ dataUrl: reader.result, name: file.name })
-        reader.onerror = () => resolve(null)
-        reader.readAsDataURL(file)
-      }),
-  )
-
-  Promise.all(readPromises).then((images) => {
-    const added = images.filter(Boolean)
-    event.target.value = ""
-    // A non-vision model may have been selected while FileReader was reading;
-    // don't restore images that the model-change handler cleared.
-    if (
-      added.length &&
-      !modelSupportsImages(
-        document.getElementById("code-generator-model")?.value,
-      )
-    ) {
-      return
+  const jobs = toAdd.map(async (file) => {
+    const dataUrl = await readAsDataUrl(file)
+    if (!dataUrl) return null
+    let url = ""
+    try {
+      url = uploadedFileUrl(await uploadPromptImage(file))
+    } catch (e) {
+      url = ""
     }
-    promptImages.push(...added)
-    if (validFiles.length > remaining) {
-      showToast(`You can attach up to ${MAX_PROMPT_IMAGES} images.`, "info")
-    }
-    renderPromptImages()
+    return { dataUrl, name: file.name, url }
   })
+
+  const added = (await Promise.all(jobs)).filter(Boolean)
+  event.target.value = ""
+  // A non-vision model may have been selected while uploading; don't restore
+  // images that the model-change handler cleared.
+  if (
+    added.length &&
+    !modelSupportsImages(
+      document.getElementById("code-generator-model")?.value,
+    )
+  ) {
+    return
+  }
+  promptImages.push(...added)
+  if (validFiles.length > remaining) {
+    showToast(`You can attach up to ${MAX_PROMPT_IMAGES} images.`, "info")
+  }
+  renderPromptImages()
 }
 
 function removePromptImage(index) {
@@ -3569,7 +3611,9 @@ async function runThinkingPipeline() {
 
     pipelineState.step1Result = await runPromptArchitect(
       userInput,
-      promptImages.map((img) => img.dataUrl),
+      promptImages
+        .filter((img) => img.url)
+        .map((img) => ({ url: img.url })),
     );
     updateBundleSpecFromArchitectResult();
     trackEvent("Prompt Architect Completed");
