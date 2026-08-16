@@ -202,8 +202,26 @@ async function uploadPromptImage(file) {
   return res.json()
 }
 
-// Normalises an uploaded file object into a URL string.
+// Normalises an uploaded file object into a URL string. The image endpoint
+// returns an ARRAY of per-file results, e.g.
+//   [{ item: {...file meta...}, index: 0, "<workflow-uuid>": { type: "external-url", file: "https://..." } }]
+// The external URL is under the entry's non-item/non-index key → .file.
 function uploadedFileUrl(uploaded) {
+  if (Array.isArray(uploaded)) {
+    const first = uploaded[0]
+    if (first && typeof first === "object") {
+      for (const key of Object.keys(first)) {
+        if (key === "item" || key === "index") continue
+        const entry = first[key]
+        if (entry && typeof entry === "object") {
+          if (typeof entry.file === "string") return entry.file
+          if (typeof entry.url === "string") return entry.url
+        }
+        if (typeof entry === "string") return entry
+      }
+    }
+    return ""
+  }
   if (typeof uploaded === "string") return uploaded
   if (uploaded && typeof uploaded === "object") {
     return (
@@ -213,6 +231,7 @@ function uploadedFileUrl(uploaded) {
       uploaded.downloadUrl ||
       uploaded.imageUrl ||
       uploaded.image_url ||
+      uploaded.file ||
       ""
     )
   }
