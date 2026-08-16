@@ -3068,7 +3068,7 @@ async function runPromptArchitect(userInput, images = []) {
     const result = await callBuildShip(
       "architect",
       PROMPT_ARCHITECT_MODEL,
-      buildArchitectPrompt(userInput, images),
+      buildArchitectPrompt(userInput),
       context,
       images,
     )
@@ -4626,22 +4626,6 @@ async function callBuildShip(step, model, prompt, context = {}, images = []) {
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), BUILDSHIP_TIMEOUT_MS)
 
-  // Attach images as OpenAI-style multimodal content parts so vision models
-  // actually see them. BuildShip forwards the prompt as the OpenRouter user
-  // message; array content with image_url parts is the format OpenRouter
-  // accepts (the review step already flows a messages array this way).
-  const bodyPrompt = images.length
-    ? [
-        {
-          role: "user",
-          content: [
-            { type: "text", text: String(prompt) },
-            ...images.map((url) => ({ type: "image_url", image_url: { url } })),
-          ],
-        },
-      ]
-    : prompt
-
   try {
     const res = await fetch(PIPELINE_ENDPOINT, {
       method: 'POST',
@@ -4651,7 +4635,8 @@ async function callBuildShip(step, model, prompt, context = {}, images = []) {
         user_id: identityState.userId,
         step,
         model,
-        prompt: bodyPrompt,
+        prompt,
+        images,
         context,
       }),
     })

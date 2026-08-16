@@ -15,15 +15,11 @@ function stringifyPipelinePayload(payload) {
   return JSON.stringify(payload, null, 2);
 }
 
-export function buildArchitectPrompt(userInput, images = []) {
-  const payload = {
+export function buildArchitectPrompt(userInput) {
+  return stringifyPipelinePayload({
     task: "architect",
     userRequest: String(userInput ?? ""),
-  };
-  if (Array.isArray(images) && images.length) {
-    payload.images = images;
-  }
-  return stringifyPipelinePayload(payload);
+  });
 }
 
 export function buildGeneratorPrompt(bundleSpec) {
