@@ -128,7 +128,7 @@ const SUBSCRIPTION_CACHE_KEY = 'ccc_subscription'
 const SUBSCRIPTION_CACHE_VERSION = 3
 const PAID_SUBSCRIPTION_STATUSES = new Set(['active', 'trialing', 'paid'])
 
-const FREE_MODEL = 'google/gemini-3.6-flash'
+const FREE_MODEL = 'google/gemini-3.7-flash'
 const PRO_MODELS = [
   'anthropic/claude-opus-5',
   'openai/gpt-5.6-sol',
@@ -142,7 +142,7 @@ const PRO_MODELS = [
 // Display names for every selectable model. Keep in sync with the
 // #code-generator-model options in index.html.
 const MODEL_LABELS = {
-  'google/gemini-3.6-flash': 'Gemini 3.6 Flash',
+  'google/gemini-3.7-flash': 'Gemini 3.7 Flash',
   'anthropic/claude-opus-5': 'Claude Opus 5',
   'openai/gpt-5.6-sol': 'GPT-5.6 Sol',
   'z-ai/glm-5.2': 'GLM 5.2',
@@ -156,12 +156,97 @@ function getModelLabel(model) {
   return MODEL_LABELS[model] || model
 }
 
+// Models whose image input is supported. Users can attach images to their
+// prompt only when the selected model accepts vision through OpenRouter.
+const IMAGE_SUPPORTED_MODELS = new Set([
+  'google/gemini-3.7-flash',
+  'anthropic/claude-opus-5',
+  'openai/gpt-5.6-sol',
+  'z-ai/glm-5.2',
+  'moonshotai/kimi-k3',
+  'openrouter/auto-beta',
+])
+
+function modelSupportsImages(model) {
+  return IMAGE_SUPPORTED_MODELS.has(model)
+}
+
+const MAX_PROMPT_IMAGES = 4
+let promptImages = [] // Array of { dataUrl, name } attached to the prompt
+
+function handlePromptImageSelect(event) {
+  const files = Array.from(event.target.files || [])
+  if (!files.length) return
+
+  const remaining = MAX_PROMPT_IMAGES - promptImages.length
+  const toAdd = files.slice(0, remaining)
+
+  const readPromises = toAdd.map(
+    (file) =>
+      new Promise((resolve) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve({ dataUrl: reader.result, name: file.name })
+        reader.onerror = () => resolve(null)
+        reader.readAsDataURL(file)
+      }),
+  )
+
+  Promise.all(readPromises).then((images) => {
+    const added = images.filter(Boolean)
+    promptImages.push(...added)
+    if (files.length > remaining) {
+      showToast(`You can attach up to ${MAX_PROMPT_IMAGES} images.`, "info")
+    }
+    renderPromptImages()
+    event.target.value = ""
+  })
+}
+
+function removePromptImage(index) {
+  promptImages.splice(index, 1)
+  renderPromptImages()
+}
+
+function renderPromptImages() {
+  const container = document.getElementById("prompt-image-thumbnails")
+  const label = document.getElementById("prompt-image-btn-label")
+  if (!container) return
+
+  container.innerHTML = ""
+  promptImages.forEach((img, i) => {
+    const el = document.createElement("div")
+    el.className = "prompt-img-thumb"
+    el.innerHTML =
+      `<img src="${escapeAttr(img.dataUrl)}" alt="Prompt image">` +
+      `<button type="button" class="prompt-img-remove" title="Remove image" onclick="removePromptImage(${i})">×</button>`
+    container.appendChild(el)
+  })
+
+  if (label) {
+    label.textContent =
+      promptImages.length >= MAX_PROMPT_IMAGES ? "Image limit reached" : "Add images"
+  }
+}
+
+function updatePromptImageAvailability() {
+  const section = document.getElementById("prompt-image-upload")
+  if (!section) return
+  const select = document.getElementById("code-generator-model")
+  const supports = modelSupportsImages(select?.value)
+  section.classList.toggle("hidden", !supports)
+  // Non-vision models have no way to consume images: drop any already attached.
+  if (!supports && promptImages.length) {
+    promptImages = []
+    renderPromptImages()
+  }
+}
+
 const USAGE_STORAGE_KEY = 'ccc_usage'
 
 // Model Configuration
-const PROMPT_ARCHITECT_MODEL = "google/gemini-3.6-flash"
-const CODE_REVIEW_MODEL = "google/gemini-3.6-flash"
-const FALLBACK_MODEL = "google/gemini-3.6-flash"
+const PROMPT_ARCHITECT_MODEL = "google/gemini-3.7-flash"
+const CODE_REVIEW_MODEL = "google/gemini-3.7-flash"
+const FALLBACK_MODEL = "google/gemini-3.7-flash"
 
 // --- DYNAMIC PRICING ---
 const BASE_PRICES_AUD = { professional: 11, power: 49 }
@@ -728,6 +813,11 @@ function hasStoredKey(provider) {
 // Get current active API keys (for use in API calls)
 let flutterflowApiKey = "";
 let flutterflowProjectId = "";
+
+// Per-deploy project override chosen in the confirm modal. When set, the
+// commit targets this project instead of the API Keys default, without
+// changing the stored configuration.
+let commitTargetProjectId = null;
 
 async function initializeApiKeys() {
   // Remove an exportable key left by an earlier version even if its encrypted
@@ -2042,65 +2132,6 @@ function runPreCommitChecks(codeInfo) {
   };
 }
 
-/**
- * Shows pre-commit summary to user for confirmation.
- * @param {Object} codeInfo - Prepared code info
- * @param {Object} checks - Results from runPreCommitChecks
- * @returns {Promise<boolean>} True if user confirms commit
- */
-async function showPreCommitSummary(codeInfo, checks) {
-  let summaryHtml = `
-    <div class="space-y-4">
-      <div>
-        <h3 class="font-semibold text-gray-900">Commit Summary</h3>
-        <p class="text-sm text-gray-600 mt-1">
-          File: <strong>${codeInfo.fileName}</strong><br>
-          Type: <strong>${codeInfo.artifactType}</strong><br>
-          Size: <strong>${(codeInfo.content.length / 1024).toFixed(1)} KB</strong><br>
-          Lines: <strong>${codeInfo.content.split("\n").length}</strong>
-        </p>
-      </div>
-  `;
-
-  if (checks.warnings.length > 0) {
-    summaryHtml += `
-      <div class="bg-yellow-50 border border-yellow-200 rounded p-3">
-        <h4 class="font-medium text-yellow-800 text-sm">Warnings (${checks.warnings.length})</h4>
-        <ul class="text-xs text-yellow-700 mt-2 space-y-1">
-          ${checks.warnings.map((w) => `<li>• ${w}</li>`).join("")}
-        </ul>
-      </div>
-    `;
-  }
-
-  if (checks.issues.length > 0) {
-    summaryHtml += `
-      <div class="bg-red-50 border border-red-200 rounded p-3">
-        <h4 class="font-medium text-red-800 text-sm">Issues (${checks.issues.length})</h4>
-        <ul class="text-xs text-red-700 mt-2 space-y-1">
-          ${checks.issues.map((i) => `<li>• ${i}</li>`).join("")}
-        </ul>
-      </div>
-    `;
-  }
-
-  summaryHtml += "</div>";
-
-  console.log("Pre-commit summary:", summaryHtml);
-
-  if (!checks.canProceed) {
-    return false;
-  }
-
-  if (checks.warnings.length > 0) {
-    return confirm(
-      `Found ${checks.warnings.length} warning(s). Proceed with commit?\n\n${checks.warnings.join("\n")}`,
-    );
-  }
-
-  return true;
-}
-
 // --- FILE VALIDATION FUNCTIONS ---
 
 /**
@@ -2732,7 +2763,8 @@ async function executeCommit(code, options = {}) {
     // Step 3: Validate FlutterFlow credentials
     commitState.setState(CommitState.VALIDATING);
     const apiKey = await getApiKey("flutterflow");
-    const projectId = await getApiKey("flutterflow_project_id");
+    const projectId =
+      commitTargetProjectId || (await getApiKey("flutterflow_project_id"));
 
     if (!apiKey) {
       throw new Error(
@@ -2918,7 +2950,8 @@ async function executeBundleCommit(bundlePlan, options = {}) {
 
     commitState.setState(CommitState.VALIDATING);
     const apiKey = await getApiKey("flutterflow");
-    const projectId = await getApiKey("flutterflow_project_id");
+    const projectId =
+      commitTargetProjectId || (await getApiKey("flutterflow_project_id"));
 
     if (!apiKey) {
       throw new Error("FlutterFlow API Key not configured. Please add it in API Keys settings.");
@@ -3028,13 +3061,16 @@ async function executeBundleCommit(bundlePlan, options = {}) {
 
 // --- PIPELINE FUNCTIONS ---
 
-async function runPromptArchitect(userInput) {
+async function runPromptArchitect(userInput, images = []) {
+  const context = createBuildShipContext("architect")
+  if (images.length) context.images = images
   try {
     const result = await callBuildShip(
       "architect",
       PROMPT_ARCHITECT_MODEL,
       buildArchitectPrompt(userInput),
-      createBuildShipContext("architect"),
+      context,
+      images,
     )
     return result
   } catch (error) {
@@ -3501,7 +3537,10 @@ async function runThinkingPipeline() {
     updatePipelineProgressStep(1);
     showStepLoading(1, true);
 
-    pipelineState.step1Result = await runPromptArchitect(userInput);
+    pipelineState.step1Result = await runPromptArchitect(
+      userInput,
+      promptImages.map((img) => img.dataUrl),
+    );
     updateBundleSpecFromArchitectResult();
     trackEvent("Prompt Architect Completed");
 
@@ -3684,36 +3723,14 @@ async function initiateCommitToFlutterFlow() {
 
   const checks = runPreCommitChecks(codeInfo);
 
-  const shouldProceed = await showPreCommitSummary(codeInfo, checks);
-
-  if (!shouldProceed) {
-    console.log("User cancelled commit");
+  if (!checks.canProceed) {
+    showToast(`Pre-commit checks failed: ${checks.issues.join("; ")}`, "error");
     return;
   }
 
-  showCommitProgress({
-    withProvisioning: codeInfo.codeType === CodeType.CODE_FILE,
-  });
-  trackEvent("Deploy to FlutterFlow Started", { artifactType, artifactName });
-
-  const result = await executeCommit(code, {
-    artifactType,
-    artifactName,
-    pipelineResult: {
-      step1Result: pipelineState.step1Result,
-      selectedModel: document.getElementById("code-generator-model")?.value,
-    },
-  });
-
-  hideCommitProgress();
-
-  if (result.success) {
-    trackEvent("Deploy to FlutterFlow Success", { artifactType, artifactName });
-    showCommitSuccessModal(result);
-  } else {
-    trackEvent("Deploy to FlutterFlow Failed", { artifactType, artifactName, error: result.error });
-    showCommitFailureModal(result);
-  }
+  // Route through the shared confirm modal so the user picks the target
+  // FlutterFlow project right before deploying.
+  openCommitConfirmModal(codeInfo, checks, null, null);
 }
 
 async function initiateBundleCommitToFlutterFlow() {
@@ -4410,6 +4427,7 @@ function updateModelSelectorGating() {
         openPricingModal()
       }
       updateModelInfo(select.value)
+      updatePromptImageAvailability()
     })
     proGateAttachedSet.add(select)
   }
@@ -4603,10 +4621,11 @@ async function openCustomerPortal() {
   }
 }
 
-async function callBuildShip(step, model, prompt, context = {}) {
+async function callBuildShip(step, model, prompt, context = {}, images = []) {
   const BUILDSHIP_TIMEOUT_MS = 120000
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), BUILDSHIP_TIMEOUT_MS)
+
   try {
     const res = await fetch(PIPELINE_ENDPOINT, {
       method: 'POST',
@@ -4617,6 +4636,7 @@ async function callBuildShip(step, model, prompt, context = {}) {
         step,
         model,
         prompt,
+        images,
         context,
       }),
     })
@@ -4711,6 +4731,7 @@ function updateSubscriptionUI() {
 
   updatePricingModalState(resolved ? tier : null)
   updateModelSelectorGating()
+  updatePromptImageAvailability()
   updateUsageDisplay()
 }
 
@@ -4901,6 +4922,63 @@ function dismissWelcomeVideo() {
 let pendingCommitData = null;
 
 /**
+ * Populates the deploy-time project dropdown in the commit confirm modal,
+ * defaulting to the project configured in API Keys so the stored choice is
+ * pre-selected but the final target can be changed before committing.
+ */
+async function populateConfirmProjectSelect() {
+  const select = document.getElementById("confirm-project-select");
+  if (!select) return;
+
+  const apiKey = await getApiKey("flutterflow");
+  const storedId = await getApiKey("flutterflow_project_id");
+
+  if (!apiKey) {
+    select.innerHTML =
+      '<option value="">Add your FlutterFlow API Key to select a project</option>';
+    select.disabled = true;
+    return;
+  }
+
+  select.disabled = false;
+  select.innerHTML = '<option value="">Loading projects…</option>';
+  try {
+    const client = new FlutterFlowApiClient(apiKey, "");
+    const projects = await client.listProjects();
+
+    if (!projects || projects.length === 0) {
+      select.innerHTML = '<option value="">No projects found</option>';
+      return;
+    }
+
+    select.innerHTML = '<option value="">Select a project…</option>';
+    projects.forEach((project) => {
+      const option = document.createElement("option");
+      option.value = project.id || project.projectId || "";
+      option.textContent =
+        project.name || project.projectName || `Project ${project.id}`;
+      select.appendChild(option);
+    });
+
+    if (storedId) select.value = storedId;
+  } catch (error) {
+    console.error("Failed to load projects for deploy:", error);
+    select.innerHTML =
+      '<option value="">Failed to load projects — check your API Key</option>';
+  }
+}
+
+/**
+ * Reads the project chosen in the confirm modal, falling back to the stored
+ * API Keys default when none was selected.
+ */
+function readCommitTargetProjectId() {
+  const select = document.getElementById("confirm-project-select");
+  const chosen = select?.value?.trim();
+  return chosen || null;
+}
+
+/**
  * Opens the commit confirmation modal with code details.
  * @param {Object} codeInfo - Prepared code info
  * @param {Object} checks - Pre-commit check results
@@ -4917,10 +4995,7 @@ function openCommitConfirmModal(codeInfo, checks, deps, bundlePlan = null) {
   document.getElementById("confirm-line-count").textContent =
     bundlePlan ? `${bundlePlan.fileEntries.length} files` : codeInfo.content.split("\n").length;
 
-  getApiKey("flutterflow_project_id").then((projectId) => {
-    document.getElementById("confirm-project-id").textContent =
-      projectId || "Not configured";
-  });
+  populateConfirmProjectSelect();
 
   const depsList = document.getElementById("confirm-deps-list");
   const depsSection = document.getElementById("confirm-deps-section");
@@ -5311,6 +5386,7 @@ async function confirmCommitToFlutterFlow() {
   }
 
   const commitData = pendingCommitData;
+  commitTargetProjectId = readCommitTargetProjectId();
   closeCommitConfirmModal();
   showCommitProgress({ withProvisioning: commitNeedsProvisioning(commitData) });
 
@@ -5322,6 +5398,7 @@ async function confirmCommitToFlutterFlow() {
       },
     });
 
+    commitTargetProjectId = null;
     hideCommitProgress();
 
     if (result.success) {
@@ -5346,6 +5423,7 @@ async function confirmCommitToFlutterFlow() {
     },
   });
 
+  commitTargetProjectId = null;
   hideCommitProgress();
 
   if (result.success) {
@@ -5391,6 +5469,8 @@ function openModelSelector() {
 
 window.focusPromptInput = focusPromptInput;
 window.openModelSelector = openModelSelector;
+window.handlePromptImageSelect = handlePromptImageSelect;
+window.removePromptImage = removePromptImage;
 window.saveApiKeys = saveApiKeys;
 window.clearAllApiKeys = clearAllApiKeys;
 window.toggleKeyVisibility = toggleKeyVisibility;
