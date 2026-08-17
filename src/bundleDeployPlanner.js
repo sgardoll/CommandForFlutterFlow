@@ -94,7 +94,7 @@ export function buildBundleDeployPlan(bundle, options = {}) {
 
   selected.forEach((artifact) => {
     const fileName = toFileName(artifact);
-    const content = artifact.code || "";
+    const content = artifact.fixedCode || artifact.code || "";
     const codeType = artifact.codeType || ARTIFACT_TYPE_TO_CODE_TYPE[artifact.artifactType] || CODE_TYPE.OTHER;
     if (!content.trim()) {
       warnings.push(`${artifact.artifactName || artifact.id} has no generated code.`);

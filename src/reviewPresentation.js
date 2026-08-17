@@ -1,18 +1,10 @@
 import { parseJsonLike } from "./artifactBundle.js";
 
 const STATUS_RANK = { pass: 0, warning: 1, fail: 2 };
-const MANUAL_STEP_KEYS = [
-  "manualSteps",
-  "manualActions",
-  "requiredActions",
-  "flutterFlowSteps",
-  "flutterFlowActions",
-  "requiredUserActions",
-  "requiredFlutterFlowActions",
-  "flutterFlowSetup",
-  "userActions",
-  "nextSteps",
-];
+// The REVIEW_SYSTEM prompt on BuildShip defines a typed manualActions contract
+// with explicit exclusions and preferEmpty. Scavenging extra key names
+// (nextSteps, userActions, etc.) leaks noise past that contract.
+const MANUAL_STEP_KEYS = ["manualActions"];
 
 function toObject(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
@@ -253,6 +245,9 @@ function buildArtifactPresentation(bundle, reviewArtifacts, artifact, index) {
     reviewComplete: hasStructuredReview,
     findings,
     manualSteps,
+    fixedSource: typeof review.fixedSource === "string" && review.fixedSource.trim()
+      ? review.fixedSource.trim()
+      : null,
     pathHint: getPathHint(bundle, artifact),
     relationships: getArtifactRelationships(bundle, artifact),
   };

@@ -114,7 +114,7 @@ test("unwraps a message content envelope and preserves explicit manual steps", (
       content: JSON.stringify({
         overallSummary: "One blocking issue.",
         status: "fail",
-        flutterFlowSteps: ["Create the required App State variable."],
+        manualActions: [{ title: "Create the required App State variable." }],
         artifacts: [
           {
             id: "execute_webhook",
@@ -261,6 +261,55 @@ test("synthesizes an actionable summary and flags a missing score when none is r
   assert.match(presentation.summary, /Add the http package/);
   assert.match(presentation.summary, /No numeric score/);
   assert.doesNotMatch(presentation.summary, /overarching written summary/);
+});
+
+test("passes through fixedSource from a review artifact", () => {
+  const presentation = buildReviewPresentation({
+    bundle,
+    reviewResult: {
+      artifacts: [
+        {
+          id: "format-payload",
+          review: { status: "pass", findings: [] },
+        },
+        {
+          id: "execute-webhook",
+          review: {
+            status: "warn",
+            fixedSource: "Future<bool> executeWebhook() async => true;",
+            findings: [
+              {
+                severity: "warning",
+                message: "Color.withOpacity replaced with Color.withValues.",
+              },
+            ],
+          },
+        },
+      ],
+    },
+  });
+
+  assert.equal(presentation.artifacts[0].fixedSource, null);
+  assert.equal(
+    presentation.artifacts[1].fixedSource,
+    "Future<bool> executeWebhook() async => true;",
+  );
+});
+
+test("ignores empty or whitespace-only fixedSource", () => {
+  const presentation = buildReviewPresentation({
+    bundle,
+    reviewResult: {
+      artifacts: [
+        {
+          id: "format-payload",
+          review: { status: "pass", fixedSource: "   ", findings: [] },
+        },
+      ],
+    },
+  });
+
+  assert.equal(presentation.artifacts[0].fixedSource, null);
 });
 
 test("keeps a supplied score and written summary verbatim", () => {

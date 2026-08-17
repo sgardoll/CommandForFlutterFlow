@@ -157,3 +157,36 @@ test("honors an explicit deployPath and still flags true duplicate targets", () 
   assert.equal(plan.errors.length, 1);
   assert.match(plan.errors[0], /Duplicate deploy path/);
 });
+
+test("prefers artifact.fixedCode over artifact.code for deploy content", () => {
+  const plan = buildBundleDeployPlan({
+    artifacts: [
+      {
+        id: "widget-a",
+        artifactType: "CustomWidget",
+        artifactName: "WidgetA",
+        fileName: "widget_a.dart",
+        code: "class WidgetA extends StatelessWidget { main() {} }",
+        fixedCode: "class WidgetA extends StatelessWidget {}",
+      },
+    ],
+  });
+
+  assert.equal(plan.fileEntries[0].content, "class WidgetA extends StatelessWidget {}");
+});
+
+test("falls back to artifact.code when fixedCode is absent", () => {
+  const plan = buildBundleDeployPlan({
+    artifacts: [
+      {
+        id: "widget-a",
+        artifactType: "CustomWidget",
+        artifactName: "WidgetA",
+        fileName: "widget_a.dart",
+        code: "class WidgetA extends StatelessWidget {}",
+      },
+    ],
+  });
+
+  assert.equal(plan.fileEntries[0].content, "class WidgetA extends StatelessWidget {}");
+});

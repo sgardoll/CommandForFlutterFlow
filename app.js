@@ -13,9 +13,6 @@ import {
 } from "./src/pipelineContracts.js";
 import { createModelArmorError } from "./src/modelArmorResponse.js";
 import {
-  getBlockingWidgetErrors,
-  getCustomActionFileNameError,
-  getCustomActionReturnTypeError,
   getDeclaredDartTypes,
   validateBundleCompatibility,
 } from "./src/flutterFlowArtifactValidation.js";
@@ -1421,13 +1418,25 @@ function updateBundleReviewFromReviewResult() {
   const reviewByArtifactId = new Map(
     reviewBundle.artifacts.map((artifact) => [artifact.id, artifact.review]),
   );
+  const fixedSourceByArtifactId = new Map(
+    reviewBundle.artifacts
+      .filter((artifact) => {
+        const review = artifact.review;
+        return review && typeof review.fixedSource === "string" && review.fixedSource.trim();
+      })
+      .map((artifact) => [artifact.id, artifact.review.fixedSource.trim()]),
+  );
   pipelineState.bundleReview = normalizeArtifactBundle({
     id: pipelineState.artifactBundle?.id,
     title: pipelineState.artifactBundle?.title,
-    artifacts: pipelineState.artifactBundle?.artifacts?.map((artifact) => ({
-      ...artifact,
-      review: reviewByArtifactId.get(artifact.id) || artifact.review || pipelineState.step3Result || null,
-    })) || [],
+    artifacts: pipelineState.artifactBundle?.artifacts?.map((artifact) => {
+      const fixedCode = fixedSourceByArtifactId.get(artifact.id) || null;
+      return {
+        ...artifact,
+        review: reviewByArtifactId.get(artifact.id) || artifact.review || pipelineState.step3Result || null,
+        ...(fixedCode ? { fixedCode } : {}),
+      };
+    }) || [],
     relationships: pipelineState.artifactBundle?.relationships,
     warnings: pipelineState.artifactBundle?.warnings,
   });
@@ -2376,65 +2385,9 @@ function validateDartFile(
   const hasWidgetClass = WIDGET_CLASS_REGEX.test(content);
   const hasStateClass = STATE_CLASS_REGEX.test(content);
 
-  // Check for forbidden patterns in FlutterFlow
-  const forbiddenPatterns = [
-    {
-      pattern: /void\s+main\s*\(/,
-      message: "Contains main() function - not allowed in FlutterFlow",
-    },
-    {
-      pattern: /runApp\s*\(/,
-      message: "Contains runApp() - not allowed in FlutterFlow",
-    },
-    {
-      pattern: /MaterialApp\s*\(/,
-      message: "Contains MaterialApp - not allowed in FlutterFlow",
-    },
-    {
-      pattern: /Scaffold\s*\(/,
-      message: "Contains Scaffold - usually not needed in FlutterFlow widgets",
-    },
-  ];
-
-  // Validate imports based on artifact type
-  const isCustomFunction =
-    fileName.includes("custom_functions") || fileName.includes("functions");
-  const importRegex = /^\s*import\s+['"]([^'"]+)['"]/gm;
-  let match;
-  while ((match = importRegex.exec(content)) !== null) {
-    const importPath = match[1];
-    const isAllowedFFImport =
-      importPath.startsWith("/flutter_flow/") ||
-      importPath.startsWith("/backend/") ||
-      importPath.startsWith("/custom_code/") ||
-      importPath === "index.dart" ||
-      importPath === "package:flutter/material.dart" ||
-      importPath === "package:flutter/services.dart";
-    const isDartSdkImport =
-      importPath.startsWith("dart:") || importPath.startsWith("package:");
-
-    if (isCustomFunction) {
-      // Custom Functions: only dart: imports allowed (no external packages)
-      if (!importPath.startsWith("dart:")) {
-        errors.push(
-          `Custom Functions cannot use '${importPath}' - only Dart SDK imports allowed`,
-        );
-      }
-    } else {
-      // Widgets/Actions: allow FF imports + dart: + flutter packages
-      if (!isAllowedFFImport && !isDartSdkImport) {
-        errors.push(
-          `Unknown import '${importPath}' - use FlutterFlow managed imports`,
-        );
-      }
-    }
-  }
-
-  for (const { pattern, message } of forbiddenPatterns) {
-    if (pattern.test(content)) {
-      errors.push(message);
-    }
-  }
+  // Forbidden patterns (main, runApp, MaterialApp, Scaffold) and import
+  // validation live in the REVIEW_SYSTEM prompt on BuildShip so a stale
+  // client cannot bypass them.
 
   // Check for required patterns in widgets
   if (codeType === CodeType.WIDGET && !hasWidgetClass && !hasStateClass) {
@@ -2443,27 +2396,11 @@ function validateDartFile(
     );
   }
 
-  // A widget FlutterFlow cannot construct from an unset Define Parameters
-  // panel is reported as blocking in the review, so it has to block here too -
-  // otherwise the deploy lands code the project cannot compile.
-  if (codeType === CodeType.WIDGET) {
-    errors.push(...getBlockingWidgetErrors(content));
-  }
-
-  if (codeType === CodeType.ACTION) {
-    const returnTypeError = getCustomActionReturnTypeError(content, {
-      functionName: artifactName,
-      declaredTypes,
-    });
-    if (returnTypeError) errors.push(returnTypeError);
-
-    const fileNameError = getCustomActionFileNameError(
-      fileName,
-      content,
-      artifactName,
-    );
-    if (fileNameError) errors.push(fileNameError);
-  }
+  // Widget construction (required/non-nullable params), Action
+  // return-type / file-name checks, forbidden patterns (main, runApp,
+  // MaterialApp, Scaffold), and import validation all live in the
+  // REVIEW_SYSTEM prompt on BuildShip so a stale client cannot bypass
+  // them. The only remaining gate is the missing-class check below.
 
   // A Code File's path is author-controlled in FlutterFlow, so a file name that
   // disagrees with the declared class is a naming convention, not something
