@@ -443,6 +443,13 @@ export function getCustomClassFileNameError(fileName, code) {
   );
   if (matchesSomeDeclaredType) return null;
 
+  // A file that groups several classes/enums (a shared models file, say) is
+  // legitimately named after the collection rather than any single type it
+  // holds - picking one declared type and suggesting the file be renamed
+  // after it is bad advice, not a real naming mismatch. Only advise a rename
+  // when there is exactly one type to name the file after.
+  if (declaredTypes.length > 1) return null;
+
   const [primary] = declaredTypes;
   const suggestedFileName = `${pascalCaseToSnakeCase(primary)}.dart`;
   return `File name "${fileName}" does not match declared class "${primary}". FlutterFlow accepts this, but naming the file "${suggestedFileName}" keeps the Code File recognisable in the editor.`;
@@ -613,7 +620,10 @@ export function validateArtifactCompatibility(artifact, options = {}) {
   if (artifact.artifactType === "CustomClass" || artifact.artifactType === "CodeFile") {
     const fileNameError = getCustomClassFileNameError(fileName, code);
     if (fileNameError) {
-      findings.push(createFinding(artifact, "warning", fileNameError));
+      // A Code File's path is author-controlled in FlutterFlow, so a name that
+      // does not match its class is a convention nit, not something to flag
+      // for attention - "info", not "warning".
+      findings.push(createFinding(artifact, "info", fileNameError));
     }
   }
 

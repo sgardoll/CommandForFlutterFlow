@@ -361,11 +361,32 @@ test("advises, without blocking, on a CustomClass file name that is not its clas
   });
 
   assert.equal(findings.length, 1);
-  // A Code File path is author-controlled in FlutterFlow, so this never blocks.
-  assert.equal(findings[0].severity, "warning");
+  // A Code File path is author-controlled in FlutterFlow, so this is a naming
+  // convention nit, not something to flag for attention - "info", never
+  // "warning" or "fail" (per REVIEW_SYSTEM's own stated policy).
+  assert.equal(findings[0].severity, "info");
   assert.match(findings[0].message, /pipedream_integration_model\.dart/);
   assert.match(findings[0].message, /PipedreamIntegration/);
   assert.match(findings[0].message, /pipedream_integration\.dart/);
+});
+
+test("does not suggest renaming a shared file after just one of several declared classes", () => {
+  // A file like node_graph_models.dart legitimately groups several related
+  // classes; blaming it for not matching whichever one happens to be declared
+  // first is bad advice, not a real naming mismatch.
+  const findings = validateArtifactCompatibility({
+    id: "node-graph-models",
+    artifactName: "GraphPort",
+    artifactType: "CustomClass",
+    fileName: "node_graph_models.dart",
+    code: `
+      class GraphPort { const GraphPort(); }
+      class GraphNode { const GraphNode(); }
+      class GraphEdge { const GraphEdge(); }
+    `,
+  });
+
+  assert.deepEqual(findings, []);
 });
 
 test("allows a CustomClass file name that is the exact snake_case of its class", () => {
