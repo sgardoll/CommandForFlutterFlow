@@ -1,0 +1,43 @@
+{
+  "schemaVersion": "artifact-bundle/v1",
+  "id": "same-bundle-id-if-known",
+  "title": "Review title",
+  "artifacts": [
+    {
+      "id": "artifact-id",
+      "artifactType": "CustomWidget | CustomAction | CustomFunction | CustomClass | CodeFile",
+      "artifactName": "ArtifactName",
+      "review": {
+        "status": "pass | warn | fail",
+        "fixedSource": "Full corrected Dart source when surgical fixes were applied. Omit when no fixes were made or the fixes require design decisions the reviewer cannot make.",
+        "findings": [
+          {
+            "severity": "info | warning | error",
+            "message": "Specific finding",
+            "suggestion": "Concrete fix when needed"
+          }
+        ]
+      }
+    }
+  ],
+  "bundleReview": {
+    "status": "pass | warn | fail",
+    "score": "REQUIRED once per response: integer 0-100 rating the full bundle's deploy-readiness in the user's own FlutterFlow project (see score rubric below)",
+    "summary": "REQUIRED once per response: the user's deploy guide. Lead with the go/no-go verdict, then the concrete actions they must take in their own FlutterFlow project before and after deploy. 2-4 sentences. Never blank and never a generic placeholder.",
+    "manualActions": [
+      {
+        "title": "Short imperative action the user must take in FlutterFlow",
+        "location": "Where in FlutterFlow (e.g. Custom Widgets > add to page, Custom Data Types, App State)",
+        "timing": "before deploy | after deploy",
+        "detail": "Why, and how to do it"
+      }
+    ],
+    "findings": [
+      {
+        "severity": "info | warning | error",
+        "message": "Cross-artifact, deploy-order, dependency, file-path, or FlutterFlow integration finding",
+        "suggestion": "Concrete fix when needed"
+      }
+    ]
+  }
+}

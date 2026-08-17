@@ -42,7 +42,10 @@ export function normalizeArtifact(rawArtifact = {}, index = 0) {
   const artifact = toObject(rawArtifact);
   const artifactType = artifact.artifactType || artifact.type || DEFAULT_ARTIFACT_TYPE;
   const artifactName = artifact.artifactName || artifact.name || DEFAULT_ARTIFACT_NAME;
-  const fileName = artifact.fileName || `${artifactName}.dart`;
+  let fileName = artifact.fileName || artifactName;
+  if (!fileName.endsWith(".dart")) {
+    fileName += ".dart";
+  }
   const normalizedProvidedId = slugify(artifact.id);
 
   return {
