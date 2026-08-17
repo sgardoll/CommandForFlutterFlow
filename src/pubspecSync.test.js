@@ -89,9 +89,9 @@ test("returns the file untouched when nothing new is required", () => {
   );
 });
 
-test("writes a version-less package as an explicit any constraint", () => {
+test("never writes 'any' — writes >=0.0.0 when version is missing", () => {
   const result = mergeDependenciesIntoYaml(PROJECT_PUBSPEC, { http: "" });
-  assert.match(result.yaml, /^ {2}http: any$/m);
+  assert.match(result.yaml, /^ {2}http: >=0\.0\.0$/m);
 });
 
 test("appends a dependencies block when the file has none", () => {
@@ -161,7 +161,7 @@ dependencies:
   // Ordinary caret and exact constraints stay idiomatic and unquoted.
   assert.match(mergeDependenciesIntoYaml(base, { foo: "^1.2.0" }).yaml, /^ {2}foo: \^1\.2\.0$/m);
   assert.match(mergeDependenciesIntoYaml(base, { foo: "1.2.0+1" }).yaml, /^ {2}foo: 1\.2\.0\+1$/m);
-  assert.match(mergeDependenciesIntoYaml(base, { foo: "" }).yaml, /^ {2}foo: any$/m);
+  assert.match(mergeDependenciesIntoYaml(base, { foo: "" }).yaml, /^ {2}foo: >=0\.0\.0$/m);
 });
 
 test("accepts a real project pubspec and rejects a synthesized stub", () => {

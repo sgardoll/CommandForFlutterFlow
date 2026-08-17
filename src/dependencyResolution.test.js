@@ -138,16 +138,27 @@ test("never rewrites a git or path dependency into a version constraint", async 
   assert.match(plan.warnings[0], /git, path, or SDK source/);
 });
 
-test("adds without a constraint rather than inventing one when lookup fails", async () => {
+test("never emits empty version — uses the AI's version when pub.dev fails", async () => {
+  const plan = await planDependencyChanges(
+    PROJECT_PUBSPEC,
+    { mystery_package: "1.5.0" },
+    { resolveVersions: stubResolver({}) },
+  );
+
+  // Falls back to ^<requested_version> when pub.dev lookup fails.
+  assert.deepEqual(plan.additions, { mystery_package: "^1.5.0" });
+  assert.match(plan.warnings[0], /Could not confirm/);
+});
+
+test("falls back to >=0.0.0 when pub.dev fails and AI provided no version", async () => {
   const plan = await planDependencyChanges(
     PROJECT_PUBSPEC,
     { mystery_package: "" },
     { resolveVersions: stubResolver({}) },
   );
 
-  assert.deepEqual(plan.additions, { mystery_package: "" });
-  assert.match(plan.warnings[0], /Could not determine a version/);
-  // The point of the fix: no fabricated version number reaches the pubspec.
+  assert.deepEqual(plan.additions, { mystery_package: ">=0.0.0" });
+  assert.match(plan.warnings[0], /pin a concrete version/);
   assert.doesNotMatch(plan.warnings[0], /\^1\.0\.0/);
 });
 

@@ -124,12 +124,25 @@ export async function planDependencyChanges(
         plan.additions[name] = result.constraint;
         continue;
       }
-      // Never invent a pin. `any` lets pub pick a version that fits the
-      // project's SDK, which is strictly better than a guessed number.
-      plan.additions[name] = "";
+      // The AI must supply a version for every dependency (see review rules).
+      // When pub.dev is unreachable, the AI's version is the best we have.
+      const requestedMinimum = requestedDependencies[name] || "";
+      if (constraintLowerBound(requestedMinimum)) {
+        plan.additions[name] = `^${constraintLowerBound(requestedMinimum)}`;
+        plan.warnings.push(
+          `Could not confirm "${name}" version on pub.dev (${result?.error || "lookup failed"}). ` +
+            `Using ^${constraintLowerBound(requestedMinimum)} from the AI's recommendation — verify this is current.`,
+        );
+        continue;
+      }
+      // The AI gave no version and pub.dev is unreachable.
+      // `>=0.0.0` is a legal constraint (pub resolves the newest release that
+      // fits the project's SDK) but the user must pin a real version.
+      plan.additions[name] = ">=0.0.0";
       plan.warnings.push(
-        `Could not determine a version for "${name}" (${result?.error || "lookup failed"}). ` +
-          "Added without a version constraint — set one in FlutterFlow if the build picks the wrong release.",
+        `Could not determine a version for "${name}" (${result?.error || "lookup failed"}) ` +
+          "and the AI supplied none. Added with a wide-open >=0.0.0 constraint — " +
+          "pin a concrete version in FlutterFlow before deploying.",
       );
     }
   }

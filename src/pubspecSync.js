@@ -190,9 +190,7 @@ function formatConstraint(constraint) {
 
 function formatDependencyLine(indent, name, version) {
   const constraint = String(version || "").trim();
-  // A bare `name:` parses as null, which pub reads as "any". Say it explicitly
-  // so the pushed file is unambiguous to FlutterFlow's yaml validation.
-  return `${indent}${name}: ${constraint ? formatConstraint(constraint) : "any"}`;
+  return `${indent}${name}: ${constraint ? formatConstraint(constraint) : ">=0.0.0"}`;
 }
 
 /**
