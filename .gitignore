@@ -44,3 +44,5 @@ NOW.md
 # Python bytecode from scripts/
 __pycache__/
 *.pyc
+BUILDSHIP_ARCHITECT_SYSTEM_PROMPT_UPDATED.txt
+BUILDSHIP_GENERATOR_SYSTEM_PROMPT_UPDATED.txt
