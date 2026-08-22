@@ -40,7 +40,10 @@ test("sanitizeGeneratedDart strips bare fences and surrounding prose", () => {
   assert.equal(sanitizeGeneratedDart(raw), SIMPLE_WIDGET);
 });
 
-test("sanitizeGeneratedDart removes interior fence lines from multi-block responses", () => {
+test("sanitizeGeneratedDart drops prose between multi-block responses", () => {
+  // STU-148: the previous sanitizer removed only the fence lines and kept
+  // whatever explanatory text sat between the blocks, so the committed file
+  // still failed FlutterFlow's formatter.
   const raw = [
     "```dart",
     "class A extends StatelessWidget {}",
@@ -53,8 +56,25 @@ test("sanitizeGeneratedDart removes interior fence lines from multi-block respon
   const result = sanitizeGeneratedDart(raw);
 
   assert.equal(result.includes("```"), false);
+  assert.equal(result.includes("And another"), false);
   assert.match(result, /class A extends/);
   assert.match(result, /class B extends/);
+});
+
+test("sanitizeGeneratedDart drops content after an unclosed trailing fence", () => {
+  // A response cut off mid-block cannot be valid Dart; committing its tail
+  // would only move the failure to FlutterFlow's formatter.
+  const raw = [
+    "```dart",
+    SIMPLE_WIDGET,
+    "```",
+    "Second part:",
+    "```dart",
+    "class Broken extends Stateless",
+  ].join("\n");
+  const result = sanitizeGeneratedDart(raw);
+
+  assert.equal(result, SIMPLE_WIDGET);
 });
 
 test("sanitizeGeneratedDart keeps the code side of a single truncated fence", () => {
@@ -169,6 +189,50 @@ test("findUnbalancedBracketError handles nested interpolation strings", () => {
 
   // A quote left open inside an interpolation is still a real defect.
   const error = findUnbalancedBracketError("f('${a[');");
+  assert.match(error, /unclosed string/);
+});
+
+test("STU-148: a raw string ending in a backslash closes at its quote", () => {
+  // r'\' holds one literal backslash; treating the backslash as an escape used
+  // to skip the closing quote and report every following bracket against it.
+  const code = [
+    "class BackslashSplitter extends StatelessWidget {",
+    "  static final RegExp sep = RegExp(r'\\');",
+    "  @override",
+    "  Widget build(BuildContext context) => const SizedBox.shrink();",
+    "}",
+  ].join("\n");
+
+  assert.equal(findUnbalancedBracketError(code), null);
+});
+
+test("STU-148: raw triple-quoted strings keep their literal backslashes", () => {
+  const code = "final doc = r'''a \\ b { [ (''';\nvoid main() {}";
+
+  assert.equal(findUnbalancedBracketError(code), null);
+});
+
+test("STU-148: raw strings do not interpolate so ${ is literal", () => {
+  // Interpolation is disabled inside raw strings; pushing an interpolation
+  // frame for ${ used to misattribute the braces that follow.
+  const code = "final s = r'\${([{';\nvoid main() {}";
+
+  assert.equal(findUnbalancedBracketError(code), null);
+});
+
+test("STU-148: uppercase R prefix marks raw strings too", () => {
+  const code = "final sep = RegExp(R'\\');\nvoid main() {}";
+
+  assert.equal(findUnbalancedBracketError(code), null);
+});
+
+test("escaped backslashes in normal strings still close correctly", () => {
+  // 'a\\' is a complete non-raw string holding one backslash; the escape must
+  // still be honored outside raw mode.
+  assert.equal(findUnbalancedBracketError("final x = 'a\\\\';\nvoid f() {}"), null);
+
+  // ...and a genuinely unterminated non-raw string is still reported.
+  const error = findUnbalancedBracketError("final x = 'a\\;");
   assert.match(error, /unclosed string/);
 });
 

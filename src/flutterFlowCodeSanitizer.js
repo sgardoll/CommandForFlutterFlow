@@ -21,11 +21,16 @@ function trimBlankEdgeLines(lines) {
 /**
  * Removes markdown artifacts and surrounding junk from generated Dart.
  *
- * Fence lines are dropped wherever they appear: a ``` never occurs in valid
- * widget Dart, while leaving one in guarantees FlutterFlow rejects the file as
- * unformattable. With a single fence line (a truncated response), whichever
- * side holds more content is kept. Blank edge lines are trimmed so the header
- * application in prepareCodeForCommit starts from clean source.
+ * Fence lines are paired sequentially - the first opens a block, the second
+ * closes it, and so on - and only content inside completed pairs is kept. That
+ * drops prose wrapped around the response AND prose sitting between multiple
+ * fenced blocks, either of which left in the file guarantees FlutterFlow
+ * rejects the push as unformattable (STU-148). Content after an unclosed
+ * trailing fence is a truncated response and is dropped: committing cut-off
+ * Dart fails formatting anyway. With exactly one fence line (a truncated
+ * wrap), whichever side holds more content is kept. Blank edge lines are
+ * trimmed so the header application in prepareCodeForCommit starts from clean
+ * source.
  * @param {string} rawCode - Raw generated response text
  * @returns {string} Dart-only source, empty when the input has no content
  */
@@ -51,14 +56,20 @@ export function sanitizeGeneratedDart(rawCode) {
     return after.length >= before.length ? after : before;
   }
 
-  // Wrapped response: everything between the first and last fence line is the
-  // code; prose outside the pair is dropped along with any interior fence
-  // lines (multi-block responses).
-  const fenced = new Set(fenceIndexes);
-  return trimBlankEdgeLines(
-    lines.slice(fenceIndexes[0] + 1, fenceIndexes[fenceIndexes.length - 1])
-      .filter((_, index) => !fenced.has(index + fenceIndexes[0] + 1)),
-  );
+  // Two or more fence lines: keep only what sits inside completed pairs.
+  const segments = [];
+  for (let index = 0; index + 1 < fenceIndexes.length; index += 2) {
+    const open = fenceIndexes[index];
+    const close = fenceIndexes[index + 1];
+    if (close > open + 1) {
+      segments.push(trimBlankEdgeLines(lines.slice(open + 1, close)));
+    }
+  }
+
+  const kept = segments.filter((segment) => segment.length > 0);
+  if (kept.length === 0) return "";
+
+  return kept.join("\n\n");
 }
 
 /**
@@ -121,6 +132,7 @@ export function expectedWidgetClassFromFileName(fileName) {
 
 const OPENERS = { "(": ")", "[": "]", "{": "}" };
 const CLOSERS = { ")": "(", "]": "[", "}": "{" };
+const IDENTIFIER_TAIL = /[A-Za-z0-9_$]/;
 
 /**
  * Reports the first bracket-balance problem in Dart source, or null when the
@@ -130,7 +142,10 @@ const CLOSERS = { ")": "(", "]": "[", "}": "{" };
  *
  * The scan tracks comments, string literals, and `${...}` interpolations so
  * brackets that belong to strings or docs never count, including nested cases
- * like `user['name']` inside an interpolation.
+ * like `user['name']` inside an interpolation. Raw strings (`r'...'`,
+ * `R'''...'''`) are honored: their backslash escapes nothing and they never
+ * interpolate, so a raw string ending in a backslash closes at its quote
+ * instead of being misread as an escaped one (STU-148).
  * @param {string} code - Dart source
  * @returns {string|null} Precise error message, or null when balanced
  */
@@ -170,13 +185,13 @@ export function findUnbalancedBracketError(code) {
         frames.pop();
         continue;
       }
-      if (ch === "\\") {
+      if (!frame.raw && ch === "\\") {
         // An escaped newline is a line continuation - keep the line count true.
         if (src[i + 1] === "\n") line++;
         i += 2;
         continue;
       }
-      if (ch === "$" && src[i + 1] === "{") {
+      if (!frame.raw && ch === "$" && src[i + 1] === "{") {
         frames.push({ kind: "code", opener: null, interpolation: true });
         i += 2;
         continue;
@@ -208,7 +223,13 @@ export function findUnbalancedBracketError(code) {
     }
     if (ch === "'" || ch === '"') {
       const triple = src.slice(i, i + 3) === ch.repeat(3);
-      frames.push({ kind: "string", quote: ch, triple });
+      // r'...' / R'''...''' are raw strings: the r must not be the tail of a
+      // longer identifier, or `var bar'` style code would misclassify.
+      const prev = i > 0 ? src[i - 1] : "";
+      const beforePrev = i > 1 ? src[i - 2] : "";
+      const raw =
+        (prev === "r" || prev === "R") && !IDENTIFIER_TAIL.test(beforePrev);
+      frames.push({ kind: "string", quote: ch, triple, raw });
       i += triple ? 3 : 1;
       continue;
     }
