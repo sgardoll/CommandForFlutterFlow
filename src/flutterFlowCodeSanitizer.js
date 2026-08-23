@@ -165,12 +165,21 @@ const IDENTIFIER_TAIL = /[A-Za-z0-9_$]/;
  *
  * The scan tracks comments, string literals, and `${...}` interpolations so
  * brackets that belong to strings or docs never count, including nested cases
- * like `user['name']` inside an interpolation. Raw strings (`r'...'`,
- * `R'''...'''`) are honored: their backslash escapes nothing and they never
- * interpolate, so a raw string ending in a backslash closes at its quote
- * instead of being misread as an escaped one (STU-148). Tokens still open at
- * end of input have their span closed there, so consumers always see the full
- * extent of unterminated strings/comments even though the scan flags them.
+ * like `user['name']` inside an interpolation. Block comments nest the way
+ * Dart defines them: every inner comment opener raises the depth and only
+ * enough closers bring the span back to zero, so a lone inner closer cannot
+ * terminate the comment early (STU-147). Raw strings (`r'...'`, `R'''...'''`) are
+ * honored: their backslash escapes nothing and they never interpolate, so a
+ * raw string ending in a backslash closes at its quote instead of being
+ * misread as an escaped one (STU-148).
+ *
+ * Unterminated tokens never pass silently: a string frame still open at EOF,
+ * or an ordinary string broken by a bare newline (illegal in Dart), is
+ * reported through `error` with its opening line - triple-quoted strings stay
+ * legal while open mid-source but error if never closed by EOF (STU-148).
+ * Tokens still open at end of input have their span closed there, so
+ * consumers always see the full extent of unterminated strings/comments even
+ * though the scan flags them.
  * @param {string} src - Dart source (any text; never throws)
  * @returns {{error: string|null, commentAndStringRanges: Array<{start: number, end: number}>}}
  */
@@ -181,6 +190,11 @@ function scanDartSource(src) {
   const commentAndStringRanges = [];
   let line = 1;
   let i = 0;
+
+  // First problem found that does not halt the scan (an unterminated ordinary
+  // string broken by a newline). The scan keeps walking so ranges and later
+  // bracket attribution stay correct, but this error still blocks the gate.
+  let firstError = null;
 
   // Unterminated tokens still occupy source: close their spans at end of
   // input so consumers always see the full extent of any string/comment still
@@ -210,9 +224,19 @@ function scanDartSource(src) {
     }
 
     if (frame.kind === "block-comment") {
+      // Dart block comments nest: each inner /* raises the depth, and the
+      // comment only ends once enough */ closers bring it back to zero. A
+      // lone inner closer must not end the span - everything up to the real
+      // close stays protected content.
       if (ch === "*" && src[i + 1] === "/") {
-        commentAndStringRanges.push({ start: frame.startIndex, end: i + 2 });
-        frames.pop();
+        frame.depth--;
+        if (frame.depth === 0) {
+          commentAndStringRanges.push({ start: frame.startIndex, end: i + 2 });
+          frames.pop();
+        }
+        i += 2;
+      } else if (ch === "/" && src[i + 1] === "*") {
+        frame.depth++;
         i += 2;
       } else {
         if (ch === "\n") line++;
@@ -222,10 +246,14 @@ function scanDartSource(src) {
     }
 
     if (frame.kind === "string") {
-      // A lone newline cannot appear inside a non-triple Dart string; treat
-      // the rest of the line as ended rather than swallowing the whole file.
+      // A bare newline cannot appear inside a non-triple Dart string: this
+      // string is unterminated. End its span at the newline so later lines
+      // still scan (and fence recognition still sees them) but surface the
+      // break - silently healing used to let malformed source pass the
+      // pre-commit gate and fail opaquely inside FlutterFlow (STU-148).
       if (!frame.triple && ch === "\n") {
         commentAndStringRanges.push({ start: frame.startIndex, end: i });
+        firstError ??= `line ${line}: string starting on line ${frame.openedLine} is never closed`;
         frames.pop();
         continue;
       }
@@ -265,7 +293,7 @@ function scanDartSource(src) {
       continue;
     }
     if (ch === "/" && src[i + 1] === "*") {
-      frames.push({ kind: "block-comment", startIndex: i });
+      frames.push({ kind: "block-comment", startIndex: i, openedLine: line, depth: 1 });
       i += 2;
       continue;
     }
@@ -277,7 +305,7 @@ function scanDartSource(src) {
       const beforePrev = i > 1 ? src[i - 2] : "";
       const raw =
         (prev === "r" || prev === "R") && !IDENTIFIER_TAIL.test(beforePrev);
-      frames.push({ kind: "string", quote: ch, triple, raw, startIndex: i });
+      frames.push({ kind: "string", quote: ch, triple, raw, startIndex: i, openedLine: line });
       i += triple ? 3 : 1;
       continue;
     }
@@ -300,7 +328,8 @@ function scanDartSource(src) {
       if (frame.opener) {
         closeOpenTokenSpans();
         return {
-          error: `line ${line}: "${ch}" closes nothing - "${frame.opener}" opened on line ${frame.openedLine} is still open`,
+          error: firstError
+            ?? `line ${line}: "${ch}" closes nothing - "${frame.opener}" opened on line ${frame.openedLine} is still open`,
           commentAndStringRanges,
         };
       }
@@ -308,7 +337,7 @@ function scanDartSource(src) {
       // frame: whatever it closes would have to sit above it in the stack.
       closeOpenTokenSpans();
       return {
-        error: `line ${line}: unexpected "${ch}" with no matching opener`,
+        error: firstError ?? `line ${line}: unexpected "${ch}" with no matching opener`,
         commentAndStringRanges,
       };
     }
@@ -318,21 +347,23 @@ function scanDartSource(src) {
 
   closeOpenTokenSpans();
 
-  const remaining = frames[frames.length - 1];
-  let error = null;
-  if (!(remaining.kind === "code" && !remaining.opener && !remaining.interpolation)) {
-    if (remaining.kind === "string") {
-      error = `unclosed ${remaining.triple ? "triple-quoted " : ""}string starting on line ${line} was never closed`;
-    } else if (remaining.kind === "block-comment") {
-      error = "unterminated /* comment";
-    } else if (remaining.kind === "line-comment") {
-      error = null; // Ends at end-of-input by definition.
-    } else if (remaining.interpolation) {
-      const openerFrame = frames.findLast((f) => f.opener);
-      const where = openerFrame ? ` opened on line ${openerFrame.openedLine}` : "";
-      error = `unclosed "\${" expression${where} was never closed`;
-    } else {
-      error = `"${remaining.opener}" opened on line ${remaining.openedLine} is never closed`;
+  let error = firstError;
+  if (!error) {
+    const remaining = frames[frames.length - 1];
+    if (!(remaining.kind === "code" && !remaining.opener && !remaining.interpolation)) {
+      if (remaining.kind === "string") {
+        error = `unclosed ${remaining.triple ? "triple-quoted " : ""}string starting on line ${remaining.openedLine} was never closed`;
+      } else if (remaining.kind === "block-comment") {
+        error = `unterminated /* comment starting on line ${remaining.openedLine}`;
+      } else if (remaining.kind === "line-comment") {
+        error = null; // Ends at end-of-input by definition.
+      } else if (remaining.interpolation) {
+        const openerFrame = frames.findLast((f) => f.opener);
+        const where = openerFrame ? ` opened on line ${openerFrame.openedLine}` : "";
+        error = `unclosed "\${" expression${where} was never closed`;
+      } else {
+        error = `"${remaining.opener}" opened on line ${remaining.openedLine} is never closed`;
+      }
     }
   }
 

@@ -214,13 +214,79 @@ test("findUnbalancedBracketError reports an unterminated triple-quoted string", 
   assert.match(error, /unclosed triple-quoted string/);
 });
 
-test("findUnbalancedBracketError lets a runaway quote self-heal at end of line", () => {
-  // A stray single quote cannot legally span lines in Dart; swallowing the
-  // rest of the file would misattribute every later bracket, so the scan ends
-  // the string at the newline instead of reporting it.
-  const code = "final x = 'oops;\nvoid main() {}";
+test("STU-148: a runaway quote fails the gate instead of self-healing", () => {
+  // A single-quoted string can never legally span lines. The scan still ends
+  // the string at the newline so later brackets attribute correctly, but it
+  // must surface the break through the gate - silently healing let malformed
+  // source reach FlutterFlow and fail with an opaque formatter rejection.
+  const error = findUnbalancedBracketError("final x = 'oops;\nvoid main() {}");
+
+  assert.match(error, /line 1: string starting on line 1 is never closed/);
+});
+
+test("STU-148: unterminated ordinary string followed by balanced code errors naming its line", () => {
+  // The Greptile P1 scenario: "abc on one line, healthy code after - the
+  // balanced remainder used to hide the broken string from the gate.
+  const code = [
+    "class Broken extends StatelessWidget {",
+    '  final label = "abc',
+    "  void f() {}",
+    "}",
+  ].join("\n");
+
+  const error = findUnbalancedBracketError(code);
+  assert.match(error, /string starting on line 2 is never closed/);
+});
+
+test("STU-148: multi-line triple-quoted strings stay legal while open", () => {
+  const code = [
+    "final doc = '''",
+    "line one with ``` fences and { brackets [",
+    "line two keeps going",
+    "''';",
+    "void main() {}",
+  ].join("\n");
 
   assert.equal(findUnbalancedBracketError(code), null);
+});
+
+test("STU-148: an unterminated triple-quoted string names its opening line", () => {
+  // The old message reported the live line counter at EOF instead of where
+  // the string actually opened.
+  const code = "var s = 'fine';\n\nvar t = '''\nnever closed";
+  const error = findUnbalancedBracketError(code);
+
+  assert.match(error, /unclosed triple-quoted string starting on line 3 was never closed/);
+});
+
+test("STU-147: nested block comments stay protected until the real close", () => {
+  // Dart nests block comments: the inner */ must not terminate the outer
+  // comment, or every later line-leading ``` inside the still-open region is
+  // misread as a markdown fence and the source gets dropped/rearranged.
+  const nestedCommentDart = [
+    "/* outer doc /* inner ``` example */",
+    "still-open outer comment",
+    "```dart",
+    "FenceDoc()",
+    "```",
+    "*/",
+    "class NestedCommentDoc extends StatelessWidget {}",
+  ].join("\n");
+
+  // Byte-for-byte survival: no real fences exist, nothing may be stripped.
+  assert.equal(sanitizeGeneratedDart(nestedCommentDart), nestedCommentDart);
+  assert.equal(findUnbalancedBracketError(nestedCommentDart), null);
+
+  // Protection holds until the true close: once the outer comment really
+  // ends, surrounding markdown fences pair up normally around intact content.
+  const raw = ["```dart", nestedCommentDart, "```", "Hope that helps!"].join("\n");
+  assert.equal(sanitizeGeneratedDart(raw), nestedCommentDart);
+});
+
+test("STU-147: an unterminated nested block comment reports its opening line", () => {
+  const error = findUnbalancedBracketError("void f() {}\n/* a /* b\nstill open");
+
+  assert.match(error, /unterminated \/\* comment starting on line 2/);
 });
 
 test("findUnbalancedBracketError handles nested interpolation strings", () => {
