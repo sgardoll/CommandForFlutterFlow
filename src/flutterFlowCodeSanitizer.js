@@ -31,6 +31,12 @@ function trimBlankEdgeLines(lines) {
  * wrap), whichever side holds more content is kept. Blank edge lines are
  * trimmed so the header application in prepareCodeForCommit starts from clean
  * source.
+ *
+ * A ``` marker only delimits markdown when it sits in plain code position.
+ * Lines starting with ``` inside triple-quoted strings or block comments are
+ * literal Dart content (doc examples, release notes) and must survive
+ * untouched, so fence recognition consults the scanner's comment/string spans
+ * before pairing (STU-147).
  * @param {string} rawCode - Raw generated response text
  * @returns {string} Dart-only source, empty when the input has no content
  */
@@ -39,9 +45,18 @@ export function sanitizeGeneratedDart(rawCode) {
   if (!code.trim()) return "";
 
   const lines = code.split("\n");
+  const { commentAndStringRanges } = scanDartSource(code);
   const fenceIndexes = [];
+  let lineStartOffset = 0;
   for (let index = 0; index < lines.length; index++) {
-    if (FENCE_LINE_PATTERN.test(lines[index])) fenceIndexes.push(index);
+    const lineText = lines[index];
+    if (FENCE_LINE_PATTERN.test(lineText)) {
+      const markerOffset = lineStartOffset + lineText.match(/^\s*/)[0].length;
+      if (!offsetIsInsideCommentOrString(markerOffset, commentAndStringRanges)) {
+        fenceIndexes.push(index);
+      }
+    }
+    lineStartOffset += lineText.length + 1;
   }
 
   // No fences: still trim blank edges (prose-free but often padded).
@@ -135,40 +150,68 @@ const CLOSERS = { ")": "(", "]": "[", "}": "{" };
 const IDENTIFIER_TAIL = /[A-Za-z0-9_$]/;
 
 /**
- * Reports the first bracket-balance problem in Dart source, or null when the
- * brackets balance. This is what FlutterFlow's formatter actually fails on -
- * "Custom widget code is not formattable" - so catching it client-side turns a
- * cryptic post-push rejection into an actionable pre-commit error.
+ * Single lexical pass over Dart source using a frame stack that models
+ * nesting: top-level code, bracketed regions, comments, strings, and string
+ * interpolations. It produces two things from one walk:
+ *
+ * - `error`: the first bracket-balance problem, or null when brackets balance.
+ *   This is what FlutterFlow's formatter actually fails on - "Custom widget
+ *   code is not formattable" - so catching it client-side turns a cryptic
+ *   post-push rejection into an actionable pre-commit error.
+ * - `commentAndStringRanges`: character spans occupied by comments and string
+ *   literals (delimiters included). Consumers use these to tell literal Dart
+ *   content apart from structural code - e.g. a ``` marker inside a doc string
+ *   is content, not a markdown fence (STU-147).
  *
  * The scan tracks comments, string literals, and `${...}` interpolations so
  * brackets that belong to strings or docs never count, including nested cases
  * like `user['name']` inside an interpolation. Raw strings (`r'...'`,
  * `R'''...'''`) are honored: their backslash escapes nothing and they never
  * interpolate, so a raw string ending in a backslash closes at its quote
- * instead of being misread as an escaped one (STU-148).
- * @param {string} code - Dart source
- * @returns {string|null} Precise error message, or null when balanced
+ * instead of being misread as an escaped one (STU-148). Tokens still open at
+ * end of input have their span closed there, so consumers always see the full
+ * extent of unterminated strings/comments even though the scan flags them.
+ * @param {string} src - Dart source (any text; never throws)
+ * @returns {{error: string|null, commentAndStringRanges: Array<{start: number, end: number}>}}
  */
-export function findUnbalancedBracketError(code) {
-  const src = String(code ?? "");
+function scanDartSource(src) {
   // Frames model nesting: top-level code, bracketed regions, comments,
   // strings, and string interpolations. Every frame knows what ends it.
   const frames = [{ kind: "code", opener: null, openedLine: 0 }];
+  const commentAndStringRanges = [];
   let line = 1;
   let i = 0;
+
+  // Unterminated tokens still occupy source: close their spans at end of
+  // input so consumers always see the full extent of any string/comment still
+  // open when the scan stops - on an error or at EOF alike.
+  const closeOpenTokenSpans = () => {
+    for (const frame of frames) {
+      if (
+        frame.kind === "string"
+        || frame.kind === "block-comment"
+        || frame.kind === "line-comment"
+      ) {
+        commentAndStringRanges.push({ start: frame.startIndex, end: src.length });
+      }
+    }
+  };
 
   while (i < src.length) {
     const ch = src[i];
     const frame = frames[frames.length - 1];
 
     if (frame.kind === "line-comment") {
-      if (ch === "\n") frames.pop();
-      else i++;
+      if (ch === "\n") {
+        commentAndStringRanges.push({ start: frame.startIndex, end: i });
+        frames.pop();
+      } else i++;
       continue;
     }
 
     if (frame.kind === "block-comment") {
       if (ch === "*" && src[i + 1] === "/") {
+        commentAndStringRanges.push({ start: frame.startIndex, end: i + 2 });
         frames.pop();
         i += 2;
       } else {
@@ -182,6 +225,7 @@ export function findUnbalancedBracketError(code) {
       // A lone newline cannot appear inside a non-triple Dart string; treat
       // the rest of the line as ended rather than swallowing the whole file.
       if (!frame.triple && ch === "\n") {
+        commentAndStringRanges.push({ start: frame.startIndex, end: i });
         frames.pop();
         continue;
       }
@@ -201,6 +245,10 @@ export function findUnbalancedBracketError(code) {
         ch === frame.quote
         && src.slice(i, i + closerLength) === frame.quote.repeat(closerLength)
       ) {
+        commentAndStringRanges.push({
+          start: frame.startIndex,
+          end: i + closerLength,
+        });
         frames.pop();
         i += closerLength;
         continue;
@@ -212,12 +260,12 @@ export function findUnbalancedBracketError(code) {
 
     // --- code frame ---
     if (ch === "/" && src[i + 1] === "/") {
-      frames.push({ kind: "line-comment" });
+      frames.push({ kind: "line-comment", startIndex: i });
       i += 2;
       continue;
     }
     if (ch === "/" && src[i + 1] === "*") {
-      frames.push({ kind: "block-comment" });
+      frames.push({ kind: "block-comment", startIndex: i });
       i += 2;
       continue;
     }
@@ -229,7 +277,7 @@ export function findUnbalancedBracketError(code) {
       const beforePrev = i > 1 ? src[i - 2] : "";
       const raw =
         (prev === "r" || prev === "R") && !IDENTIFIER_TAIL.test(beforePrev);
-      frames.push({ kind: "string", quote: ch, triple, raw });
+      frames.push({ kind: "string", quote: ch, triple, raw, startIndex: i });
       i += triple ? 3 : 1;
       continue;
     }
@@ -250,33 +298,63 @@ export function findUnbalancedBracketError(code) {
         continue;
       }
       if (frame.opener) {
-        return `line ${line}: "${ch}" closes nothing - "${frame.opener}" opened on line ${frame.openedLine} is still open`;
+        closeOpenTokenSpans();
+        return {
+          error: `line ${line}: "${ch}" closes nothing - "${frame.opener}" opened on line ${frame.openedLine} is still open`,
+          commentAndStringRanges,
+        };
       }
       // A closer can never legitimately reach an interpolation or top-level
       // frame: whatever it closes would have to sit above it in the stack.
-      return `line ${line}: unexpected "${ch}" with no matching opener`;
+      closeOpenTokenSpans();
+      return {
+        error: `line ${line}: unexpected "${ch}" with no matching opener`,
+        commentAndStringRanges,
+      };
     }
     if (ch === "\n") line++;
     i++;
   }
 
+  closeOpenTokenSpans();
+
   const remaining = frames[frames.length - 1];
-  if (remaining.kind === "code" && !remaining.opener && !remaining.interpolation) {
-    return null;
+  let error = null;
+  if (!(remaining.kind === "code" && !remaining.opener && !remaining.interpolation)) {
+    if (remaining.kind === "string") {
+      error = `unclosed ${remaining.triple ? "triple-quoted " : ""}string starting on line ${line} was never closed`;
+    } else if (remaining.kind === "block-comment") {
+      error = "unterminated /* comment";
+    } else if (remaining.kind === "line-comment") {
+      error = null; // Ends at end-of-input by definition.
+    } else if (remaining.interpolation) {
+      const openerFrame = frames.findLast((f) => f.opener);
+      const where = openerFrame ? ` opened on line ${openerFrame.openedLine}` : "";
+      error = `unclosed "\${" expression${where} was never closed`;
+    } else {
+      error = `"${remaining.opener}" opened on line ${remaining.openedLine} is never closed`;
+    }
   }
-  if (remaining.kind === "string") {
-    return `unclosed ${remaining.triple ? "triple-quoted " : ""}string starting on line ${line} was never closed`;
-  }
-  if (remaining.kind === "block-comment") {
-    return "unterminated /* comment";
-  }
-  if (remaining.kind === "line-comment") {
-    return null; // Ends at end-of-input by definition.
-  }
-  if (remaining.interpolation) {
-    const openerFrame = frames.findLast((f) => f.opener);
-    const where = openerFrame ? ` opened on line ${openerFrame.openedLine}` : "";
-    return `unclosed "\${" expression${where} was never closed`;
-  }
-  return `"${remaining.opener}" opened on line ${remaining.openedLine} is never closed`;
+
+  return { error, commentAndStringRanges };
+}
+
+/**
+ * Reports the first bracket-balance problem in Dart source, or null when the
+ * brackets balance. See scanDartSource for the lexical rules.
+ * @param {string} code - Dart source
+ * @returns {string|null} Precise error message, or null when balanced
+ */
+export function findUnbalancedBracketError(code) {
+  return scanDartSource(String(code ?? "")).error;
+}
+
+/**
+ * Whether a character offset falls inside any recorded comment or string span.
+ * @param {number} offset - Character offset into the scanned source
+ * @param {Array<{start: number, end: number}>} ranges - Comment/string spans
+ * @returns {boolean} True when the offset lies inside a span
+ */
+function offsetIsInsideCommentOrString(offset, ranges) {
+  return ranges.some(({ start, end }) => offset >= start && offset < end);
 }

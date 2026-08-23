@@ -61,6 +61,48 @@ test("sanitizeGeneratedDart drops prose between multi-block responses", () => {
   assert.match(result, /class B extends/);
 });
 
+test("STU-147: fences inside triple-quoted strings survive as literal content", () => {
+  // A doc string whose example shows markdown fences must not be mistaken for
+  // real delimiters: pairing those lines used to slice valid Dart apart.
+  const dartWithFenceDoc = [
+    "class FenceDoc extends StatelessWidget {",
+    "  static const usage = '''",
+    "```dart",
+    "FenceDoc()",
+    "```",
+    "''';",
+    "}",
+  ].join("\n");
+  const raw = [
+    "Here is your widget:",
+    "",
+    "```dart",
+    dartWithFenceDoc,
+    "```",
+  ].join("\n");
+
+  assert.equal(sanitizeGeneratedDart(raw), dartWithFenceDoc);
+});
+
+test("STU-147: fences inside block comments survive as literal content", () => {
+  const dartWithCommentedFences = [
+    "/* Generated snippet notes:",
+    "```json",
+    '{"name": "demo"}',
+    "```",
+    "*/",
+    "class Demo extends StatelessWidget {}",
+  ].join("\n");
+  const raw = [
+    "```dart",
+    dartWithCommentedFences,
+    "```",
+    "Hope that helps!",
+  ].join("\n");
+
+  assert.equal(sanitizeGeneratedDart(raw), dartWithCommentedFences);
+});
+
 test("sanitizeGeneratedDart drops content after an unclosed trailing fence", () => {
   // A response cut off mid-block cannot be valid Dart; committing its tail
   // would only move the failure to FlutterFlow's formatter.
