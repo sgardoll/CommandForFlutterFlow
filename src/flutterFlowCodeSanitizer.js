@@ -5,7 +5,6 @@ import { identifierToFlutterFlowFileStem } from "./flutterFlowArtifactValidation
 // or with prose before/after the Dart. FlutterFlow's push-time formatter
 // rejects any of that with "Custom widget code is not formattable", so it must
 // be stripped before the code is validated or committed.
-const FENCE_LINE_PATTERN = /^\s*```/;
 const BOM_PATTERN = /^\uFEFF/;
 
 function trimBlankEdgeLines(lines) {
@@ -21,22 +20,24 @@ function trimBlankEdgeLines(lines) {
 /**
  * Removes markdown artifacts and surrounding junk from generated Dart.
  *
- * Fence lines are paired sequentially - the first opens a block, the second
- * closes it, and so on - and only content inside completed pairs is kept. That
- * drops prose wrapped around the response AND prose sitting between multiple
- * fenced blocks, either of which left in the file guarantees FlutterFlow
- * rejects the push as unformattable (STU-148). Content after an unclosed
- * trailing fence is a truncated response and is dropped: committing cut-off
- * Dart fails formatting anyway. With exactly one fence line (a truncated
- * wrap), whichever side holds more content is kept. Blank edge lines are
- * trimmed so the header application in prepareCodeForCommit starts from clean
- * source.
+ * Fence recognition is phase-separated. Phase one is purely structural: a
+ * fence marker is a line containing nothing but three-or-more backticks and
+ * an optional info-string tag. Everything before the first accepted opening
+ * marker and after the last accepted closing marker is markdown prose by
+ * definition and is NEVER scanned as Dart, so stray tokens in prose (an
+ * unmatched `/*`, a stray quote) cannot poison recognition and hide later
+ * code blocks (STU-148). Phase two applies Dart awareness only INSIDE a
+ * fenced block: a candidate closer is accepted only when the scanner proves
+ * the marker sits outside every comment/string span of the accumulated
+ * block content, so literal ``` lines inside triple-quoted strings or
+ * (nested) block comments survive byte-for-byte (STU-147).
  *
- * A ``` marker only delimits markdown when it sits in plain code position.
- * Lines starting with ``` inside triple-quoted strings or block comments are
- * literal Dart content (doc examples, release notes) and must survive
- * untouched, so fence recognition consults the scanner's comment/string spans
- * before pairing (STU-147).
+ * Completed pairs are kept and joined; inter-block prose is dropped. An
+ * open block at end of input is a truncated response and is dropped:
+ * committing cut-off Dart fails formatting anyway. With exactly one fence
+ * line (a truncated wrap), whichever side holds more content is kept.
+ * Blank edge lines are trimmed so header application downstream starts
+ * from clean source.
  * @param {string} rawCode - Raw generated response text
  * @returns {string} Dart-only source, empty when the input has no content
  */
@@ -45,41 +46,97 @@ export function sanitizeGeneratedDart(rawCode) {
   if (!code.trim()) return "";
 
   const lines = code.split("\n");
-  const { commentAndStringRanges } = scanDartSource(code);
-  const fenceIndexes = [];
-  let lineStartOffset = 0;
-  for (let index = 0; index < lines.length; index++) {
-    const lineText = lines[index];
-    if (FENCE_LINE_PATTERN.test(lineText)) {
-      const markerOffset = lineStartOffset + lineText.match(/^\s*/)[0].length;
-      if (!offsetIsInsideCommentOrString(markerOffset, commentAndStringRanges)) {
-        fenceIndexes.push(index);
+
+  // Structural candidates only: the trimmed line must be a bare fence
+  // marker with an optional language tag - nothing else on the line.
+  const fenceIndent = (line) => {
+    const trimmed = line.trim();
+    return /^`{3,}[A-Za-z0-9+#_.-]*$/.test(trimmed)
+      ? line.length - line.trimStart().length
+      : -1;
+  };
+
+  let candidates = 0;
+  let firstCandidate = -1;
+  const candidateOffsets = [];
+  {
+    let lineStartOffset = 0;
+    for (let index = 0; index < lines.length; index++) {
+      const indent = fenceIndent(lines[index]);
+      if (indent >= 0) {
+        candidates++;
+        if (firstCandidate < 0) firstCandidate = index;
+        candidateOffsets.push(lineStartOffset + indent);
       }
+      lineStartOffset += lines[index].length + 1;
     }
-    lineStartOffset += lineText.length + 1;
   }
 
-  // No fences: still trim blank edges (prose-free but often padded).
-  if (fenceIndexes.length === 0) return trimBlankEdgeLines(lines);
+  // No fences: the response is a plain Dart file (possibly padded).
+  if (candidates === 0) return trimBlankEdgeLines(lines);
+
+  // Plain-Dart interpretation: when the full source scans without a single
+  // lexical problem AND every candidate marker sits inside a comment/string
+  // span, none of them is a markdown delimiter - the input is a fence-less
+  // Dart file whose doc examples happen to contain backtick lines. Return it
+  // untouched instead of pairing literals as fences (STU-147). The
+  // error-free requirement keeps prose tokens like a stray `/*` - which
+  // would swallow every later marker into one phantom comment span - from
+  // spoofing this branch; genuinely broken responses fall through to
+  // markdown extraction.
+  {
+    const wholeScan = scanDartSource(code);
+    const allLiteral =
+      !wholeScan.error &&
+      candidateOffsets.every((offset) =>
+        offsetIsInsideCommentOrString(offset, wholeScan.commentAndStringRanges)
+      );
+    if (allLiteral) return trimBlankEdgeLines(lines);
+  }
 
   // Exactly one fence line means a truncated or partial wrap; keep the side
   // that actually carries code instead of emitting an empty or doubled file.
-  if (fenceIndexes.length === 1) {
-    const [only] = fenceIndexes;
-    const before = trimBlankEdgeLines(lines.slice(0, only));
-    const after = trimBlankEdgeLines(lines.slice(only + 1));
+  if (candidates === 1) {
+    const before = trimBlankEdgeLines(lines.slice(0, firstCandidate));
+    const after = trimBlankEdgeLines(lines.slice(firstCandidate + 1));
     return after.length >= before.length ? after : before;
   }
 
-  // Two or more fence lines: keep only what sits inside completed pairs.
   const segments = [];
-  for (let index = 0; index + 1 < fenceIndexes.length; index += 2) {
-    const open = fenceIndexes[index];
-    const close = fenceIndexes[index + 1];
-    if (close > open + 1) {
-      segments.push(trimBlankEdgeLines(lines.slice(open + 1, close)));
+  let block = null; // accumulated lines of the currently-open fenced block
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index];
+    const indent = fenceIndent(line);
+
+    if (indent < 0) {
+      if (block) block.push(line);
+      continue;
     }
+
+    if (block === null) {
+      // Opening fence: acceptance is structural - preceding prose is never
+      // consulted, so tokens in prose cannot suppress this block.
+      block = [];
+      continue;
+    }
+
+    // Candidate closer inside an open block: accept only when the marker
+    // sits outside every comment/string span of the block content itself.
+    // The candidate line is part of the scanned text so an open triple-quoted
+    // string (whose span runs to end-of-scan) covers the marker position.
+    const content = block.join("\n");
+    const scanText = `${content}\n${line}`;
+    const { commentAndStringRanges } = scanDartSource(scanText);
+    const markerOffset = content.length + 1 + indent;
+    if (offsetIsInsideCommentOrString(markerOffset, commentAndStringRanges)) {
+      block.push(line); // literal ``` inside the block's own strings/comments
+      continue;
+    }
+    segments.push(trimBlankEdgeLines(block));
+    block = null; // closing fence accepted; following prose is dropped
   }
+  // A block still open at EOF is a truncated response: drop it, along with
+  // all leading/trailing prose outside completed pairs.
 
   const kept = segments.filter((segment) => segment.length > 0);
   if (kept.length === 0) return "";
@@ -147,7 +204,12 @@ export function expectedWidgetClassFromFileName(fileName) {
 
 const OPENERS = { "(": ")", "[": "]", "{": "}" };
 const CLOSERS = { ")": "(", "]": "[", "}": "{" };
-const IDENTIFIER_TAIL = /[A-Za-z0-9_$]/;
+// Identifier characters that disqualify a preceding r/R from starting a raw
+// string. `$` is deliberately absent: in `${r'...'}'` the character before
+// the prefix can be `$`/`{` interpolation syntax, and treating `$` as an
+// identifier tail made valid interpolated raw strings misclassify as
+// ordinary strings whose backslash escapes the closing quote (STU-148).
+const IDENTIFIER_TAIL = /[A-Za-z0-9_]/;
 
 /**
  * Single lexical pass over Dart source using a frame stack that models

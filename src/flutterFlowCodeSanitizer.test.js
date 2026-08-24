@@ -374,3 +374,35 @@ test("STU-147 scenario: fenced response with display-name artifact resolves clea
   assert.equal(expectedWidgetClassFromFileName(fileName), declared);
   assert.equal(findUnbalancedBracketError(code), null);
 });
+
+test("STU-148: prose tokens before a later block cannot hide that block", () => {
+  // An unmatched /* in the prose used to extend a comment range to EOF when
+  // the raw response was scanned as Dart, classifying the second block's
+  // fences as comment content and silently dropping it.
+  const response = [
+    "Here is a note with a stray opener: /* not really a comment",
+    "",
+    "```dart",
+    "class First {}",
+    "```",
+    "And another note with a stray quote: \"",
+    "",
+    "```dart",
+    "class Second {}",
+    "```",
+  ].join("\n");
+  const out = sanitizeGeneratedDart(response);
+  assert.ok(out.includes("class First {}"), "first block must survive");
+  assert.ok(out.includes("class Second {}"), "second block must survive");
+  assert.ok(!out.includes("stray"), "prose must be dropped");
+});
+
+test("STU-148: dollar-prefixed raw strings inside interpolation pass the gate", () => {
+  // `${r'...'}` sequences used to make the r-prefix look like an identifier
+  // tail ($ was in IDENTIFIER_TAIL), so the backslash escaped the closing
+  // quote and the gate reported an unclosed string on valid Dart.
+  const source = `var s = '\${r'x\\'}';`;
+  assert.equal(findUnbalancedBracketError(source), null);
+  const fenced = ["```dart", source, "```"].join("\n");
+  assert.equal(sanitizeGeneratedDart(fenced).trim(), source);
+});
