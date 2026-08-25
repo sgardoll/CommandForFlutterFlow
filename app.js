@@ -4221,11 +4221,7 @@ async function resolveIdentity() {
       const currentMonth = getCurrentYearMonth()
       const serverMonth = data.usage_month || currentMonth
       const serverCount = serverMonth === currentMonth ? data.usage_count : 0
-      const local = getUsageData()
-      const localCount = local.month === currentMonth ? local.count : 0
-      if (serverCount >= localCount || serverMonth > local.month) {
-        localStorage.setItem(USAGE_STORAGE_KEY, JSON.stringify({ count: serverCount, month: currentMonth }))
-      }
+      localStorage.setItem(USAGE_STORAGE_KEY, JSON.stringify({ count: serverCount, month: currentMonth }))
       updateUsageDisplay()
     }
 
