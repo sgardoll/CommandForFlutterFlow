@@ -106,10 +106,12 @@ const PIPELINE_ENDPOINT = `${BUILDSHIP_BASE_URL}/service/runpipeline`
 // --- IDENTITY RESOLUTION ---
 const IDENTITY_COOKIE_KEY = 'bs_identity'
 const IDENTITY_SESSION_KEY = 'bs_user_id'
+const IDENTITY_TOKEN_KEY = 'bs_identity_token'
 const IDENTITY_ENDPOINT = `${BUILDSHIP_BASE_URL}/authUserCheck`
 
 let identityState = {
   userId: null,
+  token: null,
   status: null, // 'recognized' | 'new' | null
   resolved: false,
 }
@@ -3526,6 +3528,8 @@ async function runThinkingPipeline() {
 
   if (!(await canRunPipeline())) return;
 
+  await ensureIdentityReady();
+
   const effectiveModel = getEffectiveModel(selectedModel);
 
   trackEvent("Pipeline Started", { 
@@ -3624,9 +3628,6 @@ async function runThinkingPipeline() {
     hidePipelineProgress();
     const auditHtml = renderMarkdownAudit(pipelineState.step3Result);
     showResultsView(cleanStep2, auditHtml);
-
-    incrementUsage();
-    updateUsageDisplay();
   } catch (error) {
     console.error("Pipeline failed:", error);
     hidePipelineProgress();
@@ -4208,9 +4209,13 @@ async function resolveIdentity() {
 
     const data = await response.json()
     identityState.userId = data.user_id
+    identityState.token = data.identity_token || null
     identityState.status = data.status
     identityState.resolved = true
     sessionStorage.setItem(IDENTITY_SESSION_KEY, data.user_id)
+    if (identityState.token) {
+      sessionStorage.setItem(IDENTITY_TOKEN_KEY, identityState.token)
+    }
 
     if (data.usage_count !== undefined) {
       const currentMonth = getCurrentYearMonth()
@@ -4228,6 +4233,21 @@ async function resolveIdentity() {
   } catch (error) {
     console.error('resolveIdentity failed:', error)
   }
+}
+
+let identityResolvePromise = null
+
+function ensureIdentityReady(maxWaitMs = 5000) {
+  if (identityState.resolved) return Promise.resolve()
+  if (!identityResolvePromise) {
+    identityResolvePromise = resolveIdentity().catch((err) => {
+      console.warn('ensureIdentityReady: identity resolution failed', err)
+    })
+  }
+  return Promise.race([
+    identityResolvePromise,
+    new Promise((resolve) => setTimeout(resolve, maxWaitMs)),
+  ])
 }
 
 // --- USAGE METERING ---
@@ -4664,7 +4684,10 @@ async function callBuildShip(step, model, prompt, context = {}, images = []) {
   try {
     const res = await fetch(PIPELINE_ENDPOINT, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(identityState.token ? { Authorization: `Bearer ${identityState.token}` } : {}),
+      },
       signal: controller.signal,
       body: JSON.stringify({
         user_id: identityState.userId,
@@ -4703,6 +4726,20 @@ async function callBuildShip(step, model, prompt, context = {}, images = []) {
     console.log(`[BuildShip] ${step} response keys:`, Object.keys(data), 'content type:', typeof data.content)
     if (!res.ok) {
       throw new Error(`${data.message || data.error || 'BuildShip pipeline error'} (HTTP ${res.status})`)
+    }
+
+    if (step === 'generator') {
+      if (data.usage_status === 'success' && Number.isFinite(data.usage_count)) {
+        const cm = getCurrentYearMonth()
+        const sm = data.usage_month || cm
+        if (sm === cm) {
+          localStorage.setItem(USAGE_STORAGE_KEY, JSON.stringify({ count: data.usage_count, month: cm }))
+          updateUsageDisplay()
+        }
+      } else {
+        incrementUsage()
+        updateUsageDisplay()
+      }
     }
 
     let output = data.output || data.content
